@@ -325,14 +325,14 @@
       <button onclick={() => rightTab = 'inbox'}
               class="flex-1 py-2.5 text-xs font-medium transition-colors
                      {rightTab === 'inbox'
-                       ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                       ? 'border-b-2 border-[var(--a500)] text-[var(--a600)] dark:text-[var(--a400)]'
                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
-        Inbox
+        Mail
       </button>
       <button onclick={() => rightTab = 'upcoming'}
               class="flex-1 py-2.5 text-xs font-medium transition-colors
                      {rightTab === 'upcoming'
-                       ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                       ? 'border-b-2 border-[var(--a500)] text-[var(--a600)] dark:text-[var(--a400)]'
                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
         Schedule
       </button>

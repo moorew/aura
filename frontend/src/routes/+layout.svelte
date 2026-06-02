@@ -83,7 +83,7 @@
       {@render navItem(`/day/${todayDate}`, 'Today', LayoutDashboard)}
       {@render navItem(`/week/${thisWeek}`, 'This Week', Calendar)}
       {@render navItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
-      {@render navItem('/email', 'Inbox', Inbox)}
+      {@render navItem('/email', 'Email', Inbox)}
       {@render navItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
 
       <!-- Pomodoro in-progress -->
