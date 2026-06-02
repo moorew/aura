@@ -14,12 +14,14 @@
   }>({ connected: false });
 
   // Fastmail connect form
+  let fmEmail = $state('');
   let fmPassword = $state('');
   let fmSaving = $state(false);
   let fmError = $state('');
   let fmShowForm = $state(false);
 
   // Email inbox connect form
+  let tiEmail = $state('');
   let tiPassword = $state('');
   let tiAddress = $state('tasks@sempa.ca');
   let tiSaving = $state(false);
@@ -56,22 +58,22 @@
   }
 
   async function connectFastmail() {
-    if (!fmPassword.trim()) return;
+    if (!fmEmail.trim() || !fmPassword.trim()) return;
     fmSaving = true; fmError = '';
     try {
-      await api.integrations.fastmail.save(fmPassword.trim());
+      await api.integrations.fastmail.save(fmEmail.trim(), fmPassword.trim());
       fastmail = await api.integrations.fastmail.get();
-      fmShowForm = false; fmPassword = '';
+      fmShowForm = false; fmEmail = ''; fmPassword = '';
     } catch (e) { fmError = (e as Error).message; }
     finally { fmSaving = false; }
   }
 
   async function connectTaskInbox() {
-    if (!tiPassword.trim() || !tiAddress.trim()) return;
+    if (!tiEmail.trim() || !tiPassword.trim() || !tiAddress.trim()) return;
     tiSaving = true; tiError = '';
     try {
-      taskInbox = await api.integrations.taskInbox.save(tiPassword.trim(), tiAddress.trim());
-      tiShowForm = false; tiPassword = '';
+      taskInbox = await api.integrations.taskInbox.save(tiEmail.trim(), tiPassword.trim(), tiAddress.trim());
+      tiShowForm = false; tiEmail = ''; tiPassword = '';
     } catch (e) { tiError = (e as Error).message; }
     finally { tiSaving = false; }
   }
@@ -238,6 +240,13 @@
         {:else}
           <div class="space-y-3">
             <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="ti-email">Fastmail email</label>
+              <input id="ti-email" type="email" bind:value={tiEmail} placeholder="you@fastmail.com"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none
+                            focus:border-violet-500 focus:ring-2 focus:ring-violet-100
+                            dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+            </div>
+            <div>
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="ti-pass">App password</label>
               <input id="ti-pass" type="password" bind:value={tiPassword}
                      placeholder="Generate at Fastmail → Settings → Privacy & Security"
@@ -258,7 +267,7 @@
             </div>
             {#if tiError}<p class="text-sm text-red-600 dark:text-red-400">{tiError}</p>{/if}
             <div class="flex gap-2">
-              <button onclick={connectTaskInbox} disabled={tiSaving || !tiPassword || !tiAddress}
+              <button onclick={connectTaskInbox} disabled={tiSaving || !tiEmail || !tiPassword || !tiAddress}
                       class="rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white
                              hover:bg-violet-600 disabled:opacity-40">
                 {tiSaving ? 'Connecting…' : 'Connect'}
@@ -417,6 +426,13 @@
         {:else}
           <div class="space-y-3">
             <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="fm-email">Email</label>
+              <input id="fm-email" type="email" bind:value={fmEmail} placeholder="you@fastmail.com"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none
+                            focus:border-blue-500 focus:ring-2 focus:ring-blue-100
+                            dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+            </div>
+            <div>
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="fm-pass">App Password</label>
               <input id="fm-pass" type="password" bind:value={fmPassword}
                      placeholder="Generate at fastmail.com → Settings → Security"
@@ -429,7 +445,7 @@
             </div>
             {#if fmError}<p class="text-sm text-red-600 dark:text-red-400">{fmError}</p>{/if}
             <div class="flex gap-2">
-              <button onclick={connectFastmail} disabled={fmSaving || !fmPassword}
+              <button onclick={connectFastmail} disabled={fmSaving || !fmEmail || !fmPassword}
                       class="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white
                              hover:bg-blue-600 disabled:opacity-40">
                 {fmSaving ? 'Connecting…' : 'Connect'}

@@ -126,8 +126,8 @@ export const api = {
 
     fastmail: {
       get: () => req<{ connected: boolean; email?: string; last_synced_at?: string }>('/api/v1/integrations/fastmail'),
-      save: (app_password: string) =>
-        req<unknown>('/api/v1/integrations/fastmail', { method: 'PUT', body: body({ app_password }) }),
+      save: (email: string, app_password: string) =>
+        req<unknown>('/api/v1/integrations/fastmail', { method: 'PUT', body: body({ email, app_password }) }),
       sync: () => req<SyncResult>('/api/v1/integrations/fastmail/sync', { method: 'POST' }),
       delete: () => req<void>('/api/v1/integrations/fastmail', { method: 'DELETE' }),
       emails: () => req<FastmailEmail[]>('/api/v1/integrations/fastmail/emails'),
@@ -142,9 +142,9 @@ export const api = {
         connected: boolean; email?: string; inbox_address?: string;
         allowed_senders?: string[]; last_synced_at?: string;
       }>('/api/v1/integrations/task-inbox'),
-      save: (app_password: string, inbox_address: string) =>
+      save: (email: string, app_password: string, inbox_address: string) =>
         req<{ connected: boolean; email: string; inbox_address: string; allowed_senders: string[] }>(
-          '/api/v1/integrations/task-inbox', { method: 'PUT', body: body({ app_password, inbox_address }) }),
+          '/api/v1/integrations/task-inbox', { method: 'PUT', body: body({ email, app_password, inbox_address }) }),
       setSenders: (allowed_senders: string[]) =>
         req<{ allowed_senders: string[] }>('/api/v1/integrations/task-inbox/senders', {
           method: 'PATCH', body: body({ allowed_senders }) }),

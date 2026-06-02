@@ -191,14 +191,12 @@ func (c *Client) GetFlaggedEmails(ctx context.Context) ([]Email, error) {
 	return nil, nil
 }
 
-// Sync fetches starred/flagged Fastmail emails and creates tasks.
+// Sync fetches starred/flagged Fastmail emails and creates tasks via IMAP.
 func Sync(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, error) {
-	client := NewClient(cfg)
-	emails, err := client.GetFlaggedEmails(ctx)
+	emails, err := GetIMAPFlaggedEmails(cfg.Email, cfg.AppPassword)
 	if err != nil {
 		return db.SyncResult{}, err
 	}
-
 	var result db.SyncResult
 	for _, em := range emails {
 		if err := syncEmail(ctx, em, cfg.Email, tasks, &result); err != nil {
@@ -379,7 +377,7 @@ func (c *Client) MarkRead(ctx context.Context, emailIDs []string) error {
 	return nil
 }
 
-// SyncInbox fetches unread emails to inboxAddress, creates planned tasks for today, and marks them read.
+// SyncInbox is kept for backward compat; delegates to SyncIMAPTaskInbox.
 func SyncInbox(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, error) {
 	if cfg.InboxAddress == "" {
 		return db.SyncResult{}, fmt.Errorf("no inbox address configured")
@@ -480,11 +478,17 @@ type InboxConfig struct {
 }
 
 // SyncTaskInbox fetches unread emails to InboxAddress, filters by AllowedSenders,
-// creates planned tasks, and marks emails as read.
+// creates planned tasks, and marks emails as read. Uses IMAP.
 func SyncTaskInbox(ctx context.Context, cfg InboxConfig, tasks *db.TaskStore) (db.SyncResult, error) {
 	if cfg.InboxAddress == "" {
 		return db.SyncResult{}, fmt.Errorf("no inbox address configured")
 	}
+	return SyncIMAPTaskInbox(ctx, cfg, tasks)
+}
+
+// syncTaskInboxJMAP is the old JMAP-based implementation, kept for reference.
+// nolint:unused
+func syncTaskInboxJMAPLegacy(ctx context.Context, cfg InboxConfig, tasks *db.TaskStore) (db.SyncResult, error) {
 	fmCfg := Config{Email: cfg.Email, AppPassword: cfg.AppPassword}
 	client := NewClient(fmCfg)
 

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -450,19 +451,14 @@ func (h *integrationHandler) fastmailPut(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if body.AppPassword == "" {
-		respondError(w, http.StatusBadRequest, "app_password is required")
+	if body.Email == "" || body.AppPassword == "" {
+		respondError(w, http.StatusBadRequest, "email and app_password are required")
 		return
 	}
 
-	client := fastmail.NewClient(body)
-	if err := client.TestConnection(r.Context()); err != nil {
+	if err := fastmail.TestConnectionIMAP(body.Email, body.AppPassword); err != nil {
 		respondError(w, http.StatusBadGateway, "connection failed: "+err.Error())
 		return
-	}
-	// Populate email from JMAP session so we always have it for display.
-	if body.Email == "" {
-		body.Email = client.Username()
 	}
 
 	configJSON, _ := json.Marshal(body)
@@ -659,17 +655,14 @@ func (h *integrationHandler) taskInboxPut(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if body.AppPassword == "" || body.InboxAddress == "" {
-		respondError(w, http.StatusBadRequest, "app_password and inbox_address are required")
+	if body.Email == "" || body.AppPassword == "" || body.InboxAddress == "" {
+		respondError(w, http.StatusBadRequest, "email, app_password, and inbox_address are required")
 		return
 	}
-	client := fastmail.NewClient(fastmail.Config{AppPassword: body.AppPassword})
-	if err := client.TestConnection(r.Context()); err != nil {
+	if err := fastmail.TestConnectionIMAP(body.Email, body.AppPassword); err != nil {
 		respondError(w, http.StatusBadGateway, "connection failed: "+err.Error())
 		return
 	}
-	// Auto-discover email from JMAP session.
-	body.Email = client.Username()
 	if body.AllowedSenders == nil {
 		body.AllowedSenders = []string{}
 	}
@@ -759,102 +752,64 @@ func (h *integrationHandler) taskInboxDelete(w http.ResponseWriter, r *http.Requ
 // ── Fastmail inbox panel ──────────────────────────────────────────────────
 
 func (h *integrationHandler) fastmailEmails(w http.ResponseWriter, r *http.Request) {
-	cfg, err := h.configs.Get(r.Context(), "fastmail")
-	if errors.Is(err, db.ErrNotFound) {
-		respondError(w, http.StatusBadRequest, "fastmail not connected")
-		return
-	}
+	fmCfg, err := h.getFastmailConfig(r)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	var fmCfg fastmail.Config
-	if err := json.Unmarshal([]byte(cfg.Config), &fmCfg); err != nil {
-		respondError(w, http.StatusInternalServerError, "malformed config")
-		return
-	}
-	client := fastmail.NewClient(fmCfg)
-	inboxID, _, err := client.GetMailboxRoles(r.Context())
-	if err != nil || inboxID == "" {
-		respondError(w, http.StatusBadGateway, "could not find inbox mailbox")
-		return
-	}
-	emails, err := client.GetInboxEmails(r.Context(), inboxID, 50)
+	emails, err := fastmail.GetIMAPInboxEmails(fmCfg.Email, fmCfg.AppPassword, 50)
 	if err != nil {
 		respondError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	type emailRow struct {
-		ID         string                `json:"id"`
-		Subject    string                `json:"subject"`
+		ID         string                 `json:"id"`
+		Subject    string                 `json:"subject"`
 		From       []fastmail.EmailAddress `json:"from"`
-		ReceivedAt string                `json:"received_at"`
-		Preview    string                `json:"preview"`
-		IsUnread   bool                  `json:"is_unread"`
+		ReceivedAt string                 `json:"received_at"`
+		Preview    string                 `json:"preview"`
+		IsUnread   bool                   `json:"is_unread"`
 	}
 	rows := make([]emailRow, len(emails))
 	for i, e := range emails {
 		rows[i] = emailRow{
-			ID:         e.ID,
-			Subject:    e.Subject,
-			From:       e.From,
-			ReceivedAt: e.ReceivedAt,
-			Preview:    e.Preview,
-			IsUnread:   e.IsUnread(),
+			ID: e.ID, Subject: e.Subject, From: e.From,
+			ReceivedAt: e.ReceivedAt, IsUnread: e.IsUnread(),
 		}
 	}
 	respond(w, http.StatusOK, rows)
 }
 
 func (h *integrationHandler) fastmailEmailToTask(w http.ResponseWriter, r *http.Request) {
-	emailID := chi.URLParam(r, "id")
-	cfg, err := h.configs.Get(r.Context(), "fastmail")
-	if errors.Is(err, db.ErrNotFound) {
-		respondError(w, http.StatusBadRequest, "fastmail not connected")
-		return
-	}
+	fmCfg, err := h.getFastmailConfig(r)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	var fmCfg fastmail.Config
-	if err := json.Unmarshal([]byte(cfg.Config), &fmCfg); err != nil {
-		respondError(w, http.StatusInternalServerError, "malformed config")
-		return
-	}
-	client := fastmail.NewClient(fmCfg)
-	inboxID, archiveID, err := client.GetMailboxRoles(r.Context())
+	uid, err := parseUID(chi.URLParam(r, "id"))
 	if err != nil {
-		respondError(w, http.StatusBadGateway, err.Error())
+		respondError(w, http.StatusBadRequest, "invalid email id")
 		return
 	}
 
-	// Fetch email body.
-	body, err := client.GetEmailBody(r.Context(), emailID)
-	if err != nil {
-		respondError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-
-	// Read subject from request body (sent by client to avoid an extra round-trip).
-	var req struct {
-		Subject string `json:"subject"`
-	}
+	var req struct{ Subject string `json:"subject"` }
 	_ = decode(r, &req)
 	subject := req.Subject
 	if subject == "" {
 		subject = "(no subject)"
 	}
 
+	bodyText, _ := fastmail.GetIMAPEmailBody(fmCfg.Email, fmCfg.AppPassword, uid)
+
 	today := time.Now().Format("2006-01-02")
 	ws := mondayOfDate(today)
 	source := "fastmail"
-	sourceID := "panel_" + emailID
+	sourceID := "panel_" + chi.URLParam(r, "id")
 	sourceURL := "https://app.fastmail.com/mail/"
 
 	var desc *string
-	if body != "" {
-		d := body
+	if bodyText != "" {
+		d := bodyText
 		if len(d) > 4000 {
 			d = d[:4000] + "…"
 		}
@@ -862,54 +817,56 @@ func (h *integrationHandler) fastmailEmailToTask(w http.ResponseWriter, r *http.
 	}
 
 	task, createErr := h.tasks.Create(r.Context(), db.CreateTaskParams{
-		ID:          newID(),
-		Title:       subject,
-		Description: desc,
-		Status:      "planned",
-		PlannedDate: &today,
-		WeekStart:   &ws,
-		Position:    float64(time.Now().UnixMilli()),
-		Source:      &source,
-		SourceID:    &sourceID,
-		SourceURL:   &sourceURL,
-		Tags:        []string{},
+		ID: newID(), Title: subject, Description: desc,
+		Status: "planned", PlannedDate: &today, WeekStart: &ws,
+		Position: float64(time.Now().UnixMilli()),
+		Source: &source, SourceID: &sourceID, SourceURL: &sourceURL,
+		Tags: []string{},
 	})
 	if createErr != nil {
 		respondError(w, http.StatusInternalServerError, createErr.Error())
 		return
 	}
-
-	// Archive regardless of task creation success.
-	_ = client.ArchiveEmail(r.Context(), emailID, inboxID, archiveID)
-
+	_ = fastmail.ArchiveIMAPEmail(fmCfg.Email, fmCfg.AppPassword, uid)
 	respond(w, http.StatusOK, task)
 }
 
 func (h *integrationHandler) fastmailArchiveEmail(w http.ResponseWriter, r *http.Request) {
-	emailID := chi.URLParam(r, "id")
-	cfg, err := h.configs.Get(r.Context(), "fastmail")
-	if errors.Is(err, db.ErrNotFound) {
-		respondError(w, http.StatusBadRequest, "fastmail not connected")
-		return
-	}
+	fmCfg, err := h.getFastmailConfig(r)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	var fmCfg fastmail.Config
-	if err := json.Unmarshal([]byte(cfg.Config), &fmCfg); err != nil {
-		respondError(w, http.StatusInternalServerError, "malformed config")
-		return
-	}
-	client := fastmail.NewClient(fmCfg)
-	inboxID, archiveID, err := client.GetMailboxRoles(r.Context())
+	uid, err := parseUID(chi.URLParam(r, "id"))
 	if err != nil {
-		respondError(w, http.StatusBadGateway, err.Error())
+		respondError(w, http.StatusBadRequest, "invalid email id")
 		return
 	}
-	if err := client.ArchiveEmail(r.Context(), emailID, inboxID, archiveID); err != nil {
+	if err := fastmail.ArchiveIMAPEmail(fmCfg.Email, fmCfg.AppPassword, uid); err != nil {
 		respondError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// getFastmailConfig loads the Fastmail integration config or returns an error.
+func (h *integrationHandler) getFastmailConfig(r *http.Request) (fastmail.Config, error) {
+	cfg, err := h.configs.Get(r.Context(), "fastmail")
+	if errors.Is(err, db.ErrNotFound) {
+		return fastmail.Config{}, fmt.Errorf("fastmail not connected")
+	}
+	if err != nil {
+		return fastmail.Config{}, err
+	}
+	var fmCfg fastmail.Config
+	if err := json.Unmarshal([]byte(cfg.Config), &fmCfg); err != nil {
+		return fastmail.Config{}, fmt.Errorf("malformed config")
+	}
+	return fmCfg, nil
+}
+
+func parseUID(s string) (uint32, error) {
+	var uid uint64
+	_, err := fmt.Sscan(s, &uid)
+	return uint32(uid), err
 }
