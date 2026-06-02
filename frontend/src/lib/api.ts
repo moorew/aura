@@ -124,14 +124,26 @@ export const api = {
     },
 
     fastmail: {
-      get: () => req<{ connected: boolean; email?: string; inbox_address?: string; last_synced_at?: string }>('/api/v1/integrations/fastmail'),
+      get: () => req<{ connected: boolean; email?: string; last_synced_at?: string }>('/api/v1/integrations/fastmail'),
       save: (email: string, app_password: string) =>
         req<unknown>('/api/v1/integrations/fastmail', { method: 'PUT', body: body({ email, app_password }) }),
-      setInboxAddress: (inbox_address: string) =>
-        req<{ inbox_address: string }>('/api/v1/integrations/fastmail', { method: 'PATCH', body: body({ inbox_address }) }),
       sync: () => req<SyncResult>('/api/v1/integrations/fastmail/sync', { method: 'POST' }),
-      inboxSync: () => req<SyncResult>('/api/v1/integrations/fastmail/inbox-sync', { method: 'POST' }),
       delete: () => req<void>('/api/v1/integrations/fastmail', { method: 'DELETE' }),
+    },
+
+    taskInbox: {
+      get: () => req<{
+        connected: boolean; email?: string; inbox_address?: string;
+        allowed_senders?: string[]; last_synced_at?: string;
+      }>('/api/v1/integrations/task-inbox'),
+      save: (email: string, app_password: string, inbox_address: string) =>
+        req<{ connected: boolean; inbox_address: string; allowed_senders: string[] }>(
+          '/api/v1/integrations/task-inbox', { method: 'PUT', body: body({ email, app_password, inbox_address }) }),
+      setSenders: (allowed_senders: string[]) =>
+        req<{ allowed_senders: string[] }>('/api/v1/integrations/task-inbox/senders', {
+          method: 'PATCH', body: body({ allowed_senders }) }),
+      sync: () => req<SyncResult>('/api/v1/integrations/task-inbox/sync', { method: 'POST' }),
+      delete: () => req<void>('/api/v1/integrations/task-inbox', { method: 'DELETE' }),
     },
 
     emailForward: {

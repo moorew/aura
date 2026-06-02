@@ -619,3 +619,133 @@ func (h *integrationHandler) fromEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// ── Task inbox (standalone email forwarding) ──────────────────────────────
+
+func (h *integrationHandler) taskInboxGet(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.configs.Get(r.Context(), "task_inbox")
+	if errors.Is(err, db.ErrNotFound) {
+		respond(w, http.StatusOK, map[string]any{"connected": false})
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var raw fastmail.InboxConfig
+	if err := json.Unmarshal([]byte(cfg.Config), &raw); err != nil {
+		respondError(w, http.StatusInternalServerError, "malformed config")
+		return
+	}
+	if raw.AllowedSenders == nil {
+		raw.AllowedSenders = []string{}
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"connected":       true,
+		"email":           raw.Email,
+		"inbox_address":   raw.InboxAddress,
+		"allowed_senders": raw.AllowedSenders,
+		"last_synced_at":  cfg.LastSyncedAt,
+	})
+}
+
+func (h *integrationHandler) taskInboxPut(w http.ResponseWriter, r *http.Request) {
+	var body fastmail.InboxConfig
+	if err := decode(r, &body); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.Email == "" || body.AppPassword == "" || body.InboxAddress == "" {
+		respondError(w, http.StatusBadRequest, "email, app_password, and inbox_address are required")
+		return
+	}
+	client := fastmail.NewClient(fastmail.Config{Email: body.Email, AppPassword: body.AppPassword})
+	if err := client.TestConnection(r.Context()); err != nil {
+		respondError(w, http.StatusBadGateway, "connection failed: "+err.Error())
+		return
+	}
+	if body.AllowedSenders == nil {
+		body.AllowedSenders = []string{}
+	}
+	configJSON, _ := json.Marshal(body)
+	if _, err := h.configs.Upsert(r.Context(), uuid.New().String(), "task_inbox", string(configJSON)); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"connected":       true,
+		"email":           body.Email,
+		"inbox_address":   body.InboxAddress,
+		"allowed_senders": body.AllowedSenders,
+	})
+}
+
+func (h *integrationHandler) taskInboxPatchSenders(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.configs.Get(r.Context(), "task_inbox")
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "task inbox not connected")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var stored fastmail.InboxConfig
+	if err := json.Unmarshal([]byte(cfg.Config), &stored); err != nil {
+		respondError(w, http.StatusInternalServerError, "malformed config")
+		return
+	}
+	var patch struct {
+		AllowedSenders []string `json:"allowed_senders"`
+	}
+	if err := decode(r, &patch); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	stored.AllowedSenders = patch.AllowedSenders
+	if stored.AllowedSenders == nil {
+		stored.AllowedSenders = []string{}
+	}
+	configJSON, _ := json.Marshal(stored)
+	if _, err := h.configs.UpdateConfig(r.Context(), "task_inbox", string(configJSON)); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{"allowed_senders": stored.AllowedSenders})
+}
+
+func (h *integrationHandler) taskInboxSync(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.configs.Get(r.Context(), "task_inbox")
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "task inbox not connected")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var inboxCfg fastmail.InboxConfig
+	if err := json.Unmarshal([]byte(cfg.Config), &inboxCfg); err != nil {
+		respondError(w, http.StatusInternalServerError, "malformed config")
+		return
+	}
+	result, err := fastmail.SyncTaskInbox(r.Context(), inboxCfg, h.tasks)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = h.configs.TouchSyncTime(r.Context(), "task_inbox")
+	respond(w, http.StatusOK, result)
+}
+
+func (h *integrationHandler) taskInboxDelete(w http.ResponseWriter, r *http.Request) {
+	if err := h.configs.Delete(r.Context(), "task_inbox"); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "task inbox not connected")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -456,3 +456,110 @@ func mondayOf(date string) string {
 	}
 	return t.AddDate(0, 0, -(wd - 1)).Format("2006-01-02")
 }
+
+// ── Task inbox (standalone forwarding integration) ─────────────────────────
+
+// InboxConfig holds credentials and settings for the standalone email inbox feature.
+type InboxConfig struct {
+	Email          string   `json:"email"`
+	AppPassword    string   `json:"app_password"`
+	InboxAddress   string   `json:"inbox_address"`
+	AllowedSenders []string `json:"allowed_senders,omitempty"`
+}
+
+// SyncTaskInbox fetches unread emails to InboxAddress, filters by AllowedSenders,
+// creates planned tasks, and marks emails as read.
+func SyncTaskInbox(ctx context.Context, cfg InboxConfig, tasks *db.TaskStore) (db.SyncResult, error) {
+	if cfg.InboxAddress == "" {
+		return db.SyncResult{}, fmt.Errorf("no inbox address configured")
+	}
+	fmCfg := Config{Email: cfg.Email, AppPassword: cfg.AppPassword}
+	client := NewClient(fmCfg)
+
+	emails, err := client.GetEmailsTo(ctx, cfg.InboxAddress)
+	if err != nil {
+		return db.SyncResult{}, err
+	}
+
+	var result db.SyncResult
+	var readIDs []string
+	today := time.Now().Format("2006-01-02")
+	ws := mondayOf(today)
+
+	for _, em := range emails {
+		result.Total++
+
+		if !senderAllowed(em.From, cfg.AllowedSenders) {
+			readIDs = append(readIDs, em.ID) // mark read so it doesn't linger
+			continue
+		}
+
+		sourceID := "taskinbox_" + em.ID
+		if _, err := tasks.FindBySource(ctx, "fastmail", sourceID); err == nil {
+			readIDs = append(readIDs, em.ID)
+			continue
+		}
+
+		subject := em.Subject
+		if subject == "" {
+			subject = "(no subject)"
+		}
+		var desc *string
+		if len(em.TextBody) > 0 && em.BodyValues != nil {
+			if bv, ok := em.BodyValues[em.TextBody[0].PartID]; ok && bv.Value != "" {
+				v := strings.TrimSpace(bv.Value)
+				if len(v) > 4000 {
+					v = v[:4000] + "…"
+				}
+				desc = &v
+			}
+		}
+
+		source := "fastmail"
+		srcURL := "https://app.fastmail.com/mail/"
+
+		if _, createErr := tasks.Create(ctx, db.CreateTaskParams{
+			ID:          uuid.New().String(),
+			Title:       subject,
+			Description: desc,
+			Status:      "planned",
+			PlannedDate: &today,
+			WeekStart:   &ws,
+			Position:    float64(time.Now().UnixMilli()),
+			Source:      &source,
+			SourceID:    &sourceID,
+			SourceURL:   &srcURL,
+			Tags:        []string{},
+		}); createErr != nil {
+			result.Errors++
+		} else {
+			result.New++
+			readIDs = append(readIDs, em.ID)
+		}
+	}
+
+	_ = client.MarkRead(ctx, readIDs)
+	return result, nil
+}
+
+// senderAllowed returns true when the email's From matches an allowed sender.
+// If allowed is empty, all senders are permitted.
+func senderAllowed(from []EmailAddress, allowed []string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, addr := range from {
+		email := strings.ToLower(strings.TrimSpace(addr.Email))
+		for _, a := range allowed {
+			a = strings.ToLower(strings.TrimSpace(a))
+			if strings.HasPrefix(a, "@") {
+				if strings.HasSuffix(email, a) {
+					return true
+				}
+			} else if email == a {
+				return true
+			}
+		}
+	}
+	return false
+}
