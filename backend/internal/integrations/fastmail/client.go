@@ -471,10 +471,11 @@ func mondayOf(date string) string {
 
 // InboxConfig holds credentials and settings for the standalone email inbox feature.
 type InboxConfig struct {
-	Email          string   `json:"email"`
-	AppPassword    string   `json:"app_password"`
-	InboxAddress   string   `json:"inbox_address"`
-	AllowedSenders []string `json:"allowed_senders,omitempty"`
+	Email            string   `json:"email"`
+	AppPassword      string   `json:"app_password"`
+	InboxAddress     string   `json:"inbox_address"`
+	AllowedSenders   []string `json:"allowed_senders,omitempty"`
+	AnthropicAPIKey  string   `json:"anthropic_api_key,omitempty"` // injected at runtime, not stored
 }
 
 // SyncTaskInbox fetches unread emails to InboxAddress, filters by AllowedSenders,

@@ -728,6 +728,7 @@ func (h *integrationHandler) taskInboxSync(w http.ResponseWriter, r *http.Reques
 		respondError(w, http.StatusInternalServerError, "malformed config")
 		return
 	}
+	inboxCfg.AnthropicAPIKey = h.cfg.AnthropicAPIKey
 	result, err := fastmail.SyncTaskInbox(r.Context(), inboxCfg, h.tasks)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

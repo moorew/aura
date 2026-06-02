@@ -6,6 +6,7 @@ package fastmail
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -31,7 +32,7 @@ func dial(email, password string) (*imapclient.Client, error) {
 	}
 	if err := c.Login(email, password).Wait(); err != nil {
 		c.Close()
-		return nil, fmt.Errorf("unauthorized — check your email and app password")
+		return nil, fmt.Errorf("IMAP LOGIN failed for %q: %w", email, err)
 	}
 	return c, nil
 }
@@ -244,15 +245,17 @@ func SyncIMAPTaskInbox(ctx context.Context, cfg InboxConfig, tasks *db.TaskStore
 			continue
 		}
 
-		subject := em.Subject
-		if subject == "" {
-			subject = "(no subject)"
+		rawSubject := stripEmailPrefixes(em.Subject)
+		if rawSubject == "" {
+			rawSubject = "(no subject)"
 		}
 
+		var bodyText string
 		var desc *string
 		for _, sec := range msg.BodySection {
 			if parsed, err := mail.ReadMessage(bytes.NewReader(sec.Bytes)); err == nil {
 				if text := imapExtractText(parsed); text != "" {
+					bodyText = text
 					if len(text) > 4000 {
 						text = text[:4000] + "…"
 					}
@@ -262,11 +265,23 @@ func SyncIMAPTaskInbox(ctx context.Context, cfg InboxConfig, tasks *db.TaskStore
 			}
 		}
 
+		// AI-powered title if API key is available; else use stripped subject.
+		title := ImproveTitle(ctx, cfg.AnthropicAPIKey, rawSubject)
+
+		// Extract URLs from body and store as metadata.
+		links := extractLinks(bodyText)
+		meta := ""
+		if len(links) > 0 {
+			if b, err := json.Marshal(map[string]any{"links": links}); err == nil {
+				meta = string(b)
+			}
+		}
+
 		source := "fastmail"
 		srcURL := "https://app.fastmail.com/mail/"
-		if _, createErr := tasks.Create(ctx, db.CreateTaskParams{
+		p := db.CreateTaskParams{
 			ID:          uuid.New().String(),
-			Title:       subject,
+			Title:       title,
 			Description: desc,
 			Status:      "planned",
 			PlannedDate: &today,
@@ -276,7 +291,11 @@ func SyncIMAPTaskInbox(ctx context.Context, cfg InboxConfig, tasks *db.TaskStore
 			SourceID:    &sourceID,
 			SourceURL:   &srcURL,
 			Tags:        []string{},
-		}); createErr != nil {
+		}
+		if meta != "" {
+			p.SourceMetadata = &meta
+		}
+		if _, createErr := tasks.Create(ctx, p); createErr != nil {
 			result.Errors++
 		} else {
 			result.New++
@@ -372,4 +391,50 @@ func imapExtractText(msg *mail.Message) string {
 		}
 	}
 	return ""
+}
+
+// stripEmailPrefixes removes Fwd:/Re:/etc. prefixes recursively.
+func stripEmailPrefixes(s string) string {
+	prefixes := []string{"fwd: ", "fw: ", "re: ", "re[2]: ", "re[3]: "}
+	for {
+		lower := strings.ToLower(s)
+		stripped := false
+		for _, p := range prefixes {
+			if strings.HasPrefix(lower, p) {
+				s = s[len(p):]
+				stripped = true
+				break
+			}
+		}
+		if !stripped {
+			break
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
+// extractLinks returns all unique HTTP/HTTPS URLs found in text.
+func extractLinks(text string) []string {
+	if text == "" {
+		return nil
+	}
+	// Simple URL extraction: split on whitespace and angle-bracket chars.
+	var links []string
+	seen := map[string]bool{}
+	for _, word := range strings.FieldsFunc(text, func(r rune) bool {
+		return r == ' ' || r == '\n' || r == '\r' || r == '\t' || r == '<' || r == '>' || r == '"'
+	}) {
+		if (strings.HasPrefix(word, "http://") || strings.HasPrefix(word, "https://")) && !seen[word] {
+			// Strip trailing punctuation
+			word = strings.TrimRight(word, ".,;:!?)")
+			if len(word) > 10 {
+				links = append(links, word)
+				seen[word] = true
+			}
+		}
+	}
+	if len(links) > 10 {
+		links = links[:10] // cap at 10 links
+	}
+	return links
 }

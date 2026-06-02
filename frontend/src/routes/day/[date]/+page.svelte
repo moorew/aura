@@ -8,6 +8,7 @@
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import KanbanColumn from '$lib/components/KanbanColumn.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
+  import EmailPanel from '$lib/components/EmailPanel.svelte';
 
   let date = $derived($page.params.date ?? today());
   let tasks = $state<Task[]>([]);
@@ -16,6 +17,8 @@
 
   let draggingId = $state<string | null>(null);
   let dragOverStatus = $state<TaskStatus | null>(null);
+  let showEmailPanel = $state(false);
+  let emailPanel = $state<EmailPanel | undefined>(undefined);
 
   // Panel state — null = closed, undefined task = create, Task = edit
   let panelOpen = $state(false);
@@ -109,6 +112,20 @@
     else tasks = [...tasks, saved];
   }
 
+  // ── Email drop ────────────────────────────────────────────────────────────
+  async function handleEmailDrop(emailData: { id: string; subject: string }, targetStatus: TaskStatus) {
+    try {
+      const task = await api.integrations.fastmail.toTask(emailData.id, emailData.subject);
+      const updated = targetStatus !== task.status
+        ? await api.tasks.update(task.id, { status: targetStatus })
+        : task;
+      tasks = [...tasks, updated];
+      emailPanel?.removeEmail(emailData.id);
+    } catch (e: any) {
+      error = e.message;
+    }
+  }
+
   // ── Navigation ───────────────────────────────────────────────────────────
   function navigate(delta: number) { goto(`/day/${offsetDate(date, delta)}`); }
 </script>
@@ -154,38 +171,61 @@
         </svg>
         New task
       </button>
+      <button onclick={() => showEmailPanel = !showEmailPanel}
+              title="Toggle email inbox"
+              class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors
+                     {showEmailPanel
+                       ? 'border-blue-400 bg-blue-50 text-blue-600 dark:border-blue-600 dark:bg-blue-950 dark:text-blue-400'
+                       : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'}">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        Inbox
+      </button>
     </div>
   </div>
 </header>
 
-<main class="mx-auto max-w-[1400px] px-6 py-6">
-  {#if loading}
-    <div class="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-gray-600">Loading…</div>
-  {:else if error}
-    <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700
-                dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-      {error} <button onclick={loadTasks} class="ml-2 underline">Retry</button>
-    </div>
-  {:else}
-    <div class="flex gap-4 overflow-x-auto pb-4">
-      {#each COLUMNS as col (col.status)}
-        <KanbanColumn
-          label={col.label} status={col.status} tasks={columnTasks(col.status)}
-          accent={col.accent} bg={col.bg} border={col.border}
-          isDragOver={dragOverStatus === col.status}
-          onTaskDragStart={handleDragStart}
-          onTaskFocusClick={handleFocus}
-          onTaskComplete={handleComplete}
-          onTaskClick={openEdit}
-          onDrop={handleDrop}
-          onDragOver={(s) => (dragOverStatus = s)}
-          onDragLeave={() => (dragOverStatus = null)}
-          onAddClick={openCreate}
-        />
-      {/each}
+<div class="flex h-[calc(100vh-57px)] overflow-hidden">
+  <main class="flex-1 overflow-auto px-6 py-6">
+    {#if loading}
+      <div class="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-gray-600">Loading…</div>
+    {:else if error}
+      <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700
+                  dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+        {error} <button onclick={loadTasks} class="ml-2 underline">Retry</button>
+      </div>
+    {:else}
+      <div class="flex gap-4 overflow-x-auto pb-4">
+        {#each COLUMNS as col (col.status)}
+          <KanbanColumn
+            label={col.label} status={col.status} tasks={columnTasks(col.status)}
+            accent={col.accent} bg={col.bg} border={col.border}
+            isDragOver={dragOverStatus === col.status}
+            onTaskDragStart={handleDragStart}
+            onTaskFocusClick={handleFocus}
+            onTaskComplete={handleComplete}
+            onTaskClick={openEdit}
+            onDrop={handleDrop}
+            onEmailDrop={handleEmailDrop}
+            onDragOver={(s) => (dragOverStatus = s)}
+            onDragLeave={() => (dragOverStatus = null)}
+            onAddClick={openCreate}
+          />
+        {/each}
+      </div>
+    {/if}
+  </main>
+
+  {#if showEmailPanel}
+    <div class="w-72 shrink-0 overflow-hidden">
+      <EmailPanel
+        bind:this={emailPanel}
+        onTaskCreated={(task) => { tasks = [...tasks, task]; }}
+      />
     </div>
   {/if}
-</main>
+</div>
 
 <TaskPanel open={panelOpen} task={panelTask} defaultStatus={panelStatus} defaultDate={date}
            onSave={handlePanelSave} onClose={() => (panelOpen = false)} />

@@ -224,6 +224,28 @@
                          dark:focus:border-blue-500 dark:focus:bg-gray-800"></textarea>
       </div>
 
+      <!-- Links extracted from email -->
+      {#if isEdit && task?.source_metadata}
+        {@const links = (() => { try { return JSON.parse(task.source_metadata ?? '{}').links ?? []; } catch { return []; } })()}
+        {#if links.length > 0}
+          <div>
+            <p class="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">Links from email</p>
+            <div class="flex flex-wrap gap-1.5">
+              {#each links as link}
+                <a href={link} target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600
+                          hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-400 dark:hover:bg-blue-900 truncate max-w-full">
+                  <svg class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                  <span class="truncate">{new URL(link).hostname}</span>
+                </a>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {/if}
+
       <!-- Date + Estimate -->
       <div class="grid grid-cols-2 gap-3">
         <div>

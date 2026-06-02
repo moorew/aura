@@ -12,20 +12,18 @@ import (
 )
 
 // StartInbox polls the task_inbox integration on the given interval.
-// It returns immediately; polling runs in the background until ctx is cancelled.
-func StartInbox(ctx context.Context, database *sql.DB, interval time.Duration) {
-	if interval < time.Minute {
-		interval = time.Minute
+func StartInbox(ctx context.Context, database *sql.DB, interval time.Duration, anthropicKey string) {
+	if interval < 30*time.Second {
+		interval = 30 * time.Second
 	}
 	go func() {
-		// Run once immediately on startup, then on each tick.
-		pollInbox(ctx, database)
+		pollInbox(ctx, database, anthropicKey)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				pollInbox(ctx, database)
+				pollInbox(ctx, database, anthropicKey)
 			case <-ctx.Done():
 				return
 			}
@@ -33,13 +31,13 @@ func StartInbox(ctx context.Context, database *sql.DB, interval time.Duration) {
 	}()
 }
 
-func pollInbox(ctx context.Context, database *sql.DB) {
+func pollInbox(ctx context.Context, database *sql.DB, anthropicKey string) {
 	configs := db.NewIntegrationConfigStore(database)
 	tasks := db.NewTaskStore(database)
 
 	cfg, err := configs.Get(ctx, "task_inbox")
 	if err != nil {
-		return // not configured — silent
+		return
 	}
 
 	var inboxCfg fastmail.InboxConfig
@@ -47,6 +45,7 @@ func pollInbox(ctx context.Context, database *sql.DB) {
 		slog.Error("inbox poller: bad config", "err", err)
 		return
 	}
+	inboxCfg.AnthropicAPIKey = anthropicKey
 
 	result, err := fastmail.SyncTaskInbox(ctx, inboxCfg, tasks)
 	if err != nil {

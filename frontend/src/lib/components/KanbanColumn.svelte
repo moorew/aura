@@ -5,7 +5,7 @@
   let {
     label, status, tasks, accent, bg, border, isDragOver,
     onTaskDragStart, onTaskFocusClick, onTaskComplete, onTaskClick,
-    onDrop, onDragOver, onDragLeave, onAddClick,
+    onDrop, onEmailDrop, onDragOver, onDragLeave, onAddClick,
   }: {
     label: string; status: TaskStatus; tasks: Task[];
     accent: string; bg: string; border: string; isDragOver: boolean;
@@ -14,6 +14,7 @@
     onTaskComplete?: (id: string) => void;
     onTaskClick?: (task: Task) => void;
     onDrop: (status: TaskStatus) => void;
+    onEmailDrop?: (emailData: { id: string; subject: string }, status: TaskStatus) => void;
     onDragOver: (status: TaskStatus) => void;
     onDragLeave: () => void;
     onAddClick: (status: TaskStatus) => void;
@@ -25,7 +26,15 @@
             dark:border-opacity-50 {isDragOver ? 'ring-2 ring-blue-400 ring-offset-1' : ''}"
      ondragover={(e) => { e.preventDefault(); onDragOver(status); }}
      ondragleave={onDragLeave}
-     ondrop={(e) => { e.preventDefault(); onDrop(status); }}>
+     ondrop={(e) => {
+       e.preventDefault();
+       const emailData = e.dataTransfer?.getData('application/x-sempa-email');
+       if (emailData) {
+         try { onEmailDrop?.(JSON.parse(emailData), status); } catch {}
+       } else {
+         onDrop(status);
+       }
+     }}>
 
   <div class="flex items-center justify-between px-3 py-2.5 border-b {border} dark:border-opacity-50">
     <div class="flex items-center gap-2">
