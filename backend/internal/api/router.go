@@ -128,8 +128,10 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 				r.Route("/fastmail", func(r chi.Router) {
 					r.Get("/", integrations.fastmailGet)
 					r.Put("/", integrations.fastmailPut)
+					r.Patch("/", integrations.fastmailPatch)
 					r.Delete("/", integrations.fastmailDelete)
 					r.Post("/sync", integrations.fastmailSync)
+					r.Post("/inbox-sync", integrations.fastmailInboxSync)
 				})
 				r.Get("/email-forward", integrations.emailForwardGet)
 			})

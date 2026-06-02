@@ -12,7 +12,7 @@
 
   let gmail = $state<AccountStatus>({ connected: false });
   let calendar = $state<{ connected: boolean; email?: string; last_synced_at?: string }>({ connected: false });
-  let fastmail = $state<AccountStatus>({ connected: false });
+  let fastmail = $state<AccountStatus & { inbox_address?: string }>({ connected: false });
   let emailFwd = $state<{
     smtp_enabled: boolean; smtp_address: string; smtp_port: string;
     webhook_enabled: boolean; webhook_url: string;
@@ -24,6 +24,10 @@
   let fmSaving = $state(false);
   let fmError = $state('');
   let fmShowForm = $state(false);
+
+  let fmInboxAddress = $state('');
+  let fmInboxSaving = $state(false);
+  let fmInboxEditing = $state(false);
 
   let syncing = $state<Record<string, boolean>>({});
   let syncResults = $state<Record<string, string>>({});
@@ -41,6 +45,7 @@
       api.integrations.fastmail.get(),
       api.integrations.emailForward.get(),
     ]);
+    fmInboxAddress = fastmail.inbox_address ?? '';
   });
 
   async function syncService(name: string, fn: () => Promise<{ new: number; updated: number; errors: number }>) {
@@ -67,6 +72,17 @@
       fmError = (e as Error).message;
     } finally {
       fmSaving = false;
+    }
+  }
+
+  async function saveInboxAddress() {
+    fmInboxSaving = true;
+    try {
+      await api.integrations.fastmail.setInboxAddress(fmInboxAddress.trim());
+      fastmail = { ...fastmail, inbox_address: fmInboxAddress.trim() };
+      fmInboxEditing = false;
+    } finally {
+      fmInboxSaving = false;
     }
   }
 
@@ -282,12 +298,65 @@
                   disabled={syncing['fastmail']}
                   class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700
                          hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-            {syncing['fastmail'] ? 'Syncing…' : 'Sync flagged'}
+            {syncing['fastmail'] ? 'Syncing…' : 'Sync starred'}
           </button>
         </div>
         {#if syncResults['fastmail']}
           <p class="text-xs text-blue-600 dark:text-blue-400">{syncResults['fastmail']}</p>
         {/if}
+
+        <!-- Inbox forwarding sub-card -->
+        <div class="rounded-lg bg-gray-50 px-3 py-3 dark:bg-gray-700/50 space-y-2">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-200">Email forwarding</p>
+              {#if fastmail.inbox_address}
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">{fastmail.inbox_address}</p>
+              {:else}
+                <p class="text-xs text-gray-400 dark:text-gray-600">Forward emails here → they become tasks</p>
+              {/if}
+            </div>
+            <button onclick={() => { fmInboxEditing = !fmInboxEditing; fmInboxAddress = fastmail.inbox_address ?? ''; }}
+                    class="shrink-0 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400">
+              {fastmail.inbox_address ? 'Change' : 'Set up'}
+            </button>
+          </div>
+
+          {#if fmInboxEditing}
+            <div class="flex gap-2 pt-1">
+              <input type="email" bind:value={fmInboxAddress} placeholder="tasks@sempa.ca"
+                     class="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs outline-none
+                            focus:border-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+              <button onclick={saveInboxAddress} disabled={fmInboxSaving || !fmInboxAddress.trim()}
+                      class="rounded bg-blue-500 px-3 py-1.5 text-xs font-medium text-white
+                             hover:bg-blue-600 disabled:opacity-40">
+                {fmInboxSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            <p class="text-xs text-gray-400 dark:text-gray-600">
+              Forward any email to this address — Aura polls it and creates tasks in today's planned column.
+            </p>
+          {/if}
+
+          {#if fastmail.inbox_address}
+            <div class="flex items-center justify-between pt-0.5">
+              <span class="text-xs text-gray-400 dark:text-gray-600">
+                {#if syncResults['fastmail-inbox']}
+                  {syncResults['fastmail-inbox']}
+                {:else}
+                  Poll for new forwarded emails
+                {/if}
+              </span>
+              <button onclick={() => syncService('fastmail-inbox', api.integrations.fastmail.inboxSync)}
+                      disabled={syncing['fastmail-inbox']}
+                      class="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600
+                             hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                {syncing['fastmail-inbox'] ? 'Syncing…' : 'Sync inbox'}
+              </button>
+            </div>
+          {/if}
+        </div>
+
         <button onclick={disconnectFastmail}
                 class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
           Disconnect Fastmail

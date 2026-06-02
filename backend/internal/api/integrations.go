@@ -438,6 +438,7 @@ func (h *integrationHandler) fastmailGet(w http.ResponseWriter, r *http.Request)
 		"connected":      true,
 		"enabled":        cfg.Enabled,
 		"email":          raw.Email,
+		"inbox_address":  raw.InboxAddress,
 		"last_synced_at": cfg.LastSyncedAt,
 	})
 }
@@ -492,6 +493,67 @@ func (h *integrationHandler) fastmailSync(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	_ = h.configs.TouchSyncTime(r.Context(), "fastmail")
+	respond(w, http.StatusOK, result)
+}
+
+func (h *integrationHandler) fastmailPatch(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.configs.Get(r.Context(), "fastmail")
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "fastmail not connected")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var stored fastmail.Config
+	if err := json.Unmarshal([]byte(cfg.Config), &stored); err != nil {
+		respondError(w, http.StatusInternalServerError, "malformed config")
+		return
+	}
+	var patch struct {
+		InboxAddress *string `json:"inbox_address"`
+	}
+	if err := decode(r, &patch); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if patch.InboxAddress != nil {
+		stored.InboxAddress = *patch.InboxAddress
+	}
+	configJSON, _ := json.Marshal(stored)
+	if _, err := h.configs.UpdateConfig(r.Context(), "fastmail", string(configJSON)); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{"inbox_address": stored.InboxAddress})
+}
+
+func (h *integrationHandler) fastmailInboxSync(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.configs.Get(r.Context(), "fastmail")
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "fastmail not connected")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var fmCfg fastmail.Config
+	if err := json.Unmarshal([]byte(cfg.Config), &fmCfg); err != nil {
+		respondError(w, http.StatusInternalServerError, "malformed config")
+		return
+	}
+	if fmCfg.InboxAddress == "" {
+		respondError(w, http.StatusBadRequest, "no inbox address configured")
+		return
+	}
+	result, err := fastmail.SyncInbox(r.Context(), fmCfg, h.tasks)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	_ = h.configs.TouchSyncTime(r.Context(), "fastmail")
 	respond(w, http.StatusOK, result)
 }
