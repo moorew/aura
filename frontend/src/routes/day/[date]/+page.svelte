@@ -9,20 +9,20 @@
   import KanbanColumn from '$lib/components/KanbanColumn.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import EmailPanel from '$lib/components/EmailPanel.svelte';
+  import MiniCalendar from '$lib/components/MiniCalendar.svelte';
 
   let date = $derived($page.params.date ?? today());
   let tasks = $state<Task[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  let draggingId = $state<string | null>(null);
+  let draggingId     = $state<string | null>(null);
   let dragOverStatus = $state<TaskStatus | null>(null);
-  let showEmailPanel = $state(false);
-  let emailPanel = $state<EmailPanel | undefined>(undefined);
+  let emailPanel     = $state<EmailPanel | undefined>(undefined);
+  let rightTab       = $state<'inbox' | 'upcoming'>('inbox');
 
-  // Panel state — null = closed, undefined task = create, Task = edit
-  let panelOpen = $state(false);
-  let panelTask = $state<Task | null>(null);
+  let panelOpen   = $state(false);
+  let panelTask   = $state<Task | null>(null);
   let panelStatus = $state<TaskStatus>('planned');
 
   async function loadTasks() {
@@ -81,32 +81,16 @@
   function handleFocus(id: string, title: string) { pomodoro.start(id, title); }
 
   // ── Panel ─────────────────────────────────────────────────────────────────
-  function openCreate(status: TaskStatus) {
-    panelTask = null; panelStatus = status; panelOpen = true;
-  }
-
-  function openEdit(task: Task) {
-    panelTask = task; panelOpen = true;
-  }
+  function openCreate(status: TaskStatus) { panelTask = null; panelStatus = status; panelOpen = true; }
+  function openEdit(task: Task) { panelTask = task; panelOpen = true; }
 
   async function handlePanelSave(saved: Task) {
     panelOpen = false;
-    // Deletion signal: status 'cancelled' and not in original list
     if (saved.status === 'cancelled' && !tasks.find(t => t.id === saved.id)) {
-      tasks = tasks.filter(t => t.id !== saved.id);
-      return;
+      tasks = tasks.filter(t => t.id !== saved.id); return;
     }
-    // If it was a create with recurrence, reload (generate was triggered server-side)
-    if (!panelTask && saved.recurrence_rule) {
-      await loadTasks();
-      return;
-    }
-    // Remove deleted tasks
-    if (saved.status === 'cancelled') {
-      tasks = tasks.filter(t => t.id !== saved.id);
-      return;
-    }
-    // Update or insert
+    if (!panelTask && saved.recurrence_rule) { await loadTasks(); return; }
+    if (saved.status === 'cancelled') { tasks = tasks.filter(t => t.id !== saved.id); return; }
     const existing = tasks.findIndex(t => t.id === saved.id);
     if (existing >= 0) tasks = tasks.map(t => t.id === saved.id ? saved : t);
     else tasks = [...tasks, saved];
@@ -121,9 +105,7 @@
         : task;
       tasks = [...tasks, updated];
       emailPanel?.removeEmail(emailData.id);
-    } catch (e: any) {
-      error = e.message;
-    }
+    } catch (e: any) { error = e.message; }
   }
 
   // ── Navigation ───────────────────────────────────────────────────────────
@@ -132,75 +114,75 @@
 
 <svelte:head><title>{isToday(date) ? 'Today' : date} — Sempa</title></svelte:head>
 
-<header class="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm
-               dark:border-gray-800 dark:bg-gray-900/90">
-  <div class="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-3">
-    <div class="flex items-center gap-3">
-      <button onclick={() => navigate(-1)}
-              class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors
-                     dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header class="sticky top-0 z-10 border-b border-gray-100 bg-white/95 backdrop-blur-sm
+               dark:border-gray-800/60 dark:bg-gray-900/95">
+  <div class="flex items-center justify-between px-6 py-3">
+    <!-- Date navigation -->
+    <div class="flex items-center gap-2">
+      <button onclick={() => navigate(-1)} aria-label="Previous day"
+              class="rounded-lg p-1.5 text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors
+                     dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-400">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" d="M15 19l-7-7 7-7"/>
         </svg>
       </button>
-      <div class="text-center">
-        <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{formatDate(date)}</p>
-        {#if isToday(date)}<p class="text-xs text-blue-500 font-medium dark:text-blue-400">Today</p>{/if}
+      <div>
+        <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">{formatDate(date)}</p>
+        {#if isToday(date)}
+          <p class="text-[10px] font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">Today</p>
+        {/if}
       </div>
-      <button onclick={() => navigate(1)}
-              class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors
-                     dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+      <button onclick={() => navigate(1)} aria-label="Next day"
+              class="rounded-lg p-1.5 text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors
+                     dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-400">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" d="M9 5l7 7-7 7"/>
         </svg>
       </button>
     </div>
+
+    <!-- Actions -->
     <div class="flex items-center gap-2">
       {#if !isToday(date)}
         <button onclick={() => goto(`/day/${today()}`)}
-                class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600
+                class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500
                        hover:bg-gray-50 transition-colors dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800">
           Today
         </button>
       {/if}
       <button onclick={() => openCreate('planned')}
-              class="flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium
-                     text-white hover:bg-blue-600 transition-colors">
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              class="flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold
+                     text-white hover:bg-blue-600 transition-colors shadow-sm shadow-blue-200 dark:shadow-none">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" d="M12 4v16m8-8H4"/>
         </svg>
         New task
-      </button>
-      <button onclick={() => showEmailPanel = !showEmailPanel}
-              title="Toggle email inbox"
-              class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors
-                     {showEmailPanel
-                       ? 'border-blue-400 bg-blue-50 text-blue-600 dark:border-blue-600 dark:bg-blue-950 dark:text-blue-400'
-                       : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800'}">
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-        </svg>
-        Inbox
       </button>
     </div>
   </div>
 </header>
 
+<!-- ── Body ───────────────────────────────────────────────────────────────── -->
 <div class="flex h-[calc(100vh-57px)] overflow-hidden">
+
+  <!-- Kanban area -->
   <main class="flex-1 overflow-auto px-6 py-6">
     {#if loading}
-      <div class="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-gray-600">Loading…</div>
+      <div class="flex h-64 items-center justify-center text-sm text-gray-300 dark:text-gray-700">
+        Loading…
+      </div>
     {:else if error}
-      <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700
-                  dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+      <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600
+                  dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
         {error} <button onclick={loadTasks} class="ml-2 underline">Retry</button>
       </div>
     {:else}
-      <div class="flex gap-4 overflow-x-auto pb-4">
+      <div class="flex items-start gap-4 pb-6">
         {#each COLUMNS as col (col.status)}
           <KanbanColumn
             label={col.label} status={col.status} tasks={columnTasks(col.status)}
-            accent={col.accent} bg={col.bg} border={col.border}
+            accent={col.accent}
             isDragOver={dragOverStatus === col.status}
             onTaskDragStart={handleDragStart}
             onTaskFocusClick={handleFocus}
@@ -217,14 +199,59 @@
     {/if}
   </main>
 
-  {#if showEmailPanel}
-    <div class="w-72 shrink-0 overflow-hidden">
-      <EmailPanel
-        bind:this={emailPanel}
-        onTaskCreated={(task) => { tasks = [...tasks, task]; }}
-      />
+  <!-- ── Right panel: calendar + inbox ─────────────────────────────────── -->
+  <aside class="w-72 shrink-0 flex flex-col border-l border-gray-100 bg-white overflow-hidden
+                dark:border-gray-800/60 dark:bg-gray-900">
+
+    <!-- Mini calendar -->
+    <div class="shrink-0 border-b border-gray-100 dark:border-gray-800/60">
+      <MiniCalendar {date} />
     </div>
-  {/if}
+
+    <!-- Tab switcher -->
+    <div class="flex shrink-0 border-b border-gray-100 dark:border-gray-800/60">
+      <button onclick={() => rightTab = 'inbox'}
+              class="flex-1 py-2.5 text-xs font-medium transition-colors
+                     {rightTab === 'inbox'
+                       ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                       : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
+        Inbox
+      </button>
+      <button onclick={() => rightTab = 'upcoming'}
+              class="flex-1 py-2.5 text-xs font-medium transition-colors
+                     {rightTab === 'upcoming'
+                       ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                       : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
+        Upcoming
+      </button>
+    </div>
+
+    <!-- Tab content -->
+    <div class="flex-1 overflow-hidden">
+      {#if rightTab === 'inbox'}
+        <EmailPanel
+          bind:this={emailPanel}
+          onTaskCreated={(task) => { tasks = [...tasks, task]; }}
+        />
+      {:else}
+        <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800">
+            <svg class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">No calendar connected</p>
+            <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-600">Calendar integration coming soon</p>
+          </div>
+          <a href="/settings/integrations"
+             class="text-[10px] text-blue-500 hover:underline dark:text-blue-400">
+            Set up integrations →
+          </a>
+        </div>
+      {/if}
+    </div>
+  </aside>
 </div>
 
 <TaskPanel open={panelOpen} task={panelTask} defaultStatus={panelStatus} defaultDate={date}

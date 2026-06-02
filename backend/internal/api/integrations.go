@@ -850,6 +850,52 @@ func (h *integrationHandler) fastmailArchiveEmail(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *integrationHandler) fastmailArchivedEmails(w http.ResponseWriter, r *http.Request) {
+	fmCfg, err := h.getFastmailConfig(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	emails, err := fastmail.GetIMAPArchivedEmails(fmCfg.Email, fmCfg.AppPassword, 30)
+	if err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	type emailRow struct {
+		ID         string                 `json:"id"`
+		Subject    string                 `json:"subject"`
+		From       []fastmail.EmailAddress `json:"from"`
+		ReceivedAt string                 `json:"received_at"`
+		IsUnread   bool                   `json:"is_unread"`
+	}
+	rows := make([]emailRow, len(emails))
+	for i, e := range emails {
+		rows[i] = emailRow{
+			ID: e.ID, Subject: e.Subject, From: e.From,
+			ReceivedAt: e.ReceivedAt, IsUnread: e.IsUnread(),
+		}
+	}
+	respond(w, http.StatusOK, rows)
+}
+
+func (h *integrationHandler) fastmailUnarchiveEmail(w http.ResponseWriter, r *http.Request) {
+	fmCfg, err := h.getFastmailConfig(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	uid, err := parseUID(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid email id")
+		return
+	}
+	if err := fastmail.UnarchiveIMAPEmail(fmCfg.Email, fmCfg.AppPassword, uid); err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // getFastmailConfig loads the Fastmail integration config or returns an error.
 func (h *integrationHandler) getFastmailConfig(r *http.Request) (fastmail.Config, error) {
 	cfg, err := h.configs.Get(r.Context(), "fastmail")

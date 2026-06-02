@@ -131,10 +131,13 @@ export const api = {
       sync: () => req<SyncResult>('/api/v1/integrations/fastmail/sync', { method: 'POST' }),
       delete: () => req<void>('/api/v1/integrations/fastmail', { method: 'DELETE' }),
       emails: () => req<FastmailEmail[]>('/api/v1/integrations/fastmail/emails'),
+      archivedEmails: () => req<FastmailEmail[]>('/api/v1/integrations/fastmail/emails/archived'),
       toTask: (id: string, subject: string) =>
         req<Task>(`/api/v1/integrations/fastmail/emails/${id}/to-task`, { method: 'POST', body: body({ subject }) }),
       archive: (id: string) =>
         req<void>(`/api/v1/integrations/fastmail/emails/${id}/archive`, { method: 'POST' }),
+      unarchive: (id: string) =>
+        req<void>(`/api/v1/integrations/fastmail/emails/${id}/unarchive`, { method: 'POST' }),
     },
 
     taskInbox: {

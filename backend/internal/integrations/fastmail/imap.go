@@ -113,6 +113,68 @@ func ArchiveIMAPEmail(email, password string, uid uint32) error {
 	}, nil).Close()
 }
 
+// GetIMAPArchivedEmails returns recent messages from the Archive folder.
+func GetIMAPArchivedEmails(email, password string, limit int) ([]PanelEmail, error) {
+	c, err := dial(email, password)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Logout()
+
+	var mbox *imap.SelectData
+	for _, folder := range []string{"Archive", "Archived", "ARCHIVE"} {
+		if data, selectErr := c.Select(folder, nil).Wait(); selectErr == nil {
+			mbox = data
+			break
+		}
+	}
+	if mbox == nil || mbox.NumMessages == 0 {
+		return nil, nil
+	}
+
+	total := mbox.NumMessages
+	start := uint32(1)
+	if total > uint32(limit) {
+		start = total - uint32(limit) + 1
+	}
+	seqSet := imap.SeqSet{}
+	seqSet.AddRange(start, total)
+
+	msgs, err := c.Fetch(seqSet, &imap.FetchOptions{
+		Envelope: true,
+		Flags:    true,
+		UID:      true,
+	}).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("FETCH archived: %w", err)
+	}
+
+	emails := make([]PanelEmail, 0, len(msgs))
+	for i := len(msgs) - 1; i >= 0; i-- {
+		emails = append(emails, bufToPanelEmail(msgs[i]))
+	}
+	return emails, nil
+}
+
+// UnarchiveIMAPEmail moves a message (by UID) from Archive back to INBOX.
+func UnarchiveIMAPEmail(email, password string, uid uint32) error {
+	c, err := dial(email, password)
+	if err != nil {
+		return err
+	}
+	defer c.Logout()
+
+	for _, folder := range []string{"Archive", "Archived", "ARCHIVE"} {
+		if _, selectErr := c.Select(folder, nil).Wait(); selectErr == nil {
+			uidSet := imap.UIDSetNum(imap.UID(uid))
+			if _, moveErr := c.Move(uidSet, "INBOX").Wait(); moveErr == nil {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("could not unarchive: email not found in archive folders")
+}
+
 // GetIMAPEmailBody fetches the full body of a message by UID.
 func GetIMAPEmailBody(email, password string, uid uint32) (string, error) {
 	c, err := dial(email, password)
