@@ -204,7 +204,7 @@
       <div>
         <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">{formatDate(date)}</p>
         {#if isToday(date)}
-          <p class="text-[10px] font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">Today</p>
+          <p class="text-[10px] font-medium uppercase tracking-wider" style="color:var(--a500)">Today</p>
         {/if}
       </div>
       <button onclick={() => navigate(1)} aria-label="Next day"

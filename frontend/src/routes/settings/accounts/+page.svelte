@@ -476,20 +476,29 @@
           {#each Object.entries(ACCENT_PRESETS) as [name, preset]}
             <button onclick={() => theme.setAccent(name as AccentName)}
                     title={preset.label}
-                    class="flex items-center gap-2 rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-all
+                    class="group relative flex h-8 w-8 items-center justify-center rounded-full
+                           border-2 transition-all hover:scale-110
                            {theme.accent === name
-                             ? 'border-gray-400 bg-gray-50 dark:border-gray-500 dark:bg-gray-700'
-                             : 'border-gray-100 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500'}">
-              <span class="h-3.5 w-3.5 rounded-full shrink-0" style="background:{preset.swatch}"></span>
-              <span class="text-gray-700 dark:text-gray-300">{preset.label}</span>
+                             ? 'border-gray-500 scale-110 shadow-md dark:border-gray-400'
+                             : 'border-transparent hover:border-gray-300 dark:hover:border-gray-500'}"
+                    style="background:{preset.swatch}">
               {#if theme.accent === name}
-                <svg class="h-3 w-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <svg class="h-4 w-4 text-white drop-shadow" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                 </svg>
               {/if}
+              <!-- Tooltip -->
+              <span class="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap
+                           rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-white opacity-0
+                           group-hover:opacity-100 transition-opacity dark:bg-gray-600">
+                {preset.label}
+              </span>
             </button>
           {/each}
         </div>
+        <p class="mt-3 text-[10px] text-gray-400 dark:text-gray-600">
+          Currently: <span class="font-medium text-gray-600 dark:text-gray-400">{ACCENT_PRESETS[theme.accent].label}</span>
+        </p>
       </div>
 
       <!-- Dark / light -->
