@@ -35,16 +35,16 @@
   }
 </script>
 
-<svelte:head><title>Sign in — Aura</title></svelte:head>
+<svelte:head><title>Sign in — Sempa</title></svelte:head>
 
 <div class="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
   <div class="w-full max-w-sm">
     <!-- Logo -->
     <div class="mb-8 flex flex-col items-center gap-3">
       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500 shadow-lg">
-        <span class="text-xl font-bold text-white">A</span>
+        <span class="text-xl font-bold text-white">S</span>
       </div>
-      <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-50">Sign in to Aura</h1>
+      <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-50">Sign in to Sempa</h1>
     </div>
 
     <form onsubmit={(e) => { e.preventDefault(); submit(); }}

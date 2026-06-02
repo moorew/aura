@@ -19,7 +19,7 @@ import (
 	gosmtp "github.com/emersion/go-smtp"
 	"github.com/google/uuid"
 
-	"github.com/clevercode/aura/internal/db"
+	"github.com/clevercode/sempa/internal/db"
 )
 
 type Server struct {
@@ -31,7 +31,7 @@ func New(addr string, tasks *db.TaskStore) *Server {
 	s := &Server{tasks: tasks}
 	srv := gosmtp.NewServer(s)
 	srv.Addr = addr
-	srv.Domain = "aura"
+	srv.Domain = "sempa"
 	srv.EnableSMTPUTF8 = true
 	s.smtp = srv
 	return s

@@ -48,9 +48,9 @@
     <!-- Logo -->
     <div class="flex items-center gap-2.5 border-b border-gray-100 px-4 py-4 dark:border-gray-800">
       <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500">
-        <span class="text-xs font-bold text-white">A</span>
+        <span class="text-xs font-bold text-white">S</span>
       </div>
-      <span class="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">Aura</span>
+      <span class="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">Sempa</span>
     </div>
 
     <!-- Nav -->

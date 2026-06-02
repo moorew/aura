@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/clevercode/aura/internal/db"
+	"github.com/clevercode/sempa/internal/db"
 )
 
 type sessionHandler struct {

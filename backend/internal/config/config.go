@@ -28,7 +28,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:              env("PORT", "8080"),
-		DBPath:            env("DB_PATH", "./data/aura.db"),
+		DBPath:            env("DB_PATH", "./data/sempa.db"),
 		Env:               env("ENV", "development"),
 		FrontendDir:       env("FRONTEND_DIR", ""),
 		AppURL:            env("APP_URL", "http://localhost:8080"),
@@ -36,8 +36,8 @@ func Load() Config {
 		GmailClientID:     env("GMAIL_CLIENT_ID", ""),
 		GmailClientSecret: env("GMAIL_CLIENT_SECRET", ""),
 		SMTPPort:          env("SMTP_PORT", "2525"),
-		AuthUsername:      env("AURA_USERNAME", "admin"),
-		AuthPassword:      env("AURA_PASSWORD", ""),
+		AuthUsername:      env("SEMPA_USERNAME", "admin"),
+		AuthPassword:      env("SEMPA_PASSWORD", ""),
 		EmailForwardToken: env("EMAIL_FORWARD_TOKEN", ""),
 	}
 }

@@ -1,13 +1,13 @@
 services:
-  aura:
+  sempa:
     build: .
-    container_name: aura
+    container_name: sempa
     ports:
       - "9001:9001"
       - "2525:2525"
     environment:
       PORT: "9001"
-      DB_PATH: "/data/aura.db"
+      DB_PATH: "/data/sempa.db"
       FRONTEND_DIR: "/app/frontend/build"
       APP_URL: "https://blackbox.clevercode.ts.net"
       FRONTEND_URL: "https://blackbox.clevercode.ts.net"
@@ -16,8 +16,8 @@ services:
       - path: .env.local
         required: false   # won't fail if file doesn't exist
     volumes:
-      - aura_data:/data
+      - sempa_data:/data
     restart: unless-stopped
 
 volumes:
-  aura_data:
+  sempa_data:

@@ -230,7 +230,7 @@
       <div class="px-5 py-5">
         {#if !tiShowForm}
           <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
-            Forward any email to a Fastmail address and Aura will create a task from it.
+            Forward any email to a Fastmail address and Sempa will create a task from it.
             Uses a separate app password — independent of any Fastmail account you've connected above.
           </p>
           <button onclick={() => tiShowForm = true}

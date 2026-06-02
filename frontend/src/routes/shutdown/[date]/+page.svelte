@@ -84,7 +84,7 @@
   }
 </script>
 
-<svelte:head><title>Shutdown {isToday(date) ? 'Today' : date} — Aura</title></svelte:head>
+<svelte:head><title>Shutdown {isToday(date) ? 'Today' : date} — Sempa</title></svelte:head>
 
 <div class="flex min-h-full flex-col items-center justify-center px-4 py-12">
   <!-- Step indicators -->

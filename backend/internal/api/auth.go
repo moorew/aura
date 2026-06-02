@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/clevercode/aura/internal/config"
+	"github.com/clevercode/sempa/internal/config"
 )
 
-const sessionCookieName = "aura_session"
+const sessionCookieName = "sempa_session"
 
 type sessionStore struct {
 	mu       sync.Mutex

@@ -91,7 +91,7 @@
   const stepLabels = ['Intention', 'Carryover', 'Ready'];
 </script>
 
-<svelte:head><title>Plan {isToday(date) ? 'Today' : date} — Aura</title></svelte:head>
+<svelte:head><title>Plan {isToday(date) ? 'Today' : date} — Sempa</title></svelte:head>
 
 <div class="flex min-h-full flex-col items-center justify-center px-4 py-12">
   <!-- Step indicators -->

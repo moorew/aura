@@ -1,5 +1,5 @@
 // Persists dark/light preference in localStorage and applies the 'dark' class to <html>.
-const STORAGE_KEY = 'aura-theme';
+const STORAGE_KEY = 'sempa-theme';
 
 function createThemeStore() {
   let dark = $state(false);

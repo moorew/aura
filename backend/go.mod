@@ -1,4 +1,4 @@
-module github.com/clevercode/aura
+module github.com/clevercode/sempa
 
 go 1.25.3
 

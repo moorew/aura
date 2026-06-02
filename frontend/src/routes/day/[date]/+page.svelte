@@ -113,7 +113,7 @@
   function navigate(delta: number) { goto(`/day/${offsetDate(date, delta)}`); }
 </script>
 
-<svelte:head><title>{isToday(date) ? 'Today' : date} — Aura</title></svelte:head>
+<svelte:head><title>{isToday(date) ? 'Today' : date} — Sempa</title></svelte:head>
 
 <header class="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm
                dark:border-gray-800 dark:bg-gray-900/90">

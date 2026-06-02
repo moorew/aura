@@ -108,7 +108,7 @@
     <div class="rounded-xl border border-gray-200 bg-white p-6 text-center">
       <p class="mb-4 text-sm text-gray-600">
         Connect your Gmail account to automatically import starred emails as tasks.
-        Aura only requests read-only access.
+        Sempa only requests read-only access.
       </p>
       <a href={api.integrations.gmail.authUrl()}
          class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50">

@@ -12,15 +12,15 @@ WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /aura ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /sempa ./cmd/server
 
 # ── Stage 3: Final image ─────────────────────────────────────────────────────
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
-COPY --from=backend-builder /aura ./aura
+COPY --from=backend-builder /sempa ./sempa
 COPY --from=frontend-builder /frontend/build ./frontend/build
 RUN mkdir -p /data
 EXPOSE 9001
 VOLUME ["/data"]
-CMD ["./aura"]
+CMD ["./sempa"]

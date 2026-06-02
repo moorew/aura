@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/clevercode/aura/internal/api"
-	"github.com/clevercode/aura/internal/config"
-	"github.com/clevercode/aura/internal/db"
-	"github.com/clevercode/aura/internal/integrations/emailrecv"
+	"github.com/clevercode/sempa/internal/api"
+	"github.com/clevercode/sempa/internal/config"
+	"github.com/clevercode/sempa/internal/db"
+	"github.com/clevercode/sempa/internal/integrations/emailrecv"
 )
 
 func main() {

@@ -99,7 +99,7 @@
   };
 </script>
 
-<svelte:head><title>Week of {formatWeekRange(weekStartDate)} — Aura</title></svelte:head>
+<svelte:head><title>Week of {formatWeekRange(weekStartDate)} — Sempa</title></svelte:head>
 
 <!-- Header -->
 <header class="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm">

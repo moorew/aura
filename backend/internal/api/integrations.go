@@ -9,12 +9,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/clevercode/aura/internal/config"
-	"github.com/clevercode/aura/internal/db"
-	"github.com/clevercode/aura/internal/integrations/emailrecv"
-	"github.com/clevercode/aura/internal/integrations/fastmail"
-	"github.com/clevercode/aura/internal/integrations/gmail"
-	"github.com/clevercode/aura/internal/integrations/jira"
+	"github.com/clevercode/sempa/internal/config"
+	"github.com/clevercode/sempa/internal/db"
+	"github.com/clevercode/sempa/internal/integrations/emailrecv"
+	"github.com/clevercode/sempa/internal/integrations/fastmail"
+	"github.com/clevercode/sempa/internal/integrations/gmail"
+	"github.com/clevercode/sempa/internal/integrations/jira"
 )
 
 type integrationHandler struct {

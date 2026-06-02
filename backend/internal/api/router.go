@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/clevercode/aura/internal/config"
-	"github.com/clevercode/aura/internal/db"
+	"github.com/clevercode/sempa/internal/config"
+	"github.com/clevercode/sempa/internal/db"
 )
 
 func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
