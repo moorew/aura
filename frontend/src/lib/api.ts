@@ -122,5 +122,9 @@ export const api = {
       sync: () => req<SyncResult>('/api/v1/integrations/fastmail/sync', { method: 'POST' }),
       delete: () => req<void>('/api/v1/integrations/fastmail', { method: 'DELETE' }),
     },
+
+    emailForward: {
+      get: () => req<{ enabled: boolean; address: string; port: string }>('/api/v1/integrations/email-forward'),
+    },
   },
 };

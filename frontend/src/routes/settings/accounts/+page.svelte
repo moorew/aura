@@ -13,6 +13,8 @@
   let gmail = $state<AccountStatus>({ connected: false });
   let calendar = $state<{ connected: boolean; email?: string; last_synced_at?: string }>({ connected: false });
   let fastmail = $state<AccountStatus>({ connected: false });
+  let emailFwd = $state<{ enabled: boolean; address: string; port: string }>({ enabled: false, address: '', port: '' });
+  let fwdCopied = $state(false);
 
   let fmEmail = $state('');
   let fmPassword = $state('');
@@ -30,10 +32,11 @@
       window.history.replaceState({}, '', '/settings/accounts');
     }
 
-    [gmail, calendar, fastmail] = await Promise.all([
+    [gmail, calendar, fastmail, emailFwd] = await Promise.all([
       api.integrations.gmail.get(),
       api.integrations.calendar.get(),
       api.integrations.fastmail.get(),
+      api.integrations.emailForward.get(),
     ]);
   });
 
@@ -85,6 +88,12 @@
   function formatDate(s?: string | null) {
     if (!s) return 'Never';
     return new Date(s).toLocaleString();
+  }
+
+  async function copyAddress() {
+    await navigator.clipboard.writeText(emailFwd.address);
+    fwdCopied = true;
+    setTimeout(() => (fwdCopied = false), 2000);
   }
 </script>
 
@@ -182,6 +191,44 @@
       </div>
     {/if}
   </section>
+
+  <!-- ── Email forwarding ──────────────────────────────────────────────── -->
+  {#if emailFwd.enabled}
+  <section class="mb-5 rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950">
+        <svg class="h-4 w-4 text-violet-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-7 9 7v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 21V12h6v9"/>
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">Email forwarding</p>
+        <p class="text-xs text-gray-400 dark:text-gray-600">Forward any email to add it as a task</p>
+      </div>
+      <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950 dark:text-green-400">
+        <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Active
+      </span>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <p class="text-xs text-gray-500 dark:text-gray-400">
+        Forward or send any email to the address below. The subject becomes the task title and the body becomes the notes.
+        Tasks land in today's planned column.
+      </p>
+      <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-gray-700/50">
+        <code class="flex-1 text-xs font-mono text-gray-700 dark:text-gray-200 break-all">{emailFwd.address}</code>
+        <button onclick={copyAddress}
+                class="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs text-gray-500
+                       hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors">
+          {fwdCopied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 dark:text-gray-600">
+        Accessible over Tailscale. Your email client must be on the same Tailscale network (port {emailFwd.port}).
+      </p>
+    </div>
+  </section>
+  {/if}
 
   <!-- ── Fastmail ───────────────────────────────────────────────────────── -->
   <section class="mb-5 rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">

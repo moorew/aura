@@ -13,6 +13,9 @@ type Config struct {
 	FrontendURL       string // e.g. http://localhost:5173 (dev only)
 	GmailClientID     string
 	GmailClientSecret string
+
+	// Inbound SMTP (email forwarding)
+	SMTPPort string // e.g. "2525"; empty disables the SMTP server
 }
 
 func Load() Config {
@@ -25,6 +28,7 @@ func Load() Config {
 		FrontendURL:       env("FRONTEND_URL", "http://localhost:5173"),
 		GmailClientID:     env("GMAIL_CLIENT_ID", ""),
 		GmailClientSecret: env("GMAIL_CLIENT_SECRET", ""),
+		SMTPPort:          env("SMTP_PORT", "2525"),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -504,4 +505,26 @@ func (h *integrationHandler) fastmailDelete(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *integrationHandler) emailForwardGet(w http.ResponseWriter, r *http.Request) {
+	enabled := h.cfg.SMTPPort != ""
+	address := ""
+	if enabled {
+		// Derive host from AppURL (strip scheme).
+		host := h.cfg.AppURL
+		for _, prefix := range []string{"https://", "http://"} {
+			host = strings.TrimPrefix(host, prefix)
+		}
+		// Strip any path.
+		if idx := strings.Index(host, "/"); idx >= 0 {
+			host = host[:idx]
+		}
+		address = "tasks@" + host + ":" + h.cfg.SMTPPort
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"enabled": enabled,
+		"address": address,
+		"port":    h.cfg.SMTPPort,
+	})
 }

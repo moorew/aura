@@ -115,6 +115,7 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 				r.Delete("/", integrations.fastmailDelete)
 				r.Post("/sync", integrations.fastmailSync)
 			})
+			r.Get("/email-forward", integrations.emailForwardGet)
 		})
 	})
 

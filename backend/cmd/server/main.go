@@ -12,6 +12,7 @@ import (
 	"github.com/clevercode/aura/internal/api"
 	"github.com/clevercode/aura/internal/config"
 	"github.com/clevercode/aura/internal/db"
+	"github.com/clevercode/aura/internal/integrations/emailrecv"
 )
 
 func main() {
@@ -32,6 +33,17 @@ func main() {
 	}
 
 	handler := api.NewRouter(database, cfg)
+
+	// Start inbound SMTP server if configured.
+	if cfg.SMTPPort != "" {
+		smtpSrv := emailrecv.New(":"+cfg.SMTPPort, db.NewTaskStore(database))
+		go func() {
+			slog.Info("smtp listening", "port", cfg.SMTPPort)
+			if err := smtpSrv.ListenAndServe(); err != nil {
+				slog.Error("smtp server error", "err", err)
+			}
+		}()
+	}
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

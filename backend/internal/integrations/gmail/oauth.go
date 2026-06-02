@@ -17,8 +17,13 @@ const (
 	authURL  = "https://accounts.google.com/o/oauth2/v2/auth"
 	tokenURL = "https://oauth2.googleapis.com/token"
 
-	scopeGmail    = "https://www.googleapis.com/auth/gmail.readonly"
-	scopeCalendar = "https://www.googleapis.com/auth/calendar.readonly"
+	scopeGmail           = "https://www.googleapis.com/auth/gmail.readonly"
+	scopeCalendarRead    = "https://www.googleapis.com/auth/calendar.readonly"
+	scopeCalendarEvents  = "https://www.googleapis.com/auth/calendar.events"
+	scopeCalendarFreeBusy = "https://www.googleapis.com/auth/calendar.events.freebusy"
+
+	// Full calendar scope set (read + write events + free/busy)
+	scopeCalendarFull = scopeCalendarRead + " " + scopeCalendarEvents + " " + scopeCalendarFreeBusy
 )
 
 type StoredToken struct {
@@ -60,7 +65,7 @@ func ConsumeState(state string) bool {
 func AuthURL(clientID, redirectURI, state string, includeCalendar bool) string {
 	scopes := scopeGmail
 	if includeCalendar {
-		scopes = scopeGmail + " " + scopeCalendar
+		scopes = scopeGmail + " " + scopeCalendarFull
 	}
 	params := url.Values{}
 	params.Set("client_id", clientID)
