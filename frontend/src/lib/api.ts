@@ -20,6 +20,7 @@ const base = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...init,
   });
   if (!res.ok) {
@@ -33,6 +34,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 const body = (data: unknown) => JSON.stringify(data);
 
 export const api = {
+  auth: {
+    me: () => req<{ authenticated: boolean; auth_enabled: boolean; username?: string }>('/api/v1/auth/me'),
+    login: (username: string, password: string) =>
+      req<{ status: string }>('/api/v1/auth/login', { method: 'POST', body: body({ username, password }), credentials: 'include' }),
+    logout: () => req<void>('/api/v1/auth/logout', { method: 'POST', credentials: 'include' }),
+  },
+
   tasks: {
     listByDate:  (date: string)      => req<Task[]>(`/api/v1/tasks?date=${date}`),
     listByWeek:  (weekStart: string) => req<Task[]>(`/api/v1/tasks?week_start=${weekStart}`),
@@ -124,7 +132,10 @@ export const api = {
     },
 
     emailForward: {
-      get: () => req<{ enabled: boolean; address: string; port: string }>('/api/v1/integrations/email-forward'),
+      get: () => req<{
+        smtp_enabled: boolean; smtp_address: string; smtp_port: string;
+        webhook_enabled: boolean; webhook_url: string;
+      }>('/api/v1/integrations/email-forward'),
     },
   },
 };

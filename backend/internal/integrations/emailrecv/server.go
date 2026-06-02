@@ -54,6 +54,12 @@ func (s *session) Reset()                                      {}
 func (s *session) Logout() error                               { return nil }
 
 func (s *session) Data(r io.Reader) error {
+	return CreateFromReader(context.Background(), r, s.srv.tasks)
+}
+
+// CreateFromReader parses a raw MIME email and creates a task in today's planned column.
+// Safe to call concurrently; idempotent on Message-ID.
+func CreateFromReader(ctx context.Context, r io.Reader, tasks *db.TaskStore) error {
 	raw, err := io.ReadAll(r)
 	if err != nil {
 		return err
@@ -80,8 +86,8 @@ func (s *session) Data(r io.Reader) error {
 	}
 
 	// Avoid duplicate imports.
-	if _, err := s.srv.tasks.FindBySource(context.Background(), "email_forward", msgID); err == nil {
-		slog.Info("emailrecv: duplicate message, skipping", "message_id", msgID)
+	if _, err := tasks.FindBySource(ctx, "email_forward", msgID); err == nil {
+		slog.Info("emailrecv: duplicate, skipping", "message_id", msgID)
 		return nil
 	}
 
@@ -96,7 +102,7 @@ func (s *session) Data(r io.Reader) error {
 		desc = &d
 	}
 
-	_, err = s.srv.tasks.Create(context.Background(), db.CreateTaskParams{
+	_, err = tasks.Create(ctx, db.CreateTaskParams{
 		ID:          uuid.New().String(),
 		Title:       subject,
 		Description: desc,

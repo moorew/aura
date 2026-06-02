@@ -11,6 +11,7 @@ import (
 
 	"github.com/clevercode/aura/internal/config"
 	"github.com/clevercode/aura/internal/db"
+	"github.com/clevercode/aura/internal/integrations/emailrecv"
 	"github.com/clevercode/aura/internal/integrations/fastmail"
 	"github.com/clevercode/aura/internal/integrations/gmail"
 	"github.com/clevercode/aura/internal/integrations/jira"
@@ -508,23 +509,51 @@ func (h *integrationHandler) fastmailDelete(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *integrationHandler) emailForwardGet(w http.ResponseWriter, r *http.Request) {
-	enabled := h.cfg.SMTPPort != ""
-	address := ""
-	if enabled {
-		// Derive host from AppURL (strip scheme).
+	// SMTP address (Tailscale-internal, requires port spec)
+	smtpEnabled := h.cfg.SMTPPort != ""
+	smtpAddress := ""
+	if smtpEnabled {
 		host := h.cfg.AppURL
 		for _, prefix := range []string{"https://", "http://"} {
 			host = strings.TrimPrefix(host, prefix)
 		}
-		// Strip any path.
 		if idx := strings.Index(host, "/"); idx >= 0 {
 			host = host[:idx]
 		}
-		address = "tasks@" + host + ":" + h.cfg.SMTPPort
+		smtpAddress = "tasks@" + host + ":" + h.cfg.SMTPPort
 	}
+
+	// Webhook (Cloudflare Email Routing)
+	webhookEnabled := h.cfg.EmailForwardToken != ""
+	webhookURL := ""
+	if webhookEnabled {
+		webhookURL = h.cfg.AppURL + "/api/v1/tasks/from-email"
+	}
+
 	respond(w, http.StatusOK, map[string]any{
-		"enabled": enabled,
-		"address": address,
-		"port":    h.cfg.SMTPPort,
+		"smtp_enabled":    smtpEnabled,
+		"smtp_address":    smtpAddress,
+		"smtp_port":       h.cfg.SMTPPort,
+		"webhook_enabled": webhookEnabled,
+		"webhook_url":     webhookURL,
 	})
+}
+
+// fromEmail accepts a raw RFC 5322 email via POST (used by Cloudflare Email Workers).
+// Protected by Bearer token in Authorization header.
+func (h *integrationHandler) fromEmail(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.EmailForwardToken == "" {
+		respondError(w, http.StatusServiceUnavailable, "email forwarding not configured")
+		return
+	}
+	auth := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if auth != h.cfg.EmailForwardToken {
+		respondError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	if err := emailrecv.CreateFromReader(r.Context(), r.Body, h.tasks); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

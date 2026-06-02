@@ -2,10 +2,12 @@
   import '../app.css';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { today, weekStart } from '$lib/utils';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { theme } from '$lib/stores/theme.svelte';
   import { tagStore } from '$lib/stores/tags.svelte';
+  import { api } from '$lib/api';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import type { Snippet } from 'svelte';
 
@@ -14,9 +16,22 @@
   const todayDate = today();
   const thisWeek  = weekStart(todayDate);
 
-  onMount(() => {
+  // Track whether we're on the login page to skip auth check and hide sidebar
+  let isLoginPage = $derived($page.url.pathname === '/login');
+
+  onMount(async () => {
     theme.init();
-    tagStore.load();
+    if (!isLoginPage) {
+      tagStore.load();
+      try {
+        const me = await api.auth.me();
+        if (!me.authenticated) {
+          goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
+        }
+      } catch {
+        goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
+      }
+    }
   });
 
   function isActive(prefix: string): boolean {
@@ -24,6 +39,9 @@
   }
 </script>
 
+{#if isLoginPage}
+  {@render children()}
+{:else}
 <div class="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
   <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
   <aside class="flex w-44 shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -123,4 +141,5 @@
 <!-- ── Floating Pomodoro timer ────────────────────────────────────────── -->
 {#if pomodoro.taskId}
   <PomodoroTimer />
+{/if}
 {/if}

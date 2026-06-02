@@ -32,12 +32,13 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowOriginFunc:  allowOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
-		AllowCredentials: false,
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
 	tagStore := db.NewTagStore(database)
+	auth := newAuthHandler(cfg)
 
 	tasks        := &taskHandler{store: db.NewTaskStore(database), tags: tagStore}
 	objectives   := &objectiveHandler{store: db.NewObjectiveStore(database)}
@@ -51,71 +52,87 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	}
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// Public: health + auth endpoints
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
-
-		r.Route("/tasks", func(r chi.Router) {
-			r.Get("/", tasks.list)
-			r.Post("/", tasks.create)
-			r.Get("/recurring", tasks.listTemplates)
-			r.Get("/{id}", tasks.get)
-			r.Patch("/{id}", tasks.update)
-			r.Delete("/{id}", tasks.delete)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/login", auth.login)
+			r.Post("/logout", auth.logout)
+			r.Get("/me", auth.me)
 		})
 
-		r.Route("/tags", func(r chi.Router) {
-			r.Get("/", tags.list)
-			r.Post("/", tags.create)
-			r.Patch("/{id}", tags.update)
-			r.Delete("/{id}", tags.delete)
-		})
+		// Cloudflare email webhook — token-auth, not session-auth
+		r.Post("/tasks/from-email", integrations.fromEmail)
 
-		r.Route("/objectives", func(r chi.Router) {
-			r.Get("/", objectives.list)
-			r.Post("/", objectives.create)
-			r.Get("/{id}", objectives.get)
-			r.Patch("/{id}", objectives.update)
-			r.Delete("/{id}", objectives.delete)
-		})
+		// Gmail OAuth callback must be accessible during the redirect flow
+		r.Get("/integrations/gmail/callback", integrations.gmailCallback)
 
-		r.Route("/plans", func(r chi.Router) {
-			r.Get("/{date}", plans.get)
-			r.Put("/{date}", plans.upsert)
-		})
+		// All remaining API routes require session auth (if auth is configured)
+		r.Group(func(r chi.Router) {
+			r.Use(auth.requireAuth)
 
-		r.Route("/pomodoros", func(r chi.Router) {
-			r.Post("/", sessions.create)
-		})
-
-		r.Route("/integrations", func(r chi.Router) {
-			r.Route("/jira", func(r chi.Router) {
-				r.Get("/", integrations.jiraGet)
-				r.Put("/", integrations.jiraPut)
-				r.Delete("/", integrations.jiraDelete)
-				r.Post("/test", integrations.jiraTest)
-				r.Post("/sync", integrations.jiraSync)
+			r.Route("/tasks", func(r chi.Router) {
+				r.Get("/", tasks.list)
+				r.Post("/", tasks.create)
+				r.Get("/recurring", tasks.listTemplates)
+				r.Get("/{id}", tasks.get)
+				r.Patch("/{id}", tasks.update)
+				r.Delete("/{id}", tasks.delete)
 			})
-			r.Route("/gmail", func(r chi.Router) {
-				r.Get("/", integrations.gmailGet)
-				r.Delete("/", integrations.gmailDelete)
-				r.Get("/auth", integrations.gmailAuth)
-				r.Get("/callback", integrations.gmailCallback)
-				r.Patch("/labels", integrations.gmailUpdateLabels)
-				r.Post("/sync", integrations.gmailSync)
+
+			r.Route("/tags", func(r chi.Router) {
+				r.Get("/", tags.list)
+				r.Post("/", tags.create)
+				r.Patch("/{id}", tags.update)
+				r.Delete("/{id}", tags.delete)
 			})
-			r.Route("/calendar", func(r chi.Router) {
-				r.Get("/", integrations.calendarGet)
-				r.Patch("/", integrations.calendarToggle)
-				r.Post("/sync", integrations.calendarSync)
+
+			r.Route("/objectives", func(r chi.Router) {
+				r.Get("/", objectives.list)
+				r.Post("/", objectives.create)
+				r.Get("/{id}", objectives.get)
+				r.Patch("/{id}", objectives.update)
+				r.Delete("/{id}", objectives.delete)
 			})
-			r.Route("/fastmail", func(r chi.Router) {
-				r.Get("/", integrations.fastmailGet)
-				r.Put("/", integrations.fastmailPut)
-				r.Delete("/", integrations.fastmailDelete)
-				r.Post("/sync", integrations.fastmailSync)
+
+			r.Route("/plans", func(r chi.Router) {
+				r.Get("/{date}", plans.get)
+				r.Put("/{date}", plans.upsert)
 			})
-			r.Get("/email-forward", integrations.emailForwardGet)
+
+			r.Route("/pomodoros", func(r chi.Router) {
+				r.Post("/", sessions.create)
+			})
+
+			r.Route("/integrations", func(r chi.Router) {
+				r.Route("/jira", func(r chi.Router) {
+					r.Get("/", integrations.jiraGet)
+					r.Put("/", integrations.jiraPut)
+					r.Delete("/", integrations.jiraDelete)
+					r.Post("/test", integrations.jiraTest)
+					r.Post("/sync", integrations.jiraSync)
+				})
+				r.Route("/gmail", func(r chi.Router) {
+					r.Get("/", integrations.gmailGet)
+					r.Delete("/", integrations.gmailDelete)
+					r.Get("/auth", integrations.gmailAuth)
+					r.Patch("/labels", integrations.gmailUpdateLabels)
+					r.Post("/sync", integrations.gmailSync)
+				})
+				r.Route("/calendar", func(r chi.Router) {
+					r.Get("/", integrations.calendarGet)
+					r.Patch("/", integrations.calendarToggle)
+					r.Post("/sync", integrations.calendarSync)
+				})
+				r.Route("/fastmail", func(r chi.Router) {
+					r.Get("/", integrations.fastmailGet)
+					r.Put("/", integrations.fastmailPut)
+					r.Delete("/", integrations.fastmailDelete)
+					r.Post("/sync", integrations.fastmailSync)
+				})
+				r.Get("/email-forward", integrations.emailForwardGet)
+			})
 		})
 	})
 

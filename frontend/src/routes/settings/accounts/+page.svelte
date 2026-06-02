@@ -13,7 +13,10 @@
   let gmail = $state<AccountStatus>({ connected: false });
   let calendar = $state<{ connected: boolean; email?: string; last_synced_at?: string }>({ connected: false });
   let fastmail = $state<AccountStatus>({ connected: false });
-  let emailFwd = $state<{ enabled: boolean; address: string; port: string }>({ enabled: false, address: '', port: '' });
+  let emailFwd = $state<{
+    smtp_enabled: boolean; smtp_address: string; smtp_port: string;
+    webhook_enabled: boolean; webhook_url: string;
+  }>({ smtp_enabled: false, smtp_address: '', smtp_port: '', webhook_enabled: false, webhook_url: '' });
   let fwdCopied = $state(false);
 
   let fmEmail = $state('');
@@ -193,7 +196,7 @@
   </section>
 
   <!-- ── Email forwarding ──────────────────────────────────────────────── -->
-  {#if emailFwd.enabled}
+  {#if emailFwd.webhook_enabled || emailFwd.smtp_enabled}
   <section class="mb-5 rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
     <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700">
       <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950">
@@ -210,22 +213,40 @@
         <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Active
       </span>
     </div>
-    <div class="px-5 py-4 space-y-3">
+    <div class="px-5 py-4 space-y-4">
       <p class="text-xs text-gray-500 dark:text-gray-400">
-        Forward or send any email to the address below. The subject becomes the task title and the body becomes the notes.
-        Tasks land in today's planned column.
+        Forward any email to Aura. The subject becomes the task title, body becomes notes. Tasks land in today's planned column.
       </p>
-      <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-gray-700/50">
-        <code class="flex-1 text-xs font-mono text-gray-700 dark:text-gray-200 break-all">{emailFwd.address}</code>
-        <button onclick={copyAddress}
-                class="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs text-gray-500
-                       hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors">
-          {fwdCopied ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-      <p class="text-xs text-gray-400 dark:text-gray-600">
-        Accessible over Tailscale. Your email client must be on the same Tailscale network (port {emailFwd.port}).
-      </p>
+
+      {#if emailFwd.webhook_enabled}
+        <div class="space-y-1.5">
+          <p class="text-xs font-medium text-gray-600 dark:text-gray-400">Cloudflare Email Routing address</p>
+          <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-gray-700/50">
+            <code class="flex-1 text-xs font-mono text-gray-700 dark:text-gray-200 break-all">tasks@sempa.ca</code>
+            <button onclick={() => { navigator.clipboard.writeText('tasks@sempa.ca'); fwdCopied = true; setTimeout(() => fwdCopied = false, 2000); }}
+                    class="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs text-gray-500
+                           hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors">
+              {fwdCopied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-600">Works from any email client, no port configuration needed.</p>
+        </div>
+      {/if}
+
+      {#if emailFwd.smtp_enabled}
+        <div class="space-y-1.5">
+          <p class="text-xs font-medium text-gray-600 dark:text-gray-400">Direct SMTP (Tailscale-only)</p>
+          <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-gray-700/50">
+            <code class="flex-1 text-xs font-mono text-gray-700 dark:text-gray-200 break-all">{emailFwd.smtp_address}</code>
+            <button onclick={copyAddress}
+                    class="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs text-gray-500
+                           hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors">
+              {fwdCopied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-600">Requires specifying port {emailFwd.smtp_port}. Use from desktop email clients on Tailscale.</p>
+        </div>
+      {/if}
     </div>
   </section>
   {/if}

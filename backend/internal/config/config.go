@@ -16,6 +16,13 @@ type Config struct {
 
 	// Inbound SMTP (email forwarding)
 	SMTPPort string // e.g. "2525"; empty disables the SMTP server
+
+	// Auth — optional; if AuthPassword is empty, auth is disabled
+	AuthUsername string
+	AuthPassword string
+
+	// Webhook token for Cloudflare Email Routing → POST /api/v1/tasks/from-email
+	EmailForwardToken string
 }
 
 func Load() Config {
@@ -29,6 +36,9 @@ func Load() Config {
 		GmailClientID:     env("GMAIL_CLIENT_ID", ""),
 		GmailClientSecret: env("GMAIL_CLIENT_SECRET", ""),
 		SMTPPort:          env("SMTP_PORT", "2525"),
+		AuthUsername:      env("AURA_USERNAME", "admin"),
+		AuthPassword:      env("AURA_PASSWORD", ""),
+		EmailForwardToken: env("EMAIL_FORWARD_TOKEN", ""),
 	}
 }
 
