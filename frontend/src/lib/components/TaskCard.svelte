@@ -29,7 +29,10 @@
 <div
   draggable="true"
   role="listitem"
-  ondragstart={() => onDragStart(task.id)}
+  ondragstart={(e) => {
+    e.dataTransfer?.setData('application/x-sempa-task', task.id);
+    onDragStart(task.id);
+  }}
   class="group relative flex flex-col gap-2 rounded-xl border border-gray-100 bg-white p-3
          shadow-sm cursor-grab active:cursor-grabbing active:opacity-60 active:shadow-lg
          transition-all duration-100 hover:border-gray-200 hover:shadow-md

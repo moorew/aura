@@ -45,6 +45,7 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	plans        := &planHandler{store: db.NewDailyPlanStore(database)}
 	sessions     := &sessionHandler{store: db.NewSessionStore(database)}
 	tags         := &tagHandler{store: tagStore}
+	weekReviews  := &weekReviewHandler{store: db.NewWeekReviewStore(database)}
 	integrations := &integrationHandler{
 		configs: db.NewIntegrationConfigStore(database),
 		tasks:   db.NewTaskStore(database),
@@ -99,6 +100,11 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 			r.Route("/plans", func(r chi.Router) {
 				r.Get("/{date}", plans.get)
 				r.Put("/{date}", plans.upsert)
+			})
+
+			r.Route("/weeks", func(r chi.Router) {
+				r.Get("/{weekStart}/review", weekReviews.get)
+				r.Put("/{weekStart}/review", weekReviews.upsert)
 			})
 
 			r.Route("/pomodoros", func(r chi.Router) {

@@ -13,6 +13,7 @@ import type {
   UpdateObjectiveInput,
   UpdateTaskInput,
   UpsertPlanInput,
+  WeekReview,
 } from './types';
 
 // In dev: set VITE_API_URL=http://localhost:9001. In production (served from Go), leave unset → relative URLs.
@@ -43,10 +44,11 @@ export const api = {
   },
 
   tasks: {
-    listByDate:  (date: string)      => req<Task[]>(`/api/v1/tasks?date=${date}`),
-    listByWeek:  (weekStart: string) => req<Task[]>(`/api/v1/tasks?week_start=${weekStart}`),
-    listBacklog: ()                  => req<Task[]>('/api/v1/tasks'),
-    get:         (id: string)        => req<Task>(`/api/v1/tasks/${id}`),
+    listByDate:   (date: string)      => req<Task[]>(`/api/v1/tasks?date=${date}`),
+    listByWeek:   (weekStart: string) => req<Task[]>(`/api/v1/tasks?week_start=${weekStart}`),
+    listBacklog:  ()                  => req<Task[]>('/api/v1/tasks'),
+    listByParent: (parentId: string)  => req<Task[]>(`/api/v1/tasks?parent_id=${parentId}`),
+    get:          (id: string)        => req<Task>(`/api/v1/tasks/${id}`),
     create: (input: CreateTaskInput) =>
       req<Task>('/api/v1/tasks', { method: 'POST', body: body(input) }),
     update: (id: string, patch: UpdateTaskInput) =>
@@ -93,6 +95,12 @@ export const api = {
   recurring: {
     list: () => req<Task[]>('/api/v1/tasks/recurring'),
     delete: (id: string) => req<void>(`/api/v1/tasks/${id}`, { method: 'DELETE' }),
+  },
+
+  weeks: {
+    getReview:    (weekStart: string) => req<WeekReview>(`/api/v1/weeks/${weekStart}/review`),
+    upsertReview: (weekStart: string, data: { wins: string | null; challenges: string | null; next_focus: string | null }) =>
+      req<WeekReview>(`/api/v1/weeks/${weekStart}/review`, { method: 'PUT', body: body(data) }),
   },
 
   integrations: {

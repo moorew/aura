@@ -2,6 +2,7 @@
   import type { Task, TaskStatus } from '$lib/types';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { api } from '$lib/api';
+  import SubTaskList from './SubTaskList.svelte';
 
   const TIME_OPTIONS = [
     { label: 'No estimate',  value: null  },
@@ -47,6 +48,9 @@
   let description = $state('');
   let plannedDate = $state('');
   let estimateMinutes = $state<number | null>(null);
+  let actualMinutesInput = $state('');
+  let scheduledStart = $state('');
+  let scheduledEnd = $state('');
   let recurrenceRule = $state('');
   let selectedTags = $state<string[]>([]);
   let tagSearch = $state('');
@@ -54,6 +58,16 @@
   let saving = $state(false);
   let error = $state('');
   let titleInput: HTMLInputElement | undefined = $state();
+
+  function toLocalDatetimeInput(iso: string | null | undefined): string {
+    if (!iso) return '';
+    // Convert ISO to datetime-local format (YYYY-MM-DDTHH:MM)
+    return iso.substring(0, 16);
+  }
+  function fromLocalDatetimeInput(val: string): string | null {
+    if (!val) return null;
+    return new Date(val).toISOString();
+  }
 
   const recurrenceOptions = $derived.by(() => {
     const d = new Date((plannedDate || defaultDate) + 'T12:00:00');
@@ -75,11 +89,16 @@
       description = task.description ?? '';
       plannedDate = task.planned_date ?? defaultDate;
       estimateMinutes = task.time_estimate_minutes ?? null;
+      actualMinutesInput = task.time_actual_minutes ? String(task.time_actual_minutes) : '';
+      scheduledStart = toLocalDatetimeInput(task.scheduled_start);
+      scheduledEnd = toLocalDatetimeInput(task.scheduled_end);
       recurrenceRule = task.recurrence_rule ?? '';
       selectedTags = [...(task.tags ?? [])];
     } else {
       title = ''; description = ''; plannedDate = defaultDate;
-      estimateMinutes = null; recurrenceRule = ''; selectedTags = [];
+      estimateMinutes = null; actualMinutesInput = '';
+      scheduledStart = ''; scheduledEnd = '';
+      recurrenceRule = ''; selectedTags = [];
     }
     tagSearch = ''; tagDropdownOpen = false; error = '';
     setTimeout(() => titleInput?.focus(), 30);
@@ -119,12 +138,16 @@
     try {
       let saved: Task;
       if (isEdit && task) {
+        const actualMin = actualMinutesInput.trim() ? parseInt(actualMinutesInput, 10) || null : null;
         saved = await api.tasks.update(task.id, {
           title: title.trim(),
           description: description.trim() || null,
           planned_date: recurrenceRule ? null : (plannedDate || null),
           time_estimate_minutes: estimateMinutes ?? null,
+          time_actual_minutes: actualMin,
           tags: selectedTags,
+          scheduled_start: fromLocalDatetimeInput(scheduledStart),
+          scheduled_end: fromLocalDatetimeInput(scheduledEnd),
         });
       } else {
         saved = await api.tasks.create({
@@ -328,6 +351,70 @@
           </div>
         {/if}
       </div>
+
+      <!-- Scheduled time (edit mode only) -->
+      {#if isEdit}
+        <div>
+          <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
+            Scheduled time <span class="font-normal text-gray-400 dark:text-gray-600">— drag to calendar or set here</span>
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-400 dark:text-gray-600" for="sched-start">Start</label>
+              <input id="sched-start" type="datetime-local" bind:value={scheduledStart}
+                     class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
+                            text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
+                            dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+                            [color-scheme:light] dark:[color-scheme:dark]" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-400 dark:text-gray-600" for="sched-end">End</label>
+              <input id="sched-end" type="datetime-local" bind:value={scheduledEnd}
+                     class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
+                            text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
+                            dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+                            [color-scheme:light] dark:[color-scheme:dark]" />
+            </div>
+          </div>
+          {#if scheduledStart}
+            <button onclick={() => { scheduledStart = ''; scheduledEnd = ''; }}
+                    class="mt-1 text-xs text-gray-400 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400">
+              × Clear schedule
+            </button>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Log actual time (edit mode only) -->
+      {#if isEdit}
+        <div>
+          <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-actual">
+            Actual time logged
+          </label>
+          <div class="flex items-center gap-2">
+            <input id="task-actual" type="number" min="0" bind:value={actualMinutesInput}
+                   placeholder="minutes"
+                   class="w-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm
+                          text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
+                          dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
+            <span class="text-xs text-gray-400 dark:text-gray-600">minutes
+              {#if parseInt(actualMinutesInput) > 0}
+                ({Math.floor(parseInt(actualMinutesInput) / 60)}h {parseInt(actualMinutesInput) % 60}m)
+              {/if}
+            </span>
+          </div>
+          <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-600">
+            Updated automatically by pomodoro sessions
+          </p>
+        </div>
+      {/if}
+
+      <!-- Sub-tasks (edit mode only) -->
+      {#if isEdit && task}
+        <div>
+          <SubTaskList parentId={task.id} parentDate={task.planned_date ?? undefined} />
+        </div>
+      {/if}
 
       <!-- Recurrence (only in create mode) -->
       {#if !isEdit}

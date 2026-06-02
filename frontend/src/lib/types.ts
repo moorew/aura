@@ -1,5 +1,5 @@
 export type TaskStatus = 'backlog' | 'planned' | 'in_progress' | 'done' | 'cancelled';
-export type TaskSource = 'manual' | 'gmail' | 'fastmail' | 'jira';
+export type TaskSource = 'manual' | 'gmail' | 'fastmail' | 'jira' | 'google_calendar';
 
 export interface Task {
   id: string;
@@ -26,6 +26,9 @@ export interface Task {
   recurrence_rule: string | null;
   recurrence_origin_id: string | null;
   is_customized: boolean;
+  // Timeboxing
+  scheduled_start: string | null;
+  scheduled_end: string | null;
 }
 
 export interface TagDefinition {
@@ -78,8 +81,21 @@ export interface CreateTaskInput {
   position?: number;
   time_estimate_minutes?: number;
   weekly_objective_id?: string;
+  parent_task_id?: string;
   tags?: string[];
   recurrence_rule?: string;
+  scheduled_start?: string;
+  scheduled_end?: string;
+}
+
+export interface WeekReview {
+  id?: string;
+  week_start: string;
+  wins: string | null;
+  challenges: string | null;
+  next_focus: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UpdateTaskInput {
@@ -94,6 +110,9 @@ export interface UpdateTaskInput {
   weekly_objective_id?: string | null;
   completed_at?: string | null;
   tags?: string[];
+  parent_task_id?: string | null;
+  scheduled_start?: string | null;
+  scheduled_end?: string | null;
 }
 
 export interface CreateObjectiveInput {

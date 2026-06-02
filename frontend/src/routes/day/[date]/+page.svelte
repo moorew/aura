@@ -4,17 +4,22 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { COLUMNS, type Task, type TaskStatus } from '$lib/types';
-  import { appendPosition, formatDate, isToday, offsetDate, today, weekStart } from '$lib/utils';
+  import { appendPosition, formatDate, formatMinutes, isToday, insertPosition, offsetDate, today, weekStart } from '$lib/utils';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import KanbanColumn from '$lib/components/KanbanColumn.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import EmailPanel from '$lib/components/EmailPanel.svelte';
   import MiniCalendar from '$lib/components/MiniCalendar.svelte';
+  import TimeslotCalendar from '$lib/components/TimeslotCalendar.svelte';
 
   let date = $derived($page.params.date ?? today());
   let tasks = $state<Task[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+
+  // Rollover
+  let rolloverTasks = $state<Task[]>([]);
+  let rolloverDismissed = $state(false);
 
   let draggingId     = $state<string | null>(null);
   let dragOverStatus = $state<TaskStatus | null>(null);
@@ -25,6 +30,14 @@
   let panelTask   = $state<Task | null>(null);
   let panelStatus = $state<TaskStatus>('planned');
 
+  // React to pomodoro completing a session and updating actual time
+  $effect(() => {
+    const upd = pomodoro.lastTimeUpdate;
+    if (upd) {
+      tasks = tasks.map(t => t.id === upd.taskId ? { ...t, time_actual_minutes: upd.newActual } : t);
+    }
+  });
+
   async function loadTasks() {
     loading = true; error = null;
     try { tasks = await api.tasks.listByDate(date); }
@@ -32,23 +45,63 @@
     finally { loading = false; }
   }
 
-  onMount(loadTasks);
+  async function loadRollover() {
+    if (!isToday(date)) return;
+    try {
+      const yesterday = offsetDate(date, -1);
+      const prev = await api.tasks.listByDate(yesterday);
+      rolloverTasks = prev.filter(t => t.status === 'planned' || t.status === 'in_progress');
+    } catch { /* ignore */ }
+  }
+
+  onMount(() => { loadTasks(); loadRollover(); });
   $effect(() => { date; loadTasks(); });
+
+  async function rolloverAll() {
+    const ws = weekStart(date);
+    await Promise.all(rolloverTasks.map(t =>
+      api.tasks.update(t.id, { planned_date: date, week_start: ws, status: 'planned' })
+    ));
+    rolloverTasks = [];
+    await loadTasks();
+  }
 
   function columnTasks(status: TaskStatus): Task[] {
     return tasks.filter(t => t.status === status).sort((a, b) => a.position - b.position);
   }
 
+  // Day stats
+  const todayTasks   = $derived(tasks.filter(t => t.status !== 'cancelled'));
+  const estimateMins = $derived(todayTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
+  const actualMins   = $derived(todayTasks.reduce((s, t) => s + (t.time_actual_minutes ?? 0), 0));
+  const doneTasks    = $derived(todayTasks.filter(t => t.status === 'done').length);
+
   // ── Drag & drop ──────────────────────────────────────────────────────────
   function handleDragStart(id: string) { draggingId = id; }
 
-  async function handleDrop(targetStatus: TaskStatus) {
-    if (!draggingId || !dragOverStatus) return;
+  async function handleDrop(targetStatus: TaskStatus, insertIdx?: number) {
+    if (!draggingId) return;
     const id = draggingId;
     draggingId = null; dragOverStatus = null;
     const task = tasks.find(t => t.id === id);
-    if (!task || task.status === targetStatus) return;
-    const newPos = appendPosition(tasks.filter(t => t.status === targetStatus).map(t => t.position));
+    if (!task) return;
+
+    // Calculate new position
+    const colTasks = tasks
+      .filter(t => t.status === targetStatus && t.id !== id)
+      .sort((a, b) => a.position - b.position);
+    const positions = colTasks.map(t => t.position);
+
+    let newPos: number;
+    if (insertIdx !== undefined) {
+      newPos = insertPosition(positions, insertIdx);
+    } else {
+      newPos = appendPosition(positions);
+    }
+
+    const sameStatus = task.status === targetStatus;
+    if (sameStatus && task.position === newPos) return;
+
     const prev = tasks.slice();
     tasks = tasks.map(t => t.id === id ? { ...t, status: targetStatus, position: newPos } : t);
     try {
@@ -78,7 +131,10 @@
   }
 
   // ── Pomodoro ──────────────────────────────────────────────────────────────
-  function handleFocus(id: string, title: string) { pomodoro.start(id, title); }
+  function handleFocus(id: string, title: string) {
+    const t = tasks.find(t => t.id === id);
+    pomodoro.start(id, title, t?.time_actual_minutes ?? 0);
+  }
 
   // ── Panel ─────────────────────────────────────────────────────────────────
   function openCreate(status: TaskStatus) { panelTask = null; panelStatus = status; panelOpen = true; }
@@ -108,6 +164,24 @@
     } catch (e: any) { error = e.message; }
   }
 
+  // ── Calendar schedule / unschedule ───────────────────────────────────────
+  async function handleSchedule(taskId: string, start: string, end: string) {
+    const prev = tasks.slice();
+    tasks = tasks.map(t => t.id === taskId ? { ...t, scheduled_start: start, scheduled_end: end } : t);
+    try {
+      const updated = await api.tasks.update(taskId, { scheduled_start: start, scheduled_end: end });
+      tasks = tasks.map(t => t.id === updated.id ? updated : t);
+    } catch { tasks = prev; }
+  }
+
+  async function handleUnschedule(taskId: string) {
+    const prev = tasks.slice();
+    tasks = tasks.map(t => t.id === taskId ? { ...t, scheduled_start: null, scheduled_end: null } : t);
+    try {
+      await api.tasks.update(taskId, { scheduled_start: null, scheduled_end: null });
+    } catch { tasks = prev; }
+  }
+
   // ── Navigation ───────────────────────────────────────────────────────────
   function navigate(delta: number) { goto(`/day/${offsetDate(date, delta)}`); }
 </script>
@@ -118,7 +192,6 @@
 <header class="sticky top-0 z-10 border-b border-gray-100 bg-white/95 backdrop-blur-sm
                dark:border-gray-800/60 dark:bg-gray-900/95">
   <div class="flex items-center justify-between px-6 py-3">
-    <!-- Date navigation -->
     <div class="flex items-center gap-2">
       <button onclick={() => navigate(-1)} aria-label="Previous day"
               class="rounded-lg p-1.5 text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors
@@ -142,7 +215,19 @@
       </button>
     </div>
 
-    <!-- Actions -->
+    <!-- Day stats -->
+    {#if !loading && todayTasks.length > 0}
+      <div class="hidden sm:flex items-center gap-4 text-xs text-gray-400 dark:text-gray-600">
+        <span>{doneTasks}/{todayTasks.length} done</span>
+        {#if estimateMins > 0}
+          <span>~{formatMinutes(estimateMins)} planned</span>
+        {/if}
+        {#if actualMins > 0}
+          <span class="text-green-600 dark:text-green-500">{formatMinutes(actualMins)} logged</span>
+        {/if}
+      </div>
+    {/if}
+
     <div class="flex items-center gap-2">
       {#if !isToday(date)}
         <button onclick={() => goto(`/day/${today()}`)}
@@ -168,10 +253,33 @@
 
   <!-- Kanban area -->
   <main class="flex-1 overflow-auto px-6 py-6">
-    {#if loading}
-      <div class="flex h-64 items-center justify-center text-sm text-gray-300 dark:text-gray-700">
-        Loading…
+
+    <!-- Rollover banner -->
+    {#if rolloverTasks.length > 0 && !rolloverDismissed}
+      <div class="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3
+                  dark:border-amber-800/50 dark:bg-amber-950/40">
+        <svg class="h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="flex-1 text-xs text-amber-700 dark:text-amber-400">
+          <strong>{rolloverTasks.length}</strong> unfinished task{rolloverTasks.length > 1 ? 's' : ''} from yesterday —
+          {rolloverTasks.slice(0, 2).map(t => t.title).join(', ')}{rolloverTasks.length > 2 ? `…` : ''}
+        </p>
+        <button onclick={rolloverAll}
+                class="rounded-lg bg-amber-500 px-3 py-1 text-xs font-medium text-white hover:bg-amber-600 transition-colors">
+          Roll over
+        </button>
+        <button onclick={() => rolloverDismissed = true} aria-label="Dismiss"
+                class="text-amber-400 hover:text-amber-600 dark:text-amber-600 dark:hover:text-amber-400">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
+    {/if}
+
+    {#if loading}
+      <div class="flex h-64 items-center justify-center text-sm text-gray-300 dark:text-gray-700">Loading…</div>
     {:else if error}
       <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600
                   dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
@@ -199,16 +307,14 @@
     {/if}
   </main>
 
-  <!-- ── Right panel: calendar + inbox ─────────────────────────────────── -->
+  <!-- ── Right panel ─────────────────────────────────────────────────────── -->
   <aside class="w-72 shrink-0 flex flex-col border-l border-gray-100 bg-white overflow-hidden
                 dark:border-gray-800/60 dark:bg-gray-900">
 
-    <!-- Mini calendar -->
     <div class="shrink-0 border-b border-gray-100 dark:border-gray-800/60">
       <MiniCalendar {date} />
     </div>
 
-    <!-- Tab switcher -->
     <div class="flex shrink-0 border-b border-gray-100 dark:border-gray-800/60">
       <button onclick={() => rightTab = 'inbox'}
               class="flex-1 py-2.5 text-xs font-medium transition-colors
@@ -222,11 +328,10 @@
                      {rightTab === 'upcoming'
                        ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
-        Upcoming
+        Schedule
       </button>
     </div>
 
-    <!-- Tab content -->
     <div class="flex-1 overflow-hidden">
       {#if rightTab === 'inbox'}
         <EmailPanel
@@ -234,21 +339,12 @@
           onTaskCreated={(task) => { tasks = [...tasks, task]; }}
         />
       {:else}
-        <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800">
-            <svg class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/>
-            </svg>
-          </div>
-          <div>
-            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">No calendar connected</p>
-            <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-600">Calendar integration coming soon</p>
-          </div>
-          <a href="/settings/integrations"
-             class="text-[10px] text-blue-500 hover:underline dark:text-blue-400">
-            Set up integrations →
-          </a>
-        </div>
+        <TimeslotCalendar
+          {date}
+          {tasks}
+          onSchedule={handleSchedule}
+          onUnschedule={handleUnschedule}
+        />
       {/if}
     </div>
   </aside>

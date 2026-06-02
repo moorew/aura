@@ -65,6 +65,14 @@ export function appendPosition(positions: number[]): number {
   return Math.max(...positions) + 1000;
 }
 
+// Insert at index i within a sorted positions array (midpoint between neighbours).
+export function insertPosition(positions: number[], i: number): number {
+  if (positions.length === 0) return 1000;
+  if (i <= 0) return positions[0] - 1000;
+  if (i >= positions.length) return positions[positions.length - 1] + 1000;
+  return (positions[i - 1] + positions[i]) / 2;
+}
+
 export function parseMinutes(raw: string): number | null {
   const s = raw.trim().toLowerCase();
   if (!s) return null;

@@ -46,6 +46,9 @@ type updateTaskRequest struct {
 	WeeklyObjectiveID   *string  `json:"weekly_objective_id"`
 	CompletedAt         *string  `json:"completed_at"`
 	Tags                []string `json:"tags"`
+	ParentTaskID        *string  `json:"parent_task_id"`
+	ScheduledStart      *string  `json:"scheduled_start"`
+	ScheduledEnd        *string  `json:"scheduled_end"`
 }
 
 func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -58,11 +61,15 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 		_ = h.store.GenerateForDate(r.Context(), date)
 	}
 
+	parentID := q.Get("parent_id")
+
 	var (
 		tasks []db.Task
 		err   error
 	)
 	switch {
+	case parentID != "":
+		tasks, err = h.store.ListByParent(r.Context(), parentID)
 	case date != "":
 		tasks, err = h.store.ListByDate(r.Context(), date)
 	case weekStart != "":
@@ -215,6 +222,15 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.CompletedAt != nil {
 		task.CompletedAt = req.CompletedAt
+	}
+	if req.ParentTaskID != nil {
+		task.ParentTaskID = req.ParentTaskID
+	}
+	if req.ScheduledStart != nil {
+		task.ScheduledStart = req.ScheduledStart
+	}
+	if req.ScheduledEnd != nil {
+		task.ScheduledEnd = req.ScheduledEnd
 	}
 
 	// Auto-stamp completed_at when moving to done for the first time

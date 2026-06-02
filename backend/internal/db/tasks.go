@@ -33,13 +33,17 @@ type Task struct {
 	RecurrenceRule     *string  `json:"recurrence_rule"`
 	RecurrenceOriginID *string  `json:"recurrence_origin_id"`
 	IsCustomized       bool     `json:"is_customized"`
+	// Timeboxing (added in migration 006)
+	ScheduledStart *string `json:"scheduled_start"`
+	ScheduledEnd   *string `json:"scheduled_end"`
 }
 
 const taskCols = `id, title, description, planned_date, week_start, status, position,
        time_estimate_minutes, time_actual_minutes, parent_task_id, weekly_objective_id,
        source, source_id, source_url, source_metadata,
        completed_at, archived_at, created_at, updated_at,
-       tags, recurrence_rule, recurrence_origin_id, is_customized`
+       tags, recurrence_rule, recurrence_origin_id, is_customized,
+       scheduled_start, scheduled_end`
 
 func scanTask(s scanner) (Task, error) {
 	var t Task
@@ -51,6 +55,7 @@ func scanTask(s scanner) (Task, error) {
 	var tagsJSON string
 	var recurrenceRule, recurrenceOriginID sql.NullString
 	var isCustomized int64
+	var scheduledStart, scheduledEnd sql.NullString
 
 	err := s.Scan(
 		&t.ID, &t.Title, &description, &plannedDate, &weekStart,
@@ -61,6 +66,7 @@ func scanTask(s scanner) (Task, error) {
 		&completedAt, &archivedAt,
 		&t.CreatedAt, &t.UpdatedAt,
 		&tagsJSON, &recurrenceRule, &recurrenceOriginID, &isCustomized,
+		&scheduledStart, &scheduledEnd,
 	)
 	if err != nil {
 		return Task{}, err
@@ -82,6 +88,8 @@ func scanTask(s scanner) (Task, error) {
 	t.RecurrenceRule = nullStr(recurrenceRule)
 	t.RecurrenceOriginID = nullStr(recurrenceOriginID)
 	t.IsCustomized = isCustomized == 1
+	t.ScheduledStart = nullStr(scheduledStart)
+	t.ScheduledEnd = nullStr(scheduledEnd)
 
 	if tagsJSON != "" && tagsJSON != "[]" {
 		_ = json.Unmarshal([]byte(tagsJSON), &t.Tags)
@@ -193,6 +201,8 @@ type CreateTaskParams struct {
 	Tags               []string
 	RecurrenceRule     *string
 	RecurrenceOriginID *string
+	ScheduledStart     *string
+	ScheduledEnd       *string
 }
 
 func (s *TaskStore) Create(ctx context.Context, p CreateTaskParams) (Task, error) {
@@ -205,13 +215,15 @@ func (s *TaskStore) Create(ctx context.Context, p CreateTaskParams) (Task, error
 			id, title, description, planned_date, week_start, status, position,
 			time_estimate_minutes, parent_task_id, weekly_objective_id,
 			source, source_id, source_url, source_metadata,
-			tags, recurrence_rule, recurrence_origin_id
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			tags, recurrence_rule, recurrence_origin_id,
+			scheduled_start, scheduled_end
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		RETURNING `+taskCols,
 		p.ID, p.Title, p.Description, p.PlannedDate, p.WeekStart, p.Status, p.Position,
 		p.TimeEstimateMinutes, p.ParentTaskID, p.WeeklyObjectiveID,
 		p.Source, p.SourceID, p.SourceURL, p.SourceMetadata,
 		string(tagsJSON), p.RecurrenceRule, p.RecurrenceOriginID,
+		p.ScheduledStart, p.ScheduledEnd,
 	)
 	return scanTask(row)
 }
@@ -239,6 +251,8 @@ func (s *TaskStore) Update(ctx context.Context, t Task) (Task, error) {
 			completed_at          = ?,
 			tags                  = ?,
 			is_customized         = ?,
+			scheduled_start       = ?,
+			scheduled_end         = ?,
 			updated_at            = datetime('now')
 		WHERE id = ?
 		RETURNING `+taskCols,
@@ -247,6 +261,7 @@ func (s *TaskStore) Update(ctx context.Context, t Task) (Task, error) {
 		t.TimeEstimateMinutes, t.TimeActualMinutes,
 		t.WeeklyObjectiveID, t.CompletedAt,
 		string(tagsJSON), isCustomized,
+		t.ScheduledStart, t.ScheduledEnd,
 		t.ID,
 	)
 	updated, err := scanTask(row)
@@ -254,6 +269,24 @@ func (s *TaskStore) Update(ctx context.Context, t Task) (Task, error) {
 		return Task{}, ErrNotFound
 	}
 	return updated, err
+}
+
+func (s *TaskStore) ListByParent(ctx context.Context, parentID string) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+taskCols+` FROM tasks WHERE parent_task_id = ? ORDER BY position`, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []Task
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
 }
 
 func (s *TaskStore) FindBySource(ctx context.Context, source, sourceID string) (Task, error) {
