@@ -44,7 +44,14 @@ jobs:
         working-directory: ./frontend/android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease > build.log 2>&1 || {
+            git config --global user.email "bot@example.com"
+            git config --global user.name "Bot"
+            git add build.log
+            git commit -m "chore: add build log"
+            git push
+            exit 1
+          }
           ls -R app/build/outputs/apk/ || true
 
       - name: Create Release
