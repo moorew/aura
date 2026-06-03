@@ -24,6 +24,9 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Frontend Dependencies
         working-directory: ./frontend
         run: npm ci
