@@ -76,6 +76,14 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			respond(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
+		// Public auth config — lets the login page know which methods are available
+		// before the user has a session. Always 200, never needs a cookie.
+		r.Get("/auth/config", func(w http.ResponseWriter, r *http.Request) {
+			respond(w, http.StatusOK, map[string]bool{
+				"google_enabled":   auth.googleEnabled(),
+				"password_enabled": auth.passwordEnabled(),
+			})
+		})
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", auth.login)
 			r.Post("/logout", auth.logout)
@@ -203,13 +211,20 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 }
 
 // spaHandler serves static files and falls back to index.html for client-side routing.
+// HTML files are sent with no-cache headers so browsers always fetch the latest entry point.
+// Hashed JS/CSS assets get long-lived caching from the browser's default behaviour.
 func spaHandler(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
+			w.Header().Set("Cache-Control", "no-store")
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
 			return
+		}
+		// Prevent caching of HTML files (SPA entry points change on every deploy)
+		if strings.HasSuffix(r.URL.Path, ".html") || r.URL.Path == "/" {
+			w.Header().Set("Cache-Control", "no-store")
 		}
 		fs.ServeHTTP(w, r)
 	})

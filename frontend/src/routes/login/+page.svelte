@@ -7,7 +7,7 @@
   // In dev: set VITE_API_URL=http://localhost:9001
   const base = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
-  let authInfo = $state<{ google_enabled: boolean } | null>(null);
+  let authInfo = $state<{ google_enabled: boolean; password_enabled: boolean } | null>(null);
   let username = $state('');
   let password = $state('');
   let loading  = $state(false);
@@ -21,15 +21,20 @@
     if (errParam === 'not_allowed') error = 'Your Google account is not authorised for this Sempa instance.';
     else if (errParam) error = 'Google sign-in was cancelled or failed. Please try again.';
 
+    // Check for existing session first
     try {
       const me = await api.auth.me();
       if (me.authenticated) {
         goto(redirectTarget, { replaceState: true });
         return;
       }
-      authInfo = me as any;
+    } catch { /* no session — continue */ }
+
+    // Load auth config separately — this endpoint always returns 200
+    try {
+      authInfo = await api.auth.config();
     } catch {
-      authInfo = { google_enabled: false };
+      authInfo = { google_enabled: false, password_enabled: true };
     }
   });
 

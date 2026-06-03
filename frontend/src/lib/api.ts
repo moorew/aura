@@ -42,6 +42,7 @@ export const api = {
   },
 
   auth: {
+    config: () => req<{ google_enabled: boolean; password_enabled: boolean }>('/api/v1/auth/config'),
     me: () => req<{ authenticated: boolean; auth_enabled: boolean; google_enabled: boolean; email?: string; username?: string }>('/api/v1/auth/me'),
     login: (username: string, password: string) =>
       req<{ status: string }>('/api/v1/auth/login', { method: 'POST', body: body({ username, password }), credentials: 'include' }),
