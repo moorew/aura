@@ -20,9 +20,10 @@ import (
 )
 
 type integrationHandler struct {
-	configs *db.IntegrationConfigStore
-	tasks   *db.TaskStore
-	cfg     config.Config
+	configs    *db.IntegrationConfigStore
+	tasks      *db.TaskStore
+	fmCalStore *db.FastmailCalStore
+	cfg        config.Config
 }
 
 // ── Jira ─────────────────────────────────────────────────────────────────────
@@ -916,4 +917,79 @@ func parseUID(s string) (uint32, error) {
 	var uid uint64
 	_, err := fmt.Sscan(s, &uid)
 	return uint32(uid), err
+}
+
+// ── Fastmail Calendar (JMAP Calendars) ────────────────────────────────────────
+
+func (h *integrationHandler) fastmailCalendarGet(w http.ResponseWriter, r *http.Request) {
+	// Fastmail must be connected first
+	if _, err := h.configs.Get(r.Context(), "fastmail"); errors.Is(err, db.ErrNotFound) {
+		respond(w, http.StatusOK, map[string]any{"connected": false})
+		return
+	}
+	cfg, err := h.configs.Get(r.Context(), "fastmail_calendar")
+	if errors.Is(err, db.ErrNotFound) {
+		respond(w, http.StatusOK, map[string]any{"connected": true, "enabled": false})
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"connected":      true,
+		"enabled":        cfg.Enabled,
+		"last_synced_at": cfg.LastSyncedAt,
+	})
+}
+
+func (h *integrationHandler) fastmailCalendarToggle(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := decode(r, &body); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	cfg, err := h.configs.Get(r.Context(), "fastmail_calendar")
+	if errors.Is(err, db.ErrNotFound) {
+		// Create with empty config
+		if _, err := h.configs.Upsert(r.Context(), uuid.New().String(), "fastmail_calendar", "{}"); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := h.configs.SetEnabled(r.Context(), "fastmail_calendar", body.Enabled); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = cfg
+	respond(w, http.StatusOK, map[string]any{"enabled": body.Enabled})
+}
+
+func (h *integrationHandler) fastmailCalendarSync(w http.ResponseWriter, r *http.Request) {
+	fmCfg, err := h.getFastmailConfig(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Sync 4 weeks: 1 in the past + 3 ahead
+	now := time.Now()
+	dateFrom := now.AddDate(0, 0, -7).Format("2006-01-02")
+	dateTo := now.AddDate(0, 0, 21).Format("2006-01-02")
+
+	count, err := fastmail.SyncCalendar(r.Context(), fmCfg, h.fmCalStore, dateFrom, dateTo)
+	if err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	_ = h.configs.TouchSyncTime(r.Context(), "fastmail_calendar")
+	respond(w, http.StatusOK, map[string]any{"synced": count, "from": dateFrom, "to": dateTo})
 }

@@ -80,6 +80,16 @@ func (s *IntegrationConfigStore) TouchSyncTime(ctx context.Context, typ string) 
 	return err
 }
 
+func (s *IntegrationConfigStore) SetEnabled(ctx context.Context, typ string, enabled bool) error {
+	v := 0
+	if enabled {
+		v = 1
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE integration_configs SET enabled=?, updated_at=datetime('now') WHERE type=?`, v, typ)
+	return err
+}
+
 func (s *IntegrationConfigStore) Delete(ctx context.Context, typ string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM integration_configs WHERE type = ?`, typ)
 	if err != nil {

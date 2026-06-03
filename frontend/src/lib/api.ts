@@ -159,6 +159,12 @@ export const api = {
         req<void>(`/api/v1/integrations/fastmail/emails/${id}/archive`, { method: 'POST' }),
       unarchive: (id: string) =>
         req<void>(`/api/v1/integrations/fastmail/emails/${id}/unarchive`, { method: 'POST' }),
+      calendar: {
+        get: () => req<{ connected: boolean; enabled: boolean; last_synced_at?: string | null }>('/api/v1/integrations/fastmail/calendar'),
+        toggle: (enabled: boolean) =>
+          req<{ enabled: boolean }>('/api/v1/integrations/fastmail/calendar', { method: 'PATCH', body: body({ enabled }) }),
+        sync: () => req<{ synced: number; from: string; to: string }>('/api/v1/integrations/fastmail/calendar/sync', { method: 'POST' }),
+      },
     },
 
     taskInbox: {

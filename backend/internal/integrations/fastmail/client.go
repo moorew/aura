@@ -25,12 +25,13 @@ type Config struct {
 }
 
 type Client struct {
-	cfg      Config
-	auth     string
-	apiURL   string
-	account  string
-	username string // discovered from JMAP session
-	http     *http.Client
+	cfg        Config
+	auth       string
+	apiURL     string
+	account    string // mail account ID
+	calAccount string // calendar account ID
+	username   string // discovered from JMAP session
+	http       *http.Client
 }
 
 type jmapSession struct {
@@ -93,8 +94,9 @@ func (c *Client) Discover(ctx context.Context) error {
 	if c.apiURL == "" {
 		c.apiURL = "https://api.fastmail.com/jmap/api/"
 	}
-	c.account = session.PrimaryAccounts["urn:ietf:params:jmap:mail"]
-	c.username = session.Username
+	c.account    = session.PrimaryAccounts["urn:ietf:params:jmap:mail"]
+	c.calAccount = session.PrimaryAccounts["urn:ietf:params:jmap:calendars"]
+	c.username   = session.Username
 	return nil
 }
 

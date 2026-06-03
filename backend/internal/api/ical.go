@@ -12,7 +12,9 @@ import (
 )
 
 type icalHandler struct {
-	store *db.ICalStore
+	store      *db.ICalStore
+	fmCalStore *db.FastmailCalStore
+	configs    *db.IntegrationConfigStore
 }
 
 func (h *icalHandler) listSubscriptions(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +77,28 @@ func (h *icalHandler) listEventsForDate(w http.ResponseWriter, r *http.Request) 
 	if events == nil {
 		events = []db.ICalEvent{}
 	}
+
+	// Merge Fastmail calendar events when the integration is enabled
+	if h.fmCalStore != nil && h.configs != nil {
+		if cfg, err := h.configs.Get(r.Context(), "fastmail_calendar"); err == nil && cfg.Enabled {
+			fmEvents, _ := h.fmCalStore.ListEventsForDate(r.Context(), date)
+			for _, ev := range fmEvents {
+				events = append(events, db.ICalEvent{
+					ID:             "fm:" + ev.ID,
+					SubscriptionID: "fastmail",
+					UID:            ev.UID,
+					Summary:        ev.Summary,
+					Description:    ev.Description,
+					Location:       ev.Location,
+					StartTime:      ev.StartTime,
+					EndTime:        ev.EndTime,
+					AllDay:         ev.AllDay,
+					Color:          ev.Color,
+				})
+			}
+		}
+	}
+
 	respond(w, http.StatusOK, events)
 }
 

@@ -25,10 +25,11 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	allowOrigin := func(_ *http.Request, origin string) bool {
 		if cfg.Env != "production" {
 			return strings.HasPrefix(origin, "http://localhost") ||
+				strings.HasPrefix(origin, "https://localhost") ||
 				strings.HasPrefix(origin, "http://127.0.0.1:")
 		}
 		// Allow Capacitor mobile app origins
-		if origin == "http://localhost" || origin == "capacitor://localhost" {
+		if origin == "http://localhost" || origin == "https://localhost" || origin == "capacitor://localhost" {
 			return true
 		}
 		return origin == cfg.FrontendURL
@@ -41,13 +42,15 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 		MaxAge:           300,
 	}))
 
-	tagStore := db.NewTagStore(database)
+	tagStore    := db.NewTagStore(database)
+	configStore := db.NewIntegrationConfigStore(database)
+	fmCalStore  := db.NewFastmailCalStore(database)
 	auth := newAuthHandler(cfg)
 
 	tasks        := &taskHandler{
 		store:   db.NewTaskStore(database),
 		tags:    tagStore,
-		configs: db.NewIntegrationConfigStore(database),
+		configs: configStore,
 		appURL:  cfg.AppURL,
 	}
 	objectives   := &objectiveHandler{store: db.NewObjectiveStore(database)}
@@ -55,11 +58,16 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	sessions     := &sessionHandler{store: db.NewSessionStore(database)}
 	tags         := &tagHandler{store: tagStore}
 	weekReviews  := &weekReviewHandler{store: db.NewWeekReviewStore(database)}
-	icals        := &icalHandler{store: db.NewICalStore(database)}
+	icals        := &icalHandler{
+		store:      db.NewICalStore(database),
+		fmCalStore: fmCalStore,
+		configs:    configStore,
+	}
 	integrations := &integrationHandler{
-		configs: db.NewIntegrationConfigStore(database),
-		tasks:   db.NewTaskStore(database),
-		cfg:     cfg,
+		configs:    configStore,
+		tasks:      db.NewTaskStore(database),
+		fmCalStore: fmCalStore,
+		cfg:        cfg,
 	}
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -160,6 +168,11 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 					r.Post("/emails/{id}/to-task", integrations.fastmailEmailToTask)
 					r.Post("/emails/{id}/archive", integrations.fastmailArchiveEmail)
 					r.Post("/emails/{id}/unarchive", integrations.fastmailUnarchiveEmail)
+					r.Route("/calendar", func(r chi.Router) {
+						r.Get("/", integrations.fastmailCalendarGet)
+						r.Patch("/", integrations.fastmailCalendarToggle)
+						r.Post("/sync", integrations.fastmailCalendarSync)
+					})
 				})
 				r.Get("/email-forward", integrations.emailForwardGet)
 			r.Route("/task-inbox", func(r chi.Router) {
