@@ -28,6 +28,9 @@ frontend/node_modules/
 .DS_Store
 Thumbs.db
 
+# Tailscale
+ts-sempa/
+
 # Syncthing
 .stfolder/
 .stignore
