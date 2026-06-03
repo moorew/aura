@@ -24,8 +24,12 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	r.Use(middleware.Recoverer)
 	allowOrigin := func(_ *http.Request, origin string) bool {
 		if cfg.Env != "production" {
-			return strings.HasPrefix(origin, "http://localhost:") ||
+			return strings.HasPrefix(origin, "http://localhost") ||
 				strings.HasPrefix(origin, "http://127.0.0.1:")
+		}
+		// Allow Capacitor mobile app origins
+		if origin == "http://localhost" || origin == "capacitor://localhost" {
+			return true
 		}
 		return origin == cfg.FrontendURL
 	}
