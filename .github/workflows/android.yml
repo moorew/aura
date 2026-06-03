@@ -59,6 +59,6 @@ jobs:
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Aura Android v1.0.${{ github.run_number }}"
-          files: frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          files: frontend/android/app/build/outputs/apk/release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
