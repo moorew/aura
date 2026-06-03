@@ -161,6 +161,10 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 					r.Delete("/", integrations.jiraDelete)
 					r.Post("/test", integrations.jiraTest)
 					r.Post("/sync", integrations.jiraSync)
+					r.Get("/statuses", integrations.jiraGetStatuses)
+					r.Get("/issues/{key}", integrations.jiraGetIssue)
+					r.Get("/issues/{key}/transitions", integrations.jiraGetTransitions)
+					r.Post("/issues/{key}/transition", integrations.jiraDoTransition)
 				})
 				r.Route("/gmail", func(r chi.Router) {
 					r.Get("/", integrations.gmailGet)

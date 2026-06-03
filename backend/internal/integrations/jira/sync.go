@@ -14,10 +14,10 @@ import (
 func Sync(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, error) {
 	client := NewClient(cfg)
 	var result db.SyncResult
-	startAt := 0
+	nextPageToken := ""
 
 	for {
-		sr, err := client.Search(ctx, startAt, 50)
+		sr, err := client.Search(ctx, nextPageToken, 50)
 		if err != nil {
 			return result, err
 		}
@@ -28,10 +28,10 @@ func Sync(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, 
 			}
 		}
 
-		startAt += len(sr.Issues)
-		if startAt >= sr.Total || len(sr.Issues) == 0 {
+		if sr.NextPageToken == "" || len(sr.Issues) == 0 {
 			break
 		}
+		nextPageToken = sr.NextPageToken
 	}
 
 	return result, nil

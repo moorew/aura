@@ -11,35 +11,37 @@ import (
 	"time"
 )
 
-// ImproveTitle uses Claude Haiku to turn an email subject into a concise
-// action-oriented task title. Falls back to the stripped subject on any error.
-func ImproveTitle(ctx context.Context, apiKey, subject string) string {
-	if apiKey == "" || subject == "" {
+// ImproveTitle uses a local Ollama model to turn an email subject into a
+// concise action-oriented task title. Falls back to the stripped subject on
+// any error or if Ollama is not configured.
+func ImproveTitle(ctx context.Context, ollamaBaseURL, model, subject string) string {
+	if ollamaBaseURL == "" || subject == "" {
 		return subject
+	}
+	if model == "" {
+		model = "qwen2.5:1.5b"
 	}
 
 	prompt := fmt.Sprintf(
 		"Convert this email subject into a brief, action-oriented task title. "+
-			"Maximum 8 words. Start with a verb. Remove any newsletter boilerplate, "+
-			"company names, or urgency language. Return ONLY the task title, nothing else.\n\n"+
+			"Maximum 8 words. Start with a verb. Remove newsletter boilerplate, "+
+			"company names, and urgency language. Return ONLY the task title.\n\n"+
 			"Subject: %q\n\nTask title:", subject)
 
 	body, _ := json.Marshal(map[string]any{
-		"model":      "claude-haiku-4-5-20251001",
-		"max_tokens": 60,
-		"messages":   []map[string]string{{"role": "user", "content": prompt}},
+		"model":  model,
+		"prompt": prompt,
+		"stream": false,
 	})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+		ollamaBaseURL+"/api/generate", bytes.NewReader(body))
 	if err != nil {
 		return subject
 	}
-	req.Header.Set("x-api-key", apiKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return subject
@@ -55,16 +57,13 @@ func ImproveTitle(ctx context.Context, apiKey, subject string) string {
 	}
 
 	var result struct {
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
+		Response string `json:"response"`
 	}
-	if err := json.Unmarshal(raw, &result); err != nil || len(result.Content) == 0 {
+	if err := json.Unmarshal(raw, &result); err != nil {
 		return subject
 	}
 
-	title := strings.TrimSpace(result.Content[0].Text)
-	// Strip any surrounding quotes the model might add
+	title := strings.TrimSpace(result.Response)
 	title = strings.Trim(title, `"'`)
 	if title == "" {
 		return subject

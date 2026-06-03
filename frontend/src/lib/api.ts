@@ -50,10 +50,11 @@ export const api = {
   },
 
   tasks: {
-    listByDate:   (date: string)      => req<Task[]>(`/api/v1/tasks?date=${date}`),
-    listByWeek:   (weekStart: string) => req<Task[]>(`/api/v1/tasks?week_start=${weekStart}`),
-    listBacklog:  ()                  => req<Task[]>('/api/v1/tasks'),
-    listByParent: (parentId: string)  => req<Task[]>(`/api/v1/tasks?parent_id=${parentId}`),
+    listByDate:   (date: string)        => req<Task[]>(`/api/v1/tasks?date=${date}`),
+    listByWeek:   (weekStart: string)   => req<Task[]>(`/api/v1/tasks?week_start=${weekStart}`),
+    listBacklog:  ()                    => req<Task[]>('/api/v1/tasks'),
+    listBySource: (source: string)      => req<Task[]>(`/api/v1/tasks?source=${source}`),
+    listByParent: (parentId: string)    => req<Task[]>(`/api/v1/tasks?parent_id=${parentId}`),
     get:          (id: string)        => req<Task>(`/api/v1/tasks/${id}`),
     create: (input: CreateTaskInput) =>
       req<Task>('/api/v1/tasks', { method: 'POST', body: body(input) }),
@@ -130,6 +131,17 @@ export const api = {
       test: () => req<{ status: string }>('/api/v1/integrations/jira/test', { method: 'POST' }),
       sync: () => req<SyncResult>('/api/v1/integrations/jira/sync', { method: 'POST' }),
       delete: () => req<void>('/api/v1/integrations/jira', { method: 'DELETE' }),
+      getStatuses: () =>
+        req<{ id: string; name: string; statusCategory: { key: string } }[]>(
+          '/api/v1/integrations/jira/statuses'),
+      getIssue: (key: string) =>
+        req<any>(`/api/v1/integrations/jira/issues/${key}`),
+      getTransitions: (key: string) =>
+        req<{ id: string; name: string; to: { statusCategory: { key: string } } }[]>(
+          `/api/v1/integrations/jira/issues/${key}/transitions`),
+      transition: (key: string, transitionId: string) =>
+        req<void>(`/api/v1/integrations/jira/issues/${key}/transition`,
+          { method: 'POST', body: body({ transition_id: transitionId }) }),
     },
     gmail: {
       get: () => req<GmailIntegrationConfig>('/api/v1/integrations/gmail'),

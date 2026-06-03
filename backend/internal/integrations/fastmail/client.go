@@ -477,7 +477,8 @@ type InboxConfig struct {
 	AppPassword      string   `json:"app_password"`
 	InboxAddress     string   `json:"inbox_address"`
 	AllowedSenders   []string `json:"allowed_senders,omitempty"`
-	AnthropicAPIKey  string   `json:"anthropic_api_key,omitempty"` // injected at runtime, not stored
+	OllamaBaseURL    string   `json:"ollama_base_url,omitempty"`  // injected at runtime, not stored
+	OllamaModel      string   `json:"ollama_model,omitempty"`     // injected at runtime, not stored
 }
 
 // SyncTaskInbox fetches unread emails to InboxAddress, filters by AllowedSenders,
