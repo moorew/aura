@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -24,10 +26,6 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Android SDK
-        id: setup-android
-        uses: android-actions/setup-android@v3
-
       - name: Install Frontend Dependencies
         working-directory: ./frontend
         run: npm ci
@@ -42,14 +40,17 @@ jobs:
         working-directory: ./frontend
         run: npx cap sync android
 
-      - name: Build APK (Debug)
+      - name: Build APK (Release)
         working-directory: ./frontend/android
-        env:
-          ANDROID_HOME: ${{ steps.setup-android.outputs.android-root }}
-        run: ./gradlew assembleDebug
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: aura-android-apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "Aura Android v1.0.${{ github.run_number }}"
+          files: frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
