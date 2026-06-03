@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Sempa Material 3 theme — light -->
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#B3592E</item>
+        <item name="colorOnPrimary">#F7F3EB</item>
+        <item name="colorPrimaryContainer">#EDE5DD</item>
+        <item name="colorOnPrimaryContainer">#2B221B</item>
+        <item name="colorSurface">#FAF8F4</item>
+        <item name="colorOnSurface">#2B221B</item>
+        <item name="colorSurfaceVariant">#F0ECE3</item>
+        <item name="colorOutline">#E2DCD3</item>
+        <item name="android:navigationBarColor">#FAF8F4</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:fontFamily">@font/plus_jakarta_sans_family</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:navigationBarColor">#FAF8F4</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+    </style>
+
+    <!-- M3 TypeScale overrides -->
+    <style name="TextAppearance.Sempa.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="android:textSize">28sp</item>
+        <item name="android:fontWeight">400</item>
+        <item name="android:letterSpacing">-0.0178</item>
+    </style>
+
+    <style name="TextAppearance.Sempa.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontWeight">600</item>
+        <item name="android:letterSpacing">-0.0178</item>
+    </style>
+
+    <style name="TextAppearance.Sempa.BodyMedium" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontWeight">400</item>
+        <item name="android:letterSpacing">-0.0071</item>
+    </style>
+
+    <style name="TextAppearance.Sempa.LabelSmall" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontWeight">500</item>
+        <item name="android:letterSpacing">0.0455</item>
+    </style>
+
+</resources>

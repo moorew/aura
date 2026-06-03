@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Sempa Material 3 theme — dark -->
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#CC6E3A</item>
+        <item name="colorOnPrimary">#F7F3EB</item>
+        <item name="colorPrimaryContainer">#2D1D12</item>
+        <item name="colorOnPrimaryContainer">#F0ECE4</item>
+        <item name="colorSurface">#181310</item>
+        <item name="colorOnSurface">#F0ECE4</item>
+        <item name="colorSurfaceVariant">#1D1510</item>
+        <item name="colorOutline">#2E2016</item>
+        <item name="android:navigationBarColor">#1D1510</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:navigationBarColor">#1D1510</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+</resources>

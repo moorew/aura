@@ -2,6 +2,7 @@
   import type { Task } from '$lib/types';
   import { formatMinutes } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
+  import { hapticClick } from '$lib/haptics';
 
   let {
     task, accent,
@@ -43,7 +44,7 @@
     <!-- Quick-complete circle -->
     <button
       type="button"
-      onclick={(e) => { e.stopPropagation(); onComplete?.(task.id); }}
+      onclick={(e) => { e.stopPropagation(); hapticClick(); onComplete?.(task.id); }}
       title={isDone ? 'Completed' : 'Mark complete'}
       class="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer
              {isDone ? 'border-green-500 bg-green-500' : 'border-gray-200 hover:border-green-400 hover:bg-green-50 dark:border-gray-600 dark:hover:border-green-500 dark:hover:bg-green-950'}"

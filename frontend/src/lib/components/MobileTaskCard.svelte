@@ -2,6 +2,7 @@
   import type { Task } from '$lib/types';
   import { formatMinutes } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
+  import { hapticClick, hapticTick } from '$lib/haptics';
 
   let {
     task,
@@ -40,7 +41,11 @@
     if (!swiping) return;
     const dx = e.touches[0].clientX - startX;
     if (dx > 0) {
+      const prev = deltaX;
       deltaX = Math.min(dx * 0.4, MAX_SWIPE);
+      if (prev < SWIPE_THRESHOLD * 0.4 && deltaX >= SWIPE_THRESHOLD * 0.4) {
+        hapticTick();
+      }
     }
   }
 
@@ -48,6 +53,7 @@
     if (!swiping) return;
     swiping = false;
     if (deltaX > SWIPE_THRESHOLD * 0.4) {
+      hapticClick();
       onComplete?.(task.id);
     }
     deltaX = 0;
@@ -80,7 +86,7 @@
     <!-- Complete circle -->
     <button
       type="button"
-      onclick={(e) => { e.stopPropagation(); onComplete?.(task.id); }}
+      onclick={(e) => { e.stopPropagation(); hapticClick(); onComplete?.(task.id); }}
       class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center
              {isDone ? 'border-green-500 bg-green-500' : 'border-gray-300 dark:border-gray-600'}"
       aria-label="Complete task"
