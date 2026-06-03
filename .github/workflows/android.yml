@@ -25,6 +25,7 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
+        id: setup-android
         uses: android-actions/setup-android@v3
 
       - name: Install Frontend Dependencies
@@ -43,6 +44,8 @@ jobs:
 
       - name: Build APK (Debug)
         working-directory: ./frontend/android
+        env:
+          ANDROID_HOME: ${{ steps.setup-android.outputs.android-root }}
         run: ./gradlew assembleDebug
 
       - name: Upload APK Artifact
