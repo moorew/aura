@@ -1,7 +1,7 @@
 <script lang="ts">
   import { today } from '$lib/utils';
 
-  let { date }: { date: string } = $props();
+  let { date, onDateClick }: { date: string; onDateClick?: (d: string) => void } = $props();
 
   const todayStr = today();
   let viewYear  = $state(new Date().getFullYear());
@@ -79,17 +79,18 @@
         {@const isToday = ds === todayStr}
         {@const isSel = ds === date}
         <div class="flex items-center justify-center">
-          <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px]
-                       {!isToday && !isSel ? 'text-gray-500 dark:text-gray-400' : ''}"
-                style={isToday && isSel
-                  ? 'background:var(--sempa-today-bg);color:var(--sempa-today-fg);font-weight:700;'
-                  : isToday
-                    ? 'background:var(--sempa-accent-bg);color:var(--sempa-accent);font-weight:600;'
-                    : isSel
-                      ? 'background:var(--sempa-accent-bg);color:var(--sempa-text);font-weight:500;'
-                      : ''}>
+          <button onclick={() => onDateClick?.(ds)}
+                  class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] transition-colors
+                         {!isToday && !isSel ? 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800' : ''}"
+                  style={isToday && isSel
+                    ? 'background:var(--sempa-today-bg);color:var(--sempa-today-fg);font-weight:700;'
+                    : isToday
+                      ? 'background:var(--sempa-accent-bg);color:var(--sempa-accent);font-weight:600;'
+                      : isSel
+                        ? 'background:var(--sempa-accent-bg);color:var(--sempa-text);font-weight:500;'
+                        : ''}>
             {cell}
-          </span>
+          </button>
         </div>
       {/if}
     {/each}

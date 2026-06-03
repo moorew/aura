@@ -143,6 +143,98 @@ func (h *integrationHandler) jiraSync(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, result)
 }
 
+func (h *integrationHandler) jiraClient(r *http.Request) (*jira.Client, error) {
+	cfg, err := h.configs.Get(r.Context(), "jira")
+	if err != nil {
+		return nil, err
+	}
+	var jiraCfg jira.Config
+	if err := json.Unmarshal([]byte(cfg.Config), &jiraCfg); err != nil {
+		return nil, fmt.Errorf("malformed config")
+	}
+	return jira.NewClient(jiraCfg), nil
+}
+
+func (h *integrationHandler) jiraGetIssue(w http.ResponseWriter, r *http.Request) {
+	client, err := h.jiraClient(r)
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "jira not configured")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	detail, err := client.GetIssue(r.Context(), chi.URLParam(r, "key"))
+	if err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, detail)
+}
+
+func (h *integrationHandler) jiraGetStatuses(w http.ResponseWriter, r *http.Request) {
+	client, err := h.jiraClient(r)
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "jira not configured")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	statuses, err := client.GetAllStatuses(r.Context())
+	if err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, statuses)
+}
+
+func (h *integrationHandler) jiraGetTransitions(w http.ResponseWriter, r *http.Request) {
+	client, err := h.jiraClient(r)
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "jira not configured")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	issueKey := chi.URLParam(r, "key")
+	transitions, err := client.GetTransitions(r.Context(), issueKey)
+	if err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, transitions)
+}
+
+func (h *integrationHandler) jiraDoTransition(w http.ResponseWriter, r *http.Request) {
+	client, err := h.jiraClient(r)
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusBadRequest, "jira not configured")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	issueKey := chi.URLParam(r, "key")
+	var body struct {
+		TransitionID string `json:"transition_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TransitionID == "" {
+		respondError(w, http.StatusBadRequest, "transition_id required")
+		return
+	}
+	if err := client.Transition(r.Context(), issueKey, body.TransitionID); err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *integrationHandler) jiraDelete(w http.ResponseWriter, r *http.Request) {
 	if err := h.configs.Delete(r.Context(), "jira"); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -729,7 +821,8 @@ func (h *integrationHandler) taskInboxSync(w http.ResponseWriter, r *http.Reques
 		respondError(w, http.StatusInternalServerError, "malformed config")
 		return
 	}
-	inboxCfg.AnthropicAPIKey = h.cfg.AnthropicAPIKey
+	inboxCfg.OllamaBaseURL = h.cfg.OllamaBaseURL
+	inboxCfg.OllamaModel = h.cfg.OllamaModel
 	result, err := fastmail.SyncTaskInbox(r.Context(), inboxCfg, h.tasks)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

@@ -62,12 +62,15 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 	date := q.Get("date")
 	weekStart := q.Get("week_start")
 
-	// Generate recurring instances for the requested date before returning
-	if date != "" {
+	// Generate recurring instances before returning results.
+	if weekStart != "" {
+		_ = h.store.GenerateForWeek(r.Context(), weekStart)
+	} else if date != "" {
 		_ = h.store.GenerateForDate(r.Context(), date)
 	}
 
 	parentID := q.Get("parent_id")
+	source   := q.Get("source")
 
 	var (
 		tasks []db.Task
@@ -76,6 +79,8 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case parentID != "":
 		tasks, err = h.store.ListByParent(r.Context(), parentID)
+	case source != "":
+		tasks, err = h.store.ListBySource(r.Context(), source)
 	case date != "":
 		tasks, err = h.store.ListByDate(r.Context(), date)
 	case weekStart != "":

@@ -12,7 +12,8 @@
   import MiniCalendar from '$lib/components/MiniCalendar.svelte';
   import TimeslotCalendar from '$lib/components/TimeslotCalendar.svelte';
   import WeeklyObjectivesWidget from '$lib/components/WeeklyObjectivesWidget.svelte';
-  import { ChevronLeft, ChevronRight, Plus } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, Plus, Clock, Mail } from 'lucide-svelte';
+  import JiraPanel from '$lib/components/JiraPanel.svelte';
 
   // "date" is used to anchor the week and mark today
   let date      = $derived($page.params.date ?? today());
@@ -30,7 +31,7 @@
   let draggingId    = $state<string | null>(null);
   let dragOverDate  = $state<string | null>(null);
   let emailPanel    = $state<EmailPanel | undefined>(undefined);
-  let rightTab      = $state<'mail' | 'schedule'>('mail');
+  let rightPanel    = $state<'schedule' | 'mail' | 'jira'>('schedule');
 
   let panelOpen   = $state(false);
   let panelTask   = $state<Task | null>(null);
@@ -102,6 +103,17 @@
     goto(`/day/${newWs}`);
   }
   function goToday() { goto(`/day/${todayDate}`); }
+
+  function handleCalendarDateClick(d: string) {
+    goto(`/day/${d}`);
+  }
+
+  $effect(() => {
+    const d = date;
+    requestAnimationFrame(() => {
+      document.getElementById(`day-col-${d}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    });
+  });
 
   // ── Drag & drop between days ───────────────────────────────────────────────
   function handleDragStart(id: string) { draggingId = id; }
@@ -322,7 +334,7 @@
       <div class="flex items-start gap-3 pb-6">
         <!-- Mon–Fri -->
         {#each weekDays.slice(0, 5) as day (day.date)}
-          <div class="w-56 shrink-0">
+          <div id="day-col-{day.date}" class="w-56 shrink-0">
             <WeekDayColumn
               date={day.date} dayName={day.dayName} dayNum={day.dayNum}
               isToday={day.isToday} isWeekend={false}
@@ -346,7 +358,7 @@
 
         <!-- Sat–Sun (narrower, visually softer) -->
         {#each weekDays.slice(5) as day (day.date)}
-          <div class="w-44 shrink-0">
+          <div id="day-col-{day.date}" class="w-44 shrink-0">
             <WeekDayColumn
               date={day.date} dayName={day.dayName} dayNum={day.dayNum}
               isToday={day.isToday} isWeekend={true}
@@ -371,39 +383,62 @@
   <!-- ── Right panel ─────────────────────────────────────────────────────── -->
   <aside class="w-72 shrink-0 flex flex-col overflow-hidden"
          style="background: var(--sempa-bg-panel); border-left: 1px solid var(--sempa-border);">
+
+    <!-- Always-visible: mini calendar + objectives -->
     <div class="shrink-0" style="border-bottom: 1px solid var(--sempa-border);">
-      <MiniCalendar {date} />
+      <MiniCalendar {date} onDateClick={handleCalendarDateClick} />
     </div>
     <WeeklyObjectivesWidget {date} />
 
-    <div class="flex shrink-0" style="border-bottom: 1px solid var(--sempa-border);">
-      <button onclick={() => rightTab = 'mail'}
-              class="flex-1 py-2.5 text-xs font-medium transition-colors"
-              style={rightTab === 'mail'
-                ? `border-bottom: 2px solid var(--sempa-accent); color: var(--sempa-accent); margin-bottom: -1px;`
-                : `color: var(--sempa-text-dim);`}>
-        Mail
-      </button>
-      <button onclick={() => rightTab = 'schedule'}
-              class="flex-1 py-2.5 text-xs font-medium transition-colors"
-              style={rightTab === 'schedule'
-                ? `border-bottom: 2px solid var(--sempa-accent); color: var(--sempa-accent); margin-bottom: -1px;`
-                : `color: var(--sempa-text-dim);`}>
-        Schedule
-      </button>
-    </div>
+    <!-- Switchable panel + icon strip -->
+    <div class="flex flex-1 overflow-hidden" style="border-top: 1px solid var(--sempa-border);">
 
-    <div class="flex-1 overflow-hidden">
-      {#if rightTab === 'mail'}
-        <EmailPanel bind:this={emailPanel} onTaskCreated={(t) => { tasks = [...tasks, t]; }} />
-      {:else}
-        <TimeslotCalendar
-          date={date}
-          tasks={tasks}
-          onSchedule={handleSchedule}
-          onUnschedule={handleUnschedule}
-        />
-      {/if}
+      <!-- Panel content -->
+      <div class="flex-1 overflow-hidden">
+        {#if rightPanel === 'schedule'}
+          <TimeslotCalendar
+            date={date}
+            tasks={tasks}
+            onSchedule={handleSchedule}
+            onUnschedule={handleUnschedule}
+          />
+        {:else if rightPanel === 'mail'}
+          <EmailPanel bind:this={emailPanel} onTaskCreated={(t) => { tasks = [...tasks, t]; }} />
+        {:else if rightPanel === 'jira'}
+          <JiraPanel
+            onTaskDragStart={(id) => { draggingId = id; }}
+            onTasksReloaded={loadTasks}
+          />
+        {/if}
+      </div>
+
+      <!-- Icon strip -->
+      <div class="flex shrink-0 flex-col items-center gap-1 px-1 py-2"
+           style="border-left: 1px solid var(--sempa-border); width: 40px;">
+        {#each [
+          { id: 'schedule', label: 'Schedule' },
+          { id: 'mail',     label: 'Mail' },
+          { id: 'jira',     label: 'Jira' },
+        ] as panel}
+          <button onclick={() => rightPanel = panel.id as typeof rightPanel}
+                  title={panel.label}
+                  class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+                  style={rightPanel === panel.id
+                    ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                    : 'color: var(--sempa-text-dim);'}>
+            {#if panel.id === 'schedule'}
+              <Clock size={15} />
+            {:else if panel.id === 'mail'}
+              <Mail size={15} />
+            {:else}
+              <!-- Jira logo -->
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.757a5.215 5.215 0 0 0 5.214 5.214h2.129v2.058A5.218 5.218 0 0 0 18.313 18.3V6.763a1.006 1.006 0 0 0-1.019-1.006zM23.277.007H11.749a5.215 5.215 0 0 0 5.214 5.214h2.129v2.058A5.218 5.218 0 0 0 24.282 12.5V1.012A1.005 1.005 0 0 0 23.277.007z"/>
+              </svg>
+            {/if}
+          </button>
+        {/each}
+      </div>
     </div>
   </aside>
 </div>

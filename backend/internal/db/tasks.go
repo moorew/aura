@@ -289,6 +289,17 @@ func (s *TaskStore) ListByParent(ctx context.Context, parentID string) ([]Task, 
 	return tasks, nil
 }
 
+func (s *TaskStore) ListBySource(ctx context.Context, source string) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+taskCols+` FROM tasks WHERE source = ? AND status != 'cancelled' ORDER BY created_at DESC`,
+		source)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectTasks(rows)
+}
+
 func (s *TaskStore) FindBySource(ctx context.Context, source, sourceID string) (Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+taskCols+` FROM tasks WHERE source = ? AND source_id = ?`, source, sourceID)

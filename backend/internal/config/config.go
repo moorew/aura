@@ -33,8 +33,9 @@ type Config struct {
 	// Background inbox polling interval (e.g. "1m"); empty disables
 	InboxPollInterval string
 
-	// Optional: Anthropic API key for AI-powered task title cleanup
-	AnthropicAPIKey string
+	// Optional: Ollama base URL for local AI-powered task title cleanup
+	OllamaBaseURL string // e.g. http://ollama:11434
+	OllamaModel   string // default: qwen2.5:1.5b
 }
 
 func Load() Config {
@@ -53,7 +54,8 @@ func Load() Config {
 		AllowedEmails:     splitEmails(env("SEMPA_ALLOWED_EMAILS", "")),
 		EmailForwardToken: env("EMAIL_FORWARD_TOKEN", ""),
 		InboxPollInterval: env("INBOX_POLL_INTERVAL", "1m"),
-		AnthropicAPIKey:   env("ANTHROPIC_API_KEY", ""),
+		OllamaBaseURL:     env("OLLAMA_BASE_URL", ""),
+		OllamaModel:       env("OLLAMA_MODEL", "qwen2.5:1.5b"),
 	}
 }
 

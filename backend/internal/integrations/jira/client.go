@@ -6,8 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -65,10 +65,52 @@ type Issue struct {
 }
 
 type SearchResult struct {
-	Issues     []Issue `json:"issues"`
-	Total      int     `json:"total"`
-	StartAt    int     `json:"startAt"`
-	MaxResults int     `json:"maxResults"`
+	Issues        []Issue `json:"issues"`
+	NextPageToken string  `json:"nextPageToken"`
+}
+
+// ── Detailed issue view ───────────────────────────────────────────────────────
+
+type User struct {
+	DisplayName string `json:"displayName"`
+	EmailAddress string `json:"emailAddress"`
+}
+
+type Comment struct {
+	Author  User   `json:"author"`
+	Body    string `json:"body"`
+	Created string `json:"created"`
+}
+
+type IssueDetailFields struct {
+	Summary     string    `json:"summary"`
+	Description string    `json:"description"`
+	Status      Status    `json:"status"`
+	Priority    *Priority `json:"priority"`
+	IssueType   IssueType `json:"issuetype"`
+	Assignee    *User     `json:"assignee"`
+	Reporter    *User     `json:"reporter"`
+	Labels      []string  `json:"labels"`
+	Created     string    `json:"created"`
+	Updated     string    `json:"updated"`
+	Comments    struct {
+		Comments []Comment `json:"comments"`
+		Total    int       `json:"total"`
+	} `json:"comment"`
+}
+
+type IssueDetail struct {
+	ID     string            `json:"id"`
+	Key    string            `json:"key"`
+	Fields IssueDetailFields `json:"fields"`
+}
+
+// ── Jira statuses ─────────────────────────────────────────────────────────────
+
+type JiraStatus struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	StatusCategory StatusCategory `json:"statusCategory"`
 }
 
 type Client struct {
@@ -86,25 +128,29 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
-func (c *Client) Search(ctx context.Context, startAt, maxResults int) (SearchResult, error) {
+func (c *Client) Search(ctx context.Context, nextPageToken string, maxResults int) (SearchResult, error) {
 	jql := c.cfg.JQL
 	if jql == "" {
 		jql = DefaultJQL
 	}
 
-	params := url.Values{}
-	params.Set("jql", jql)
-	params.Set("startAt", fmt.Sprintf("%d", startAt))
-	params.Set("maxResults", fmt.Sprintf("%d", maxResults))
-	params.Set("fields", "summary,status,priority,issuetype")
+	reqBody := map[string]any{
+		"jql":        jql,
+		"maxResults": maxResults,
+		"fields":     []string{"summary", "status", "priority", "issuetype"},
+	}
+	if nextPageToken != "" {
+		reqBody["nextPageToken"] = nextPageToken
+	}
+	bodyBytes, _ := json.Marshal(reqBody)
 
-	reqURL := c.cfg.Host + "/rest/api/3/search?" + params.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.cfg.Host+"/rest/api/3/search/jql", bytes.NewReader(bodyBytes))
 	if err != nil {
 		return SearchResult{}, err
 	}
 	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.http.Do(req)
@@ -117,7 +163,8 @@ func (c *Client) Search(ctx context.Context, startAt, maxResults int) (SearchRes
 		return SearchResult{}, fmt.Errorf("unauthorized — check your email and API token")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return SearchResult{}, fmt.Errorf("jira returned HTTP %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return SearchResult{}, fmt.Errorf("jira returned HTTP %d: %s", resp.StatusCode, body)
 	}
 
 	var result SearchResult
@@ -129,37 +176,129 @@ func (c *Client) Search(ctx context.Context, startAt, maxResults int) (SearchRes
 }
 
 func (c *Client) TestConnection(ctx context.Context) error {
-	_, err := c.Search(ctx, 0, 1)
+	_, err := c.Search(ctx, "", 1)
 	return err
+}
+
+// GetIssue fetches full details for a single Jira issue.
+func (c *Client) GetIssue(ctx context.Context, issueKey string) (IssueDetail, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.cfg.Host+"/rest/api/2/issue/"+issueKey+
+			"?fields=summary,description,status,priority,issuetype,assignee,reporter,labels,created,updated,comment",
+		nil)
+	if err != nil {
+		return IssueDetail{}, err
+	}
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return IssueDetail{}, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return IssueDetail{}, fmt.Errorf("jira returned HTTP %d: %s", resp.StatusCode, b)
+	}
+
+	var detail IssueDetail
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		return IssueDetail{}, fmt.Errorf("decode: %w", err)
+	}
+	return detail, nil
+}
+
+// GetAllStatuses returns all workflow statuses defined in the Jira instance.
+func (c *Client) GetAllStatuses(ctx context.Context) ([]JiraStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.cfg.Host+"/rest/api/2/status", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("jira returned HTTP %d: %s", resp.StatusCode, b)
+	}
+
+	var statuses []JiraStatus
+	if err := json.NewDecoder(resp.Body).Decode(&statuses); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	return statuses, nil
+}
+
+// GetTransitions returns the available workflow transitions for a Jira issue.
+func (c *Client) GetTransitions(ctx context.Context, issueKey string) ([]jiraTransition, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.cfg.Host+"/rest/api/2/issue/"+issueKey+"/transitions", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch transitions: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("transitions: HTTP %d: %s", resp.StatusCode, b)
+	}
+
+	var tr transitionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+		return nil, fmt.Errorf("decode transitions: %w", err)
+	}
+	return tr.Transitions, nil
+}
+
+// Transition moves a Jira issue to the given transition ID.
+func (c *Client) Transition(ctx context.Context, issueKey, transitionID string) error {
+	bodyBytes, _ := json.Marshal(map[string]any{
+		"transition": map[string]string{"id": transitionID},
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.cfg.Host+"/rest/api/2/issue/"+issueKey+"/transitions",
+		bytes.NewReader(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("post transition: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("post transition: HTTP %d: %s", resp.StatusCode, b)
+	}
+	return nil
 }
 
 // TransitionToDone moves a Jira issue to whichever transition leads to a "done" status category.
 // Silently returns nil if no such transition exists (e.g. issue is already done).
 func (c *Client) TransitionToDone(ctx context.Context, issueKey string) error {
-	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.cfg.Host+"/rest/api/3/issue/"+issueKey+"/transitions", nil)
+	transitions, err := c.GetTransitions(ctx, issueKey)
 	if err != nil {
 		return err
 	}
-	getReq.Header.Set("Authorization", c.auth)
-	getReq.Header.Set("Accept", "application/json")
-
-	resp, err := c.http.Do(getReq)
-	if err != nil {
-		return fmt.Errorf("fetch transitions: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("transitions: HTTP %d", resp.StatusCode)
-	}
-
-	var tr transitionsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
-		return fmt.Errorf("decode transitions: %w", err)
-	}
 
 	var doneID string
-	for _, t := range tr.Transitions {
+	for _, t := range transitions {
 		if t.To.StatusCategory.Key == "done" {
 			doneID = t.ID
 			break
@@ -168,26 +307,5 @@ func (c *Client) TransitionToDone(ctx context.Context, issueKey string) error {
 	if doneID == "" {
 		return nil // no "done" transition available, skip silently
 	}
-
-	bodyBytes, _ := json.Marshal(map[string]any{
-		"transition": map[string]string{"id": doneID},
-	})
-	postReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.cfg.Host+"/rest/api/3/issue/"+issueKey+"/transitions",
-		bytes.NewReader(bodyBytes))
-	if err != nil {
-		return err
-	}
-	postReq.Header.Set("Authorization", c.auth)
-	postReq.Header.Set("Content-Type", "application/json")
-
-	postResp, err := c.http.Do(postReq)
-	if err != nil {
-		return fmt.Errorf("post transition: %w", err)
-	}
-	defer postResp.Body.Close()
-	if postResp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("post transition: HTTP %d", postResp.StatusCode)
-	}
-	return nil
+	return c.Transition(ctx, issueKey, doneID)
 }
