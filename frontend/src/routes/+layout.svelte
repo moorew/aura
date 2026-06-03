@@ -7,15 +7,17 @@
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { theme } from '$lib/stores/theme.svelte';
   import { tagStore } from '$lib/stores/tags.svelte';
+  import { mobile } from '$lib/stores/mobile.svelte';
   import { api } from '$lib/api';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
+  import BottomSheet from '$lib/components/BottomSheet.svelte';
   import type { Snippet } from 'svelte';
 
   // Lucide icons
   import {
     Sun, Calendar, ClipboardCheck, Inbox, Moon, Settings,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
-    Target, Timer, LayoutDashboard, Palette,
+    Target, Timer, LayoutDashboard, Palette, Menu,
   } from 'lucide-svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -27,6 +29,12 @@
   let isSetupPage      = $derived(($page.url.pathname as string) === '/setup');
   let shortcutsOpen    = $state(false);
   let userEmail        = $state<string | undefined>(undefined);
+  let moreSheetOpen    = $state(false);
+
+  // Mobile: is this a task-list page where we show the FAB?
+  let isTaskListPage = $derived(
+    $page.url.pathname.startsWith('/day/') || $page.url.pathname.startsWith('/week/')
+  );
 
   const SHORTCUT_HELP = [
     { key: 'n',   desc: 'New task (on day view)' },
@@ -61,6 +69,7 @@
 
   onMount(async () => {
     theme.init();
+    mobile.init();
     if (!isLoginPage && !isSetupPage) {
       tagStore.load();
       try {
@@ -84,6 +93,14 @@
   function isActive(prefix: string): boolean {
     return $page.url.pathname.startsWith(prefix);
   }
+
+  // Bottom tab nav items
+  const tabs = $derived([
+    { href: `/day/${todayDate}`, label: 'Today', prefix: '/day/', icon: 'today' },
+    { href: `/week/${thisWeek}`, label: 'Week',  prefix: '/week/', icon: 'week' },
+    { href: '/email',            label: 'Inbox', prefix: '/email', icon: 'inbox' },
+    { href: '#more',             label: 'More',  prefix: '__more', icon: 'more' },
+  ]);
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -93,7 +110,8 @@
 {:else}
 <div class="flex h-screen overflow-hidden" style="background: var(--sempa-bg-main);">
 
-  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <!-- ── Sidebar (hidden on mobile) ───────────────────────────────────── -->
+  {#if !mobile.value}
   <aside class="flex w-48 shrink-0 flex-col"
          style="background: var(--sempa-bg-nav); border-right: 1px solid var(--sempa-border);">
 
@@ -182,12 +200,112 @@
       </div>
     </nav>
   </aside>
+  {/if}
 
   <!-- ── Main content ───────────────────────────────────────────────────── -->
-  <div class="flex-1 overflow-auto" style="background: var(--sempa-bg-main);">
+  <div class="flex-1 overflow-auto" style="background: var(--sempa-bg-main);
+       {mobile.value ? 'padding-bottom: 88px;' : ''}">
     {@render children()}
   </div>
 </div>
+
+<!-- ── Mobile bottom tab bar ────────────────────────────────────────────── -->
+{#if mobile.value}
+  <nav style="position: fixed; bottom: 0; left: 0; right: 0; height: 72px; z-index: 40;
+              background: var(--sempa-bg-nav); border-top: 1px solid var(--sempa-border);
+              display: flex; align-items: center; padding-bottom: env(safe-area-inset-bottom);">
+    {#each tabs as tab}
+      {@const active = tab.prefix === '__more' ? moreSheetOpen : isActive(tab.prefix)}
+      <button
+        onclick={() => {
+          if (tab.prefix === '__more') { moreSheetOpen = true; }
+          else { goto(tab.href); moreSheetOpen = false; }
+        }}
+        style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;
+               background: none; border: none; cursor: pointer;
+               color: {active ? 'var(--sempa-accent)' : 'var(--sempa-text-dim)'};">
+        {#if tab.icon === 'today'}
+          <LayoutDashboard size={22} strokeWidth={active ? 2.25 : 1.75} />
+        {:else if tab.icon === 'week'}
+          <Calendar size={22} strokeWidth={active ? 2.25 : 1.75} />
+        {:else if tab.icon === 'inbox'}
+          <Inbox size={22} strokeWidth={active ? 2.25 : 1.75} />
+        {:else}
+          <Menu size={22} strokeWidth={active ? 2.25 : 1.75} />
+        {/if}
+        <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px;
+                     font-weight: {active ? '600' : '400'};">{tab.label}</span>
+      </button>
+    {/each}
+  </nav>
+
+  <!-- FAB for task creation on task-list pages -->
+  {#if isTaskListPage}
+    <button
+      onclick={() => goto(`/day/${todayDate}?new=1`)}
+      aria-label="New task"
+      style="position: fixed; bottom: 84px; right: 20px; width: 52px; height: 52px;
+             border-radius: 16px; background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);
+             display: flex; align-items: center; justify-content: center; z-index: 30;
+             box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: none; cursor: pointer;">
+      <Plus size={22} strokeWidth={2.5} />
+    </button>
+  {/if}
+
+  <!-- "More" bottom sheet -->
+  <BottomSheet open={moreSheetOpen} onClose={() => moreSheetOpen = false}>
+    <div style="padding: 8px 16px 24px;">
+      {#snippet moreItem(href: string, label: string, Icon: any)}
+        {@const active = isActive(href)}
+        <a {href}
+           onclick={() => moreSheetOpen = false}
+           class="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors"
+           style={active
+             ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent); font-weight: 600;'
+             : 'color: var(--sempa-text-soft);'}>
+          <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
+          <span style="font-size: 15px;">{label}</span>
+        </a>
+      {/snippet}
+
+      {@render moreItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
+      {@render moreItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
+      {@render moreItem('/settings/accounts', 'Settings', Settings)}
+
+      <!-- Theme toggle -->
+      <button onclick={() => { theme.toggle(); }}
+              class="flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-colors"
+              style="color: var(--sempa-text-soft);">
+        {#if theme.dark}
+          <Sun size={20} strokeWidth={1.75} />
+        {:else}
+          <Moon size={20} strokeWidth={1.75} />
+        {/if}
+        <span style="font-size: 15px;">{theme.dark ? 'Light mode' : 'Dark mode'}</span>
+      </button>
+
+      <!-- Pomodoro (if running) -->
+      {#if pomodoro.taskId}
+        <div class="mt-2 rounded-xl px-4 py-3"
+             style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+          <p class="text-[10px] font-semibold uppercase tracking-wider opacity-70">{pomodoro.phaseLabel}</p>
+          <p class="font-mono text-xl font-bold">{pomodoro.display}</p>
+        </div>
+      {/if}
+
+      <!-- Sign out -->
+      {#if userEmail}
+        <div class="mt-3 px-4 pt-3" style="border-top: 1px solid var(--sempa-border);">
+          <p class="truncate text-xs" style="color: var(--sempa-text-dim);">{userEmail}</p>
+          <button onclick={async () => { moreSheetOpen = false; await api.auth.logout(); goto('/login'); }}
+                  class="mt-1 text-xs transition-colors" style="color: var(--sempa-text-dim);">
+            Sign out
+          </button>
+        </div>
+      {/if}
+    </div>
+  </BottomSheet>
+{/if}
 
 {#if pomodoro.taskId}
   <PomodoroTimer />

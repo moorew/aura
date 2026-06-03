@@ -123,3 +123,19 @@
   .animate-fade-in,.animate-slide-right,
   .animate-scale-in,.animate-slide-down { animation:none }
 }
+
+/* ── PWA standalone: safe area padding ─────────────────────────────────── */
+@supports (padding: env(safe-area-inset-top)) {
+  @media (display-mode: standalone) {
+    body { padding-top: env(safe-area-inset-top); }
+  }
+}
+
+/* ── Touch: disable text selection on interactive elements ─────────────── */
+@media (pointer: coarse) {
+  button, [role="button"], [draggable="true"] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}

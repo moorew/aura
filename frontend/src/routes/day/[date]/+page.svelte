@@ -6,14 +6,17 @@
   import type { Task, TaskStatus } from '$lib/types';
   import { appendPosition, formatMinutes, insertPosition, isToday, offsetDate, today, weekStart } from '$lib/utils';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
+  import { mobile } from '$lib/stores/mobile.svelte';
   import WeekDayColumn from '$lib/components/WeekDayColumn.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
+  import BottomSheet from '$lib/components/BottomSheet.svelte';
   import EmailPanel from '$lib/components/EmailPanel.svelte';
   import MiniCalendar from '$lib/components/MiniCalendar.svelte';
   import TimeslotCalendar from '$lib/components/TimeslotCalendar.svelte';
   import WeeklyObjectivesWidget from '$lib/components/WeeklyObjectivesWidget.svelte';
   import { ChevronLeft, ChevronRight, Plus, Clock, Mail } from 'lucide-svelte';
   import JiraPanel from '$lib/components/JiraPanel.svelte';
+  import MobileTaskCard from '$lib/components/MobileTaskCard.svelte';
 
   // "date" is used to anchor the week and mark today
   let date      = $derived($page.params.date ?? today());
@@ -47,11 +50,16 @@
         date: d,
         dayName: dt.toLocaleDateString('en-US', { weekday: 'short' }),
         dayNum: dt.toLocaleDateString('en-US', { day: 'numeric' }),
+        monthName: dt.toLocaleDateString('en-US', { month: 'short' }),
+        fullDayName: dt.toLocaleDateString('en-US', { weekday: 'long' }),
         isToday: d === todayDate,
         isWeekend: dt.getDay() === 0 || dt.getDay() === 6,
       };
     })
   );
+
+  // Mobile: current selected day info
+  const selectedDay = $derived(weekDays.find(d => d.date === date) ?? weekDays[0]);
 
   // ── Pomodoro update ───────────────────────────────────────────────────────
   $effect(() => {
@@ -74,7 +82,17 @@
     } catch { /* ignore */ }
   }
 
-  onMount(() => { loadTasks(); loadRollover(); });
+  onMount(() => {
+    loadTasks(); loadRollover();
+    // Handle FAB deep link
+    if ($page.url.searchParams.get('new') === '1') {
+      openCreate(date);
+      // Clean URL
+      const url = new URL($page.url);
+      url.searchParams.delete('new');
+      history.replaceState({}, '', url.pathname);
+    }
+  });
   $effect(() => { ws; loadTasks(); });
 
   async function rolloverAll() {
@@ -97,6 +115,12 @@
   const estimateMins = $derived(totalTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
   const actualMins   = $derived(totalTasks.reduce((s, t) => s + (t.time_actual_minutes ?? 0), 0));
 
+  // Mobile: stats for selected day
+  const mobileDayTasks  = $derived(dayTasks(date));
+  const mobileActive    = $derived(mobileDayTasks.filter(t => t.status !== 'done'));
+  const mobileDone      = $derived(mobileDayTasks.filter(t => t.status === 'done'));
+  const mobileDayEstimate = $derived(mobileDayTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
+
   // ── Week navigation ────────────────────────────────────────────────────────
   function navigateWeek(delta: number) {
     const newWs = offsetDate(ws, delta * 7);
@@ -108,7 +132,13 @@
     goto(`/day/${d}`);
   }
 
+  // ── Mobile day navigation ────────────────────────────────────────────────
+  function navigateDay(delta: number) {
+    goto(`/day/${offsetDate(date, delta)}`);
+  }
+
   $effect(() => {
+    if (mobile.value) return; // skip scroll on mobile
     const d = date;
     requestAnimationFrame(() => {
       document.getElementById(`day-col-${d}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
@@ -174,6 +204,33 @@
     if (e.key === 'n' && !panelOpen) { e.preventDefault(); openCreate(todayDate); }
   }
 
+  // ── Trash (with confirm modal) ──────────────────────────────────────────
+  let trashConfirmOpen  = $state(false);
+  let trashTaskId       = $state<string | null>(null);
+  let trashTaskTitle    = $state('');
+
+  function handleTrashRequest(id: string, title: string) {
+    trashTaskId = id;
+    trashTaskTitle = title;
+    trashConfirmOpen = true;
+  }
+
+  async function confirmTrash() {
+    if (!trashTaskId) return;
+    const id = trashTaskId;
+    const prev = tasks.slice();
+    tasks = tasks.filter(t => t.id !== id);
+    trashConfirmOpen = false;
+    trashTaskId = null;
+    try { await api.tasks.delete(id); }
+    catch { tasks = prev; }
+  }
+
+  function cancelTrash() {
+    trashConfirmOpen = false;
+    trashTaskId = null;
+  }
+
   // ── Panel ─────────────────────────────────────────────────────────────────
   function openCreate(d: string) {
     panelTask = null; panelStatus = 'planned'; panelDate = d; panelOpen = true;
@@ -236,6 +293,154 @@
 <svelte:head>
   <title>{isToday(date) ? 'Today' : weekLabel()} — Sempa</title>
 </svelte:head>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- MOBILE LAYOUT                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+{#if mobile.value}
+
+  <!-- Mobile header -->
+  <header class="sticky top-0 z-10 px-5 pt-4 pb-3"
+          style="background: var(--sempa-bg-main);
+                 padding-top: calc(env(safe-area-inset-top, 0px) + 16px);">
+    <div class="flex items-center justify-between mb-1">
+      <button onclick={() => navigateDay(-1)} aria-label="Previous day"
+              class="rounded-lg p-2" style="color: var(--sempa-text-dim);">
+        <ChevronLeft size={20} />
+      </button>
+      <div class="text-center">
+        <h1 style="font-size: 28px; font-weight: 600; letter-spacing: -0.025em; color: var(--sempa-text);">
+          {selectedDay.isToday ? 'Today' : selectedDay.fullDayName + ', ' + selectedDay.dayNum}
+        </h1>
+        {#if !selectedDay.isToday}
+          <p class="text-xs" style="color: var(--sempa-text-dim);">{selectedDay.monthName}</p>
+        {/if}
+      </div>
+      <button onclick={() => navigateDay(1)} aria-label="Next day"
+              class="rounded-lg p-2" style="color: var(--sempa-text-dim);">
+        <ChevronRight size={20} />
+      </button>
+    </div>
+
+    <!-- Quick date strip -->
+    <div class="flex justify-between mt-2">
+      {#each weekDays as day (day.date)}
+        <button onclick={() => goto(`/day/${day.date}`)}
+                class="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors"
+                style={day.date === date
+                  ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                  : day.isToday
+                    ? 'color: var(--sempa-accent);'
+                    : 'color: var(--sempa-text-dim);'}>
+          <span class="text-[10px] font-semibold uppercase">{day.dayName}</span>
+          <span class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
+                style={day.isToday && day.date !== date
+                  ? 'background: var(--sempa-today-bg); color: var(--sempa-today-fg);'
+                  : ''}>
+            {day.dayNum}
+          </span>
+        </button>
+      {/each}
+    </div>
+
+    <!-- Day stats -->
+    {#if mobileDayTasks.length > 0}
+      <div class="flex items-center gap-3 mt-2 text-[11px]" style="color: var(--sempa-text-dim);">
+        <span>{mobileDone.length}/{mobileDayTasks.length} done</span>
+        {#if mobileDayEstimate > 0}<span>{formatMinutes(mobileDayEstimate)} planned</span>{/if}
+      </div>
+    {/if}
+  </header>
+
+  <!-- Rollover banner (mobile) -->
+  {#if rolloverTasks.length > 0 && !rolloverDismissed && isToday(date)}
+    <div class="mx-4 mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5 animate-slide-down"
+         style="border: 1px solid var(--sempa-amber); background: color-mix(in srgb, var(--sempa-amber) 8%, var(--sempa-bg-main));">
+      <p class="flex-1 text-xs" style="color: var(--sempa-amber);">
+        <strong>{rolloverTasks.length}</strong> from yesterday
+      </p>
+      <button onclick={rolloverAll}
+              class="rounded-lg px-2.5 py-1 text-[11px] font-medium"
+              style="background: var(--sempa-amber); color: var(--sempa-btn-fg);">
+        Roll over
+      </button>
+      <button onclick={() => rolloverDismissed = true} aria-label="Dismiss"
+              style="color: var(--sempa-amber); opacity: 0.7;">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  {/if}
+
+  <!-- Mobile task list -->
+  <main class="px-4 pb-4 animate-fade-in">
+    {#if loading}
+      <div class="flex h-48 items-center justify-center text-sm" style="color: var(--sempa-text-dim);">Loading...</div>
+    {:else if error}
+      <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600
+                  dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+        {error} <button onclick={loadTasks} class="ml-2 underline">Retry</button>
+      </div>
+    {:else if mobileDayTasks.length === 0}
+      <div class="flex flex-col items-center justify-center py-16 gap-3">
+        <div class="h-12 w-12 rounded-full flex items-center justify-center"
+             style="background: var(--sempa-accent-bg);">
+          <Plus size={20} style="color: var(--sempa-accent);" />
+        </div>
+        <p class="text-sm" style="color: var(--sempa-text-dim);">No tasks for this day</p>
+        <button onclick={() => openCreate(date)}
+                class="rounded-[9px] px-4 py-2 text-[13px] font-medium"
+                style="background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);">
+          Add task
+        </button>
+      </div>
+    {:else}
+      <!-- Active tasks -->
+      <div class="flex flex-col gap-2">
+        {#each mobileActive as task (task.id)}
+          <MobileTaskCard
+            {task}
+            onComplete={handleComplete}
+            onTrash={handleTrashRequest}
+            onClick={openEdit}
+            onFocusClick={handleFocus}
+          />
+        {/each}
+      </div>
+
+      <!-- Completed tasks -->
+      {#if mobileDone.length > 0}
+        <div class="mt-4 pt-3" style="border-top: 1px solid var(--sempa-border);">
+          <p class="mb-2 text-[11px] font-medium uppercase tracking-wider" style="color: var(--sempa-text-dim);">
+            {mobileDone.length} completed
+          </p>
+          <div class="flex flex-col gap-1.5">
+            {#each mobileDone as task (task.id)}
+              <MobileTaskCard
+                {task}
+                onComplete={handleComplete}
+                onTrash={handleTrashRequest}
+                onClick={openEdit}
+              />
+            {/each}
+          </div>
+        </div>
+      {/if}
+    {/if}
+  </main>
+
+  <!-- TaskPanel as BottomSheet on mobile -->
+  <BottomSheet open={panelOpen} onClose={() => panelOpen = false}>
+    <TaskPanel open={true} task={panelTask} defaultStatus={panelStatus} defaultDate={panelDate}
+               onSave={handlePanelSave} onClose={() => panelOpen = false}
+               inline={true} />
+  </BottomSheet>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DESKTOP LAYOUT (unchanged)                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+{:else}
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header class="sticky top-0 z-10 backdrop-blur-sm"
@@ -312,7 +517,7 @@
         </svg>
         <p class="flex-1 text-xs" style="color: var(--sempa-amber);">
           <strong>{rolloverTasks.length}</strong> unfinished from yesterday —
-          {rolloverTasks.slice(0,2).map(t=>t.title).join(', ')}{rolloverTasks.length > 2 ? '…' : ''}
+          {rolloverTasks.slice(0,2).map(t=>t.title).join(', ')}{rolloverTasks.length > 2 ? '...' : ''}
         </p>
         <button onclick={rolloverAll}
                 class="rounded-lg px-3 py-1 text-xs font-medium transition-colors"
@@ -329,7 +534,7 @@
     {/if}
 
     {#if loading}
-      <div class="flex h-64 items-center justify-center text-sm text-gray-300 dark:text-gray-700">Loading…</div>
+      <div class="flex h-64 items-center justify-center text-sm text-gray-300 dark:text-gray-700">Loading...</div>
     {:else if error}
       <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600
                   dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
@@ -348,6 +553,7 @@
               onTaskDragStart={handleDragStart}
               onTaskFocusClick={handleFocus}
               onTaskComplete={handleComplete}
+              onTaskTrash={handleTrashRequest}
               onTaskClick={openEdit}
               onDrop={handleDrop}
               onEmailDrop={handleEmailDrop}
@@ -372,6 +578,7 @@
               onTaskDragStart={handleDragStart}
               onTaskFocusClick={handleFocus}
               onTaskComplete={handleComplete}
+              onTaskTrash={handleTrashRequest}
               onTaskClick={openEdit}
               onDrop={handleDrop}
               onEmailDrop={handleEmailDrop}
@@ -450,3 +657,46 @@
 
 <TaskPanel open={panelOpen} task={panelTask} defaultStatus={panelStatus} defaultDate={panelDate}
            onSave={handlePanelSave} onClose={() => (panelOpen = false)} />
+{/if}
+
+<!-- ── Trash confirm modal ──────────────────────────────────────────────── -->
+{#if trashConfirmOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm animate-fade-in"
+       onclick={cancelTrash}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="w-full max-w-sm mx-4 rounded-2xl p-6 shadow-2xl animate-scale-in"
+         style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);"
+         onclick={(e) => e.stopPropagation()}>
+      <!-- Icon -->
+      <div class="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full"
+           style="background: color-mix(in srgb, #ef4444 12%, var(--sempa-bg-panel));">
+        <svg class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </div>
+      <!-- Text -->
+      <h3 class="mb-1 text-center text-sm font-semibold" style="color: var(--sempa-text);">Delete task?</h3>
+      <p class="mb-5 text-center text-xs leading-relaxed" style="color: var(--sempa-text-soft);">
+        <span class="font-medium" style="color: var(--sempa-text);">"{trashTaskTitle}"</span> will be permanently removed.
+      </p>
+      <!-- Actions -->
+      <div class="flex items-center gap-2">
+        <button onclick={cancelTrash}
+                class="flex-1 rounded-[9px] px-3 py-2 text-[13px] font-medium transition-colors"
+                style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft); background: transparent;"
+                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'}
+                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+          Cancel
+        </button>
+        <button onclick={confirmTrash}
+                class="flex-1 rounded-[9px] px-3 py-2 text-[13px] font-medium transition-colors shadow-sm"
+                style="background: #ef4444; color: white;"
+                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

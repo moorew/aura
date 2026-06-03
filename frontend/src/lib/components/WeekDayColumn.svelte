@@ -14,6 +14,7 @@
     onTaskDragStart,
     onTaskFocusClick,
     onTaskComplete,
+    onTaskTrash,
     onTaskClick,
     onDrop,
     onEmailDrop,
@@ -27,6 +28,7 @@
     onTaskDragStart: (id: string) => void;
     onTaskFocusClick?: (id: string, title: string) => void;
     onTaskComplete?: (id: string) => void;
+    onTaskTrash?: (id: string, title: string) => void;
     onTaskClick?: (task: Task) => void;
     onDrop: (date: string, insertIndex?: number) => void;
     onEmailDrop?: (emailData: { id: string; subject: string }, date: string) => void;
@@ -152,6 +154,7 @@
                    onDragStart={onTaskDragStart}
                    onFocusClick={onTaskFocusClick}
                    onComplete={onTaskComplete}
+                   onTrash={onTaskTrash}
                    onClick={onTaskClick} />
         </div>
       {/each}
@@ -182,6 +185,7 @@
               <TaskCard {task} accent="bg-green-400"
                        onDragStart={onTaskDragStart}
                        onComplete={onTaskComplete}
+                       onTrash={onTaskTrash}
                        onClick={onTaskClick} />
             {/each}
           </div>

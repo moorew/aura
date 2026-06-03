@@ -1,0 +1,153 @@
+<script lang="ts">
+  import type { Task } from '$lib/types';
+  import { formatMinutes } from '$lib/utils';
+  import { tagStore } from '$lib/stores/tags.svelte';
+
+  let {
+    task,
+    onComplete,
+    onTrash,
+    onClick,
+    onFocusClick,
+  }: {
+    task: Task;
+    onComplete?: (id: string) => void;
+    onTrash?: (id: string, title: string) => void;
+    onClick?: (task: Task) => void;
+    onFocusClick?: (id: string, title: string) => void;
+  } = $props();
+
+  const isDone      = $derived(task.status === 'done');
+  const isRecurring = $derived(!!task.recurrence_origin_id);
+  const sourceLabel: Record<string, string> = {
+    gmail: 'Gmail', fastmail: 'Mail', jira: 'Jira', google_calendar: 'Cal',
+  };
+
+  // Swipe state
+  let startX = $state(0);
+  let deltaX = $state(0);
+  let swiping = $state(false);
+  const SWIPE_THRESHOLD = 60;
+  const MAX_SWIPE = 80;
+
+  function handleTouchStart(e: TouchEvent) {
+    startX = e.touches[0].clientX;
+    deltaX = 0;
+    swiping = true;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    if (!swiping) return;
+    const dx = e.touches[0].clientX - startX;
+    if (dx > 0) {
+      deltaX = Math.min(dx * 0.4, MAX_SWIPE);
+    }
+  }
+
+  function handleTouchEnd() {
+    if (!swiping) return;
+    swiping = false;
+    if (deltaX > SWIPE_THRESHOLD * 0.4) {
+      onComplete?.(task.id);
+    }
+    deltaX = 0;
+  }
+</script>
+
+<div class="relative overflow-hidden rounded-xl">
+  <!-- Swipe reveal (green check) -->
+  {#if deltaX > 0}
+    <div class="absolute inset-y-0 left-0 flex items-center pl-4"
+         style="color: #22c55e; width: {deltaX}px;">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+      </svg>
+    </div>
+  {/if}
+
+  <!-- Card -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div
+    class="relative flex items-start gap-3 rounded-xl border p-3.5"
+    style="background: var(--sempa-bg-panel); border-color: var(--sempa-border);
+           transform: translateX({deltaX}px);
+           transition: {swiping ? 'none' : 'transform 200ms ease-out'};"
+    ontouchstart={handleTouchStart}
+    ontouchmove={handleTouchMove}
+    ontouchend={handleTouchEnd}
+    onclick={() => onClick?.(task)}
+  >
+    <!-- Complete circle -->
+    <button
+      type="button"
+      onclick={(e) => { e.stopPropagation(); onComplete?.(task.id); }}
+      class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center
+             {isDone ? 'border-green-500 bg-green-500' : 'border-gray-300 dark:border-gray-600'}"
+      aria-label="Complete task"
+    >
+      {#if isDone}
+        <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      {/if}
+    </button>
+
+    <!-- Content -->
+    <div class="min-w-0 flex-1">
+      <p class="text-[15px] leading-snug
+                {isDone ? 'line-through opacity-40' : 'font-medium'}"
+         style="color: var(--sempa-text);">
+        {task.title}
+      </p>
+
+      <!-- Meta row -->
+      {#if task.tags?.length || task.time_estimate_minutes || (task.source && task.source !== 'manual') || isRecurring}
+        <div class="flex flex-wrap gap-1 mt-1.5">
+          {#each (task.tags ?? []) as tag}
+            <span class="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
+                  style="background-color: {tagStore.colorFor(tag)}">{tag}</span>
+          {/each}
+          {#if task.time_estimate_minutes}
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-mono"
+                  style="background: var(--sempa-accent-bg); color: var(--sempa-text-dim);">
+              {formatMinutes(task.time_estimate_minutes)}
+            </span>
+          {/if}
+          {#if task.source && task.source !== 'manual'}
+            <span class="rounded px-1.5 py-0.5 text-[10px]"
+                  style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+              {sourceLabel[task.source] ?? task.source}
+            </span>
+          {/if}
+          {#if isRecurring}
+            <span class="rounded px-1.5 py-0.5 text-[10px]"
+                  style="background: var(--sempa-accent-bg); color: var(--sempa-text-dim);"
+                  title="Recurring">&#8634;</span>
+          {/if}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Actions (visible on mobile, no hover needed) -->
+    <div class="flex shrink-0 items-center gap-1">
+      {#if onFocusClick && !isDone}
+        <button onclick={(e) => { e.stopPropagation(); onFocusClick?.(task.id, task.title); }}
+                class="rounded-lg p-1.5" style="color: var(--sempa-text-dim);"
+                title="Start focus timer">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 3"/>
+          </svg>
+        </button>
+      {/if}
+      {#if onTrash}
+        <button onclick={(e) => { e.stopPropagation(); onTrash?.(task.id, task.title); }}
+                class="rounded-lg p-1.5" style="color: var(--sempa-text-dim);"
+                title="Delete task">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      {/if}
+    </div>
+  </div>
+</div>

@@ -33,6 +33,7 @@
     defaultDate,
     onSave,
     onClose,
+    inline = false,       // when true, renders content only (no overlay/aside wrapper)
   }: {
     open: boolean;
     task?: Task | null;
@@ -40,6 +41,7 @@
     defaultDate: string;
     onSave: (task: Task) => void;
     onClose: () => void;
+    inline?: boolean;
   } = $props();
 
   const isEdit = $derived(task !== null);
@@ -197,16 +199,7 @@
   };
 </script>
 
-{#if open}
-  <div role="presentation"
-       class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
-       onclick={onClose}></div>
-
-  <aside role="dialog" aria-modal="true"
-         aria-label="{isEdit ? 'Edit task' : 'New task'}"
-         class="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col shadow-2xl animate-slide-right"
-         style="border-left: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
-
+{#snippet panelContent()}
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800">
       <div>
@@ -535,5 +528,22 @@
         </button>
       </div>
     </div>
-  </aside>
+{/snippet}
+
+{#if open}
+  {#if inline}
+    <div class="flex flex-col">
+      {@render panelContent()}
+    </div>
+  {:else}
+    <div role="presentation"
+         class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
+         onclick={onClose}></div>
+    <aside role="dialog" aria-modal="true"
+           aria-label="{isEdit ? 'Edit task' : 'New task'}"
+           class="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col shadow-2xl animate-slide-right"
+           style="border-left: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
+      {@render panelContent()}
+    </aside>
+  {/if}
 {/if}

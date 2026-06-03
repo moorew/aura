@@ -5,13 +5,14 @@
 
   let {
     task, accent,
-    onDragStart, onFocusClick, onComplete, onClick,
+    onDragStart, onFocusClick, onComplete, onTrash, onClick,
   }: {
     task: Task;
     accent: string;
     onDragStart: (id: string) => void;
     onFocusClick?: (id: string, title: string) => void;
     onComplete?: (id: string) => void;
+    onTrash?: (id: string, title: string) => void;
     onClick?: (task: Task) => void;
   } = $props();
 
@@ -75,6 +76,16 @@
                 title="Start focus timer">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 3"/>
+          </svg>
+        </button>
+      {/if}
+      {#if onTrash}
+        <button onclick={(e) => { e.stopPropagation(); onTrash?.(task.id, task.title); }}
+                class="rounded p-1 text-gray-300 hover:text-red-500 transition-colors
+                       dark:text-gray-600 dark:hover:text-red-400"
+                title="Delete task">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
           </svg>
         </button>
       {/if}
