@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { theme, ACCENT_PRESETS, type AccentName } from '$lib/stores/theme.svelte';
+  import type { ICalSubscription } from '$lib/types';
 
   type AccountStatus = { connected: boolean; email?: string; last_synced_at?: string | null; enabled?: boolean };
 
@@ -36,17 +37,56 @@
   let syncing     = $state<Record<string, boolean>>({});
   let syncResults = $state<Record<string, string>>({});
 
+  // ICS subscriptions
+  let icalSubs      = $state<ICalSubscription[]>([]);
+  let icalUrl       = $state('');
+  let icalName      = $state('');
+  let icalColor     = $state('#6366f1');
+  let icalAdding    = $state(false);
+  let icalError     = $state('');
+  let showIcalForm  = $state(false);
+
   onMount(async () => {
     const connected = $page.url.searchParams.get('connected');
     if (connected === '1') window.history.replaceState({}, '', '/settings/accounts');
 
-    [gmail, calendar, fastmail, taskInbox] = await Promise.all([
+    [gmail, calendar, fastmail, taskInbox, icalSubs] = await Promise.all([
       api.integrations.gmail.get(),
       api.integrations.calendar.get(),
       api.integrations.fastmail.get(),
       api.integrations.taskInbox.get(),
+      api.ical.listSubscriptions(),
     ]);
   });
+
+  async function addIcalSub() {
+    if (!icalUrl.trim()) return;
+    icalAdding = true; icalError = '';
+    try {
+      const sub = await api.ical.createSubscription({
+        name: icalName.trim() || new URL(icalUrl).hostname,
+        url:  icalUrl.trim(),
+        color: icalColor,
+      });
+      icalSubs = [...icalSubs, sub];
+      icalUrl = ''; icalName = ''; showIcalForm = false;
+    } catch (e) { icalError = (e as Error).message; }
+    finally { icalAdding = false; }
+  }
+
+  async function removeIcalSub(id: string) {
+    await api.ical.deleteSubscription(id).catch(() => {});
+    icalSubs = icalSubs.filter(s => s.id !== id);
+  }
+
+  async function syncIcalSub(id: string) {
+    syncing['ical_' + id] = true;
+    try {
+      await api.ical.syncSubscription(id);
+      icalSubs = await api.ical.listSubscriptions();
+    } catch {}
+    finally { syncing['ical_' + id] = false; }
+  }
 
   async function syncService(name: string, fn: () => Promise<{ new: number; updated: number; errors: number }>) {
     syncing[name] = true; syncResults[name] = '';
@@ -461,6 +501,104 @@
         {/if}
       </div>
     {/if}
+  </section>
+
+  <!-- ── Calendar feeds (ICS) ────────────────────────────────────────────── -->
+  <section class="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">Calendar Feeds</h2>
+        <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-600">
+          Subscribe to any ICS/webcal URL for read-only calendar events in the Schedule panel
+        </p>
+      </div>
+      <button onclick={() => showIcalForm = !showIcalForm}
+              class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600
+                     hover:bg-gray-50 transition-colors dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800">
+        + Add feed
+      </button>
+    </div>
+
+    <div class="px-5 py-4 space-y-3">
+      {#if icalSubs.length === 0 && !showIcalForm}
+        <p class="text-sm text-gray-400 dark:text-gray-600">
+          No calendar feeds yet. Add a webcal or ICS URL — useful for work calendars you can't directly integrate.
+        </p>
+      {/if}
+
+      {#each icalSubs as sub (sub.id)}
+        <div class="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2.5 dark:border-gray-700/50">
+          <div class="h-3 w-3 shrink-0 rounded-full" style="background:{sub.color}"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{sub.name}</p>
+            <p class="text-xs text-gray-400 truncate dark:text-gray-600">{sub.url}</p>
+            {#if sub.error_msg}
+              <p class="text-xs text-red-500 dark:text-red-400">Error: {sub.error_msg}</p>
+            {:else if sub.last_synced_at}
+              <p class="text-xs text-gray-400 dark:text-gray-600">Last synced: {new Date(sub.last_synced_at).toLocaleString()}</p>
+            {/if}
+          </div>
+          <button onclick={() => syncIcalSub(sub.id)} disabled={syncing['ical_' + sub.id]}
+                  class="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors
+                         dark:text-gray-600 dark:hover:text-gray-400">
+            {syncing['ical_' + sub.id] ? '…' : 'Sync'}
+          </button>
+          <button onclick={() => removeIcalSub(sub.id)} aria-label="Remove feed"
+                  class="text-gray-300 hover:text-red-400 transition-colors dark:text-gray-600 dark:hover:text-red-400">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      {/each}
+
+      {#if showIcalForm}
+        <div class="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="ical-url">ICS / Webcal URL <span class="text-red-400">*</span></label>
+            <input id="ical-url" type="url" bind:value={icalUrl}
+                   placeholder="https://example.com/calendar.ics  or  webcal://..."
+                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none
+                          focus:border-[var(--a500)] focus:ring-2 focus:ring-[var(--a100)]
+                          dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+            <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-600">
+              Paste the ICS link — works with Google Calendar's "Secret address in iCal format", Fastmail, Outlook, etc.
+            </p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="ical-name">Name (optional)</label>
+              <input id="ical-name" type="text" bind:value={icalName}
+                     placeholder="Work calendar"
+                     class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none
+                            focus:border-[var(--a500)] dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="ical-color">Colour</label>
+              <div class="flex items-center gap-2">
+                <input id="ical-color" type="color" bind:value={icalColor}
+                       class="h-9 w-14 cursor-pointer rounded-lg border border-gray-200 bg-white p-1
+                              dark:border-gray-600 dark:bg-gray-700" />
+                <span class="text-xs text-gray-400 dark:text-gray-600">{icalColor}</span>
+              </div>
+            </div>
+          </div>
+          {#if icalError}<p class="text-sm text-red-600 dark:text-red-400">{icalError}</p>{/if}
+          <div class="flex gap-2">
+            <button onclick={addIcalSub} disabled={icalAdding || !icalUrl.trim()}
+                    class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-colors"
+                    style="background:var(--a500)">
+              {icalAdding ? 'Adding…' : 'Subscribe'}
+            </button>
+            <button onclick={() => { showIcalForm = false; icalError = ''; }}
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600
+                           hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+              Cancel
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
   </section>
 
   <!-- ── Appearance ─────────────────────────────────────────────────────── -->

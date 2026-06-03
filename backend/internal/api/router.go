@@ -40,12 +40,18 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 	tagStore := db.NewTagStore(database)
 	auth := newAuthHandler(cfg)
 
-	tasks        := &taskHandler{store: db.NewTaskStore(database), tags: tagStore}
+	tasks        := &taskHandler{
+		store:   db.NewTaskStore(database),
+		tags:    tagStore,
+		configs: db.NewIntegrationConfigStore(database),
+		appURL:  cfg.AppURL,
+	}
 	objectives   := &objectiveHandler{store: db.NewObjectiveStore(database)}
 	plans        := &planHandler{store: db.NewDailyPlanStore(database)}
 	sessions     := &sessionHandler{store: db.NewSessionStore(database)}
 	tags         := &tagHandler{store: tagStore}
 	weekReviews  := &weekReviewHandler{store: db.NewWeekReviewStore(database)}
+	icals        := &icalHandler{store: db.NewICalStore(database)}
 	integrations := &integrationHandler{
 		configs: db.NewIntegrationConfigStore(database),
 		tasks:   db.NewTaskStore(database),
@@ -105,6 +111,14 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 			r.Route("/weeks", func(r chi.Router) {
 				r.Get("/{weekStart}/review", weekReviews.get)
 				r.Put("/{weekStart}/review", weekReviews.upsert)
+			})
+
+			r.Route("/ical", func(r chi.Router) {
+				r.Get("/subscriptions", icals.listSubscriptions)
+				r.Post("/subscriptions", icals.createSubscription)
+				r.Delete("/subscriptions/{id}", icals.deleteSubscription)
+				r.Post("/subscriptions/{id}/sync", icals.syncSubscription)
+				r.Get("/events", icals.listEventsForDate)
 			})
 
 			r.Route("/pomodoros", func(r chi.Router) {

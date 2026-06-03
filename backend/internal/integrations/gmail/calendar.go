@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,14 @@ func (ct calEventTime) AsDate() string {
 		}
 	}
 	return ct.DateOnly
+}
+
+// AsISO returns a full ISO-8601 datetime string, or a date-only string if no time component.
+func (ct calEventTime) AsISO() string {
+	if ct.DateTime != "" {
+		return ct.DateTime
+	}
+	return ct.DateOnly + "T00:00:00Z"
 }
 
 // SyncCalendar imports a day's Google Calendar events as tasks.
@@ -113,10 +122,18 @@ func upsertCalEvent(ctx context.Context, ev calendarEvent, tasks *db.TaskStore, 
 	sourceID := "cal_" + ev.ID
 	source := "google_calendar"
 
-	_, err := tasks.FindBySource(ctx, source, sourceID)
+	scheduledStart := ev.Start.AsISO()
+	scheduledEnd   := ev.End.AsISO()
+
+	existing, err := tasks.FindBySource(ctx, source, sourceID)
 	if err == nil {
-		result.Updated++
-		return nil // already imported, don't overwrite user edits
+		// Update times on existing tasks (user edits to title/desc are preserved)
+		existing.ScheduledStart = &scheduledStart
+		existing.ScheduledEnd   = &scheduledEnd
+		if _, updateErr := tasks.Update(ctx, existing); updateErr == nil {
+			result.Updated++
+		}
+		return nil
 	}
 	if !errors.Is(err, db.ErrNotFound) {
 		return err
@@ -137,10 +154,52 @@ func upsertCalEvent(ctx context.Context, ev calendarEvent, tasks *db.TaskStore, 
 		SourceID:       &sourceID,
 		SourceURL:      &ev.HTMLURL,
 		SourceMetadata: &metaStr,
+		ScheduledStart: &scheduledStart,
+		ScheduledEnd:   &scheduledEnd,
 	})
 	if createErr != nil {
 		return createErr
 	}
 	result.New++
 	return nil
+}
+
+// WriteFocusBlock creates a Google Calendar event for a scheduled task.
+// Fails gracefully if the token lacks write scope.
+func WriteFocusBlock(ctx context.Context, accessToken, calendarID, title, scheduledStart, scheduledEnd, taskURL string) (string, error) {
+	if calendarID == "" {
+		calendarID = "primary"
+	}
+	body := map[string]any{
+		"summary":     title,
+		"description": "Focus work block\n" + taskURL,
+		"start":       map[string]string{"dateTime": scheduledStart},
+		"end":         map[string]string{"dateTime": scheduledEnd},
+	}
+	data, _ := json.Marshal(body)
+
+	reqURL := fmt.Sprintf("https://www.googleapis.com/calendar/v3/calendars/%s/events",
+		url.PathEscape(calendarID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL,
+		strings.NewReader(string(data)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {
+		return "", nil // no write scope — skip silently
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("calendar write: HTTP %d", resp.StatusCode)
+	}
+	var created struct{ ID string `json:"id"` }
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	return created.ID, nil
 }

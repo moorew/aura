@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -9,11 +11,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/clevercode/sempa/internal/db"
+	"github.com/clevercode/sempa/internal/integrations/gmail"
 )
 
 type taskHandler struct {
-	store *db.TaskStore
-	tags  *db.TagStore
+	store   *db.TaskStore
+	tags    *db.TagStore
+	configs *db.IntegrationConfigStore // for calendar write-back
+	appURL  string                      // base URL for task links
 }
 
 type createTaskRequest struct {
@@ -249,6 +254,14 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to update task")
 		return
 	}
+
+	// Write focus block to Google Calendar when a task gets a scheduled time
+	if req.ScheduledStart != nil && *req.ScheduledStart != "" &&
+		(task.Source == nil || *task.Source != "google_calendar") &&
+		h.configs != nil {
+		go h.writeFocusBlock(updated)
+	}
+
 	respond(w, http.StatusOK, updated)
 }
 
@@ -272,4 +285,32 @@ func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusNoContent, nil)
+}
+
+// writeFocusBlock creates a Google Calendar event for a newly-scheduled task.
+// Runs in a goroutine; errors are silently ignored (graceful degradation).
+func (h *taskHandler) writeFocusBlock(task db.Task) {
+	if task.ScheduledStart == nil || task.ScheduledEnd == nil {
+		return
+	}
+	cfg, err := h.configs.Get(context.Background(), "gmail")
+	if err != nil {
+		return
+	}
+	var stored gmail.StoredToken
+	if err := json.Unmarshal([]byte(cfg.Config), &stored); err != nil {
+		return
+	}
+	if !stored.CalendarEnabled {
+		return
+	}
+	if err := gmail.RefreshAccessToken(context.Background(),
+		"", "", &stored); err != nil {
+		return // can't refresh, skip
+	}
+	calID := "primary"
+	taskURL := h.appURL + "/task/" + task.ID
+	_, _ = gmail.WriteFocusBlock(context.Background(),
+		stored.AccessToken, calID,
+		task.Title, *task.ScheduledStart, *task.ScheduledEnd, taskURL)
 }

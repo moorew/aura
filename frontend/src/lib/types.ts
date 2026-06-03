@@ -88,6 +88,30 @@ export interface CreateTaskInput {
   scheduled_end?: string;
 }
 
+export interface ICalSubscription {
+  id: string;
+  name: string;
+  url: string;
+  color: string;
+  last_synced_at: string | null;
+  error_msg?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ICalEvent {
+  id: string;
+  subscription_id: string;
+  uid: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  color: string;
+}
+
 export interface WeekReview {
   id?: string;
   week_start: string;

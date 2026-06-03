@@ -103,6 +103,18 @@ export const api = {
       req<WeekReview>(`/api/v1/weeks/${weekStart}/review`, { method: 'PUT', body: body(data) }),
   },
 
+  ical: {
+    listSubscriptions: () => req<import('./types').ICalSubscription[]>('/api/v1/ical/subscriptions'),
+    createSubscription: (data: { name: string; url: string; color?: string }) =>
+      req<import('./types').ICalSubscription>('/api/v1/ical/subscriptions', { method: 'POST', body: body(data) }),
+    deleteSubscription: (id: string) =>
+      req<void>(`/api/v1/ical/subscriptions/${id}`, { method: 'DELETE' }),
+    syncSubscription: (id: string) =>
+      req<{ status: string }>(`/api/v1/ical/subscriptions/${id}/sync`, { method: 'POST' }),
+    listEvents: (date: string) =>
+      req<import('./types').ICalEvent[]>(`/api/v1/ical/events?date=${date}`),
+  },
+
   integrations: {
     jira: {
       get: () => req<JiraIntegrationConfig>('/api/v1/integrations/jira'),

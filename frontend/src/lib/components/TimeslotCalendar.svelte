@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { Task } from '$lib/types';
+  import { api } from '$lib/api';
+  import type { ICalEvent, Task } from '$lib/types';
   import { formatMinutes } from '$lib/utils';
 
   let {
@@ -22,7 +23,13 @@
 
   let containerEl = $state<HTMLElement | undefined>();
   let dragOver    = $state(false);
-  let ghostHour   = $state<number | null>(null); // hour being hovered during drag
+  let ghostHour   = $state<number | null>(null);
+  let icalEvents  = $state<ICalEvent[]>([]);
+
+  $effect(() => {
+    date; // re-load when date changes
+    api.ical.listEvents(date).then(evs => { icalEvents = evs; }).catch(() => {});
+  });
 
   const scheduled = $derived(
     tasks.filter(t => t.scheduled_start && t.scheduled_start.startsWith(date))
@@ -128,6 +135,22 @@
              style="top: {(ghostHour - START_HOUR) * HOUR_PX}px;">
         </div>
       {/if}
+
+      <!-- ICS / external calendar events (read-only) -->
+      {#each icalEvents as ev (ev.id)}
+        {@const s = new Date(ev.start_time)}
+        {@const e = new Date(ev.end_time)}
+        {@const startH = s.getHours() + s.getMinutes() / 60}
+        {@const endH   = e.getHours() + e.getMinutes() / 60}
+        {@const top    = Math.max(0, (startH - START_HOUR) * HOUR_PX)}
+        {@const height = Math.max(20, (endH - startH) * HOUR_PX)}
+        {#if !ev.all_day}
+          <div class="absolute left-0.5 right-0.5 rounded-lg border px-2 py-1 pointer-events-none opacity-80"
+               style="top:{top}px; height:{height}px; background:{ev.color}22; border-color:{ev.color}55; color:{ev.color};">
+            <p class="text-[10px] font-medium leading-tight truncate">{ev.summary}</p>
+          </div>
+        {/if}
+      {/each}
 
       <!-- Scheduled task blocks -->
       {#each scheduled as task (task.id)}
