@@ -45,6 +45,7 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease
+          ls -R app/build/outputs/apk/ || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
