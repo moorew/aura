@@ -24,10 +24,9 @@
   --a950: #2a0b03;
 }
 
-/* ── Remap Tailwind's blue scale to terracotta ──────────────────────────── */
-/* This means every bg-blue-*, text-blue-*, border-blue-*, ring-blue-*,     */
-/* focus:ring-blue-* etc. automatically uses the brand palette.              */
+/* ── Remap cold Tailwind scales to the Sempa terracotta brand ───────────── */
 @theme {
+  /* Blue → terracotta */
   --color-blue-50:  #fdf4ef;
   --color-blue-100: #f9e4d5;
   --color-blue-200: #f2c9ab;
@@ -39,6 +38,30 @@
   --color-blue-800: #5e2010;
   --color-blue-900: #451508;
   --color-blue-950: #2a0b03;
+
+  /* Indigo → terracotta (shutdown, plan, week pages used indigo) */
+  --color-indigo-50:  #fdf4ef;
+  --color-indigo-100: #f9e4d5;
+  --color-indigo-200: #f2c9ab;
+  --color-indigo-300: #e89464;
+  --color-indigo-400: #d97b4a;
+  --color-indigo-500: #b3592e;
+  --color-indigo-600: #963e1f;
+  --color-indigo-700: #7a2e15;
+  --color-indigo-800: #5e2010;
+  --color-indigo-900: #451508;
+  --color-indigo-950: #2a0b03;
+
+  /* White → warm cream panel (bg-white cards on warm backgrounds) */
+  --color-white: #f0ece3;
+
+  /* Warm dark backgrounds for dark mode (bg-gray-900 / bg-gray-800) */
+  --color-gray-900: #1d1510;
+  --color-gray-800: #181310;
+  --color-gray-950: #130e09;
+
+  /* Warm near-white for bg-gray-50 inputs and hover surfaces */
+  --color-gray-50: #f5f1eb;
 }
 
 /* ── Sempa warm design tokens — light mode ───────────────────────────────── */
