@@ -639,6 +639,30 @@
         </p>
       </div>
 
+      <!-- Text size -->
+      <div>
+        <div class="mb-3 flex items-center justify-between">
+          <p class="text-xs font-medium text-gray-600 dark:text-gray-400">Text size</p>
+          <span class="text-xs text-gray-400 dark:text-gray-600 tabular-nums">{theme.textScale}%</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-400 dark:text-gray-600">A</span>
+          <input type="range" min="80" max="130" step="5"
+                 value={theme.textScale}
+                 oninput={(e) => theme.setScale(parseInt((e.target as HTMLInputElement).value, 10))}
+                 class="flex-1 h-1.5 appearance-none rounded-full bg-gray-200 dark:bg-gray-700
+                        accent-[var(--a500)] cursor-pointer" />
+          <span class="text-base text-gray-400 dark:text-gray-600">A</span>
+        </div>
+        <div class="mt-2 flex justify-between px-0.5 text-[10px] text-gray-400 dark:text-gray-600">
+          <span>80%</span><span>100%</span><span>130%</span>
+        </div>
+        <button onclick={() => theme.setScale(100)}
+                class="mt-2 text-xs text-gray-400 hover:text-gray-600 underline dark:text-gray-600 dark:hover:text-gray-400">
+          Reset to default
+        </button>
+      </div>
+
       <!-- Dark / light -->
       <div>
         <p class="mb-3 text-xs font-medium text-gray-600 dark:text-gray-400">Mode</p>

@@ -311,7 +311,7 @@
       <div class="flex items-start gap-3 pb-6">
         <!-- Mon–Fri -->
         {#each weekDays.slice(0, 5) as day (day.date)}
-          <div class="w-44 shrink-0">
+          <div class="w-56 shrink-0">
             <WeekDayColumn
               date={day.date} dayName={day.dayName} dayNum={day.dayNum}
               isToday={day.isToday} isWeekend={false}
@@ -335,7 +335,7 @@
 
         <!-- Sat–Sun (narrower, visually softer) -->
         {#each weekDays.slice(5) as day (day.date)}
-          <div class="w-36 shrink-0">
+          <div class="w-44 shrink-0">
             <WeekDayColumn
               date={day.date} dayName={day.dayName} dayNum={day.dayNum}
               isToday={day.isToday} isWeekend={true}

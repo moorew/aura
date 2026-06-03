@@ -1,5 +1,6 @@
 const DARK_KEY   = 'sempa-theme';
 const ACCENT_KEY = 'sempa-accent';
+const SCALE_KEY  = 'sempa-text-scale';
 
 export type AccentName =
   | 'blue' | 'sky' | 'indigo'
@@ -91,6 +92,7 @@ export const ACCENT_PRESETS: Record<AccentName, Preset> = {
 function createThemeStore() {
   let dark       = $state(false);
   let accentName = $state<AccentName>('blue');
+  let textScale  = $state(100); // percent, e.g. 90 / 100 / 110
 
   function init() {
     if (typeof localStorage === 'undefined') return;
@@ -102,6 +104,13 @@ function createThemeStore() {
     const savedAccent = localStorage.getItem(ACCENT_KEY) as AccentName | null;
     if (savedAccent && ACCENT_PRESETS[savedAccent]) accentName = savedAccent;
     applyAccent(accentName);
+
+    const savedScale = localStorage.getItem(SCALE_KEY);
+    if (savedScale) {
+      const n = parseInt(savedScale, 10);
+      if (n >= 80 && n <= 130) textScale = n;
+    }
+    applyScale(textScale);
   }
 
   function applyDark() {
@@ -124,6 +133,17 @@ function createThemeStore() {
     r.setProperty('--a950', p.a950);
   }
 
+  function applyScale(pct: number) {
+    if (typeof document === 'undefined') return;
+    document.documentElement.style.fontSize = `${pct}%`;
+  }
+
+  function setScale(pct: number) {
+    textScale = Math.min(130, Math.max(80, pct));
+    localStorage.setItem(SCALE_KEY, String(textScale));
+    applyScale(textScale);
+  }
+
   function toggleDark() {
     dark = !dark;
     localStorage.setItem(DARK_KEY, dark ? 'dark' : 'light');
@@ -137,11 +157,13 @@ function createThemeStore() {
   }
 
   return {
-    get dark()   { return dark; },
-    get accent() { return accentName; },
+    get dark()      { return dark; },
+    get accent()    { return accentName; },
+    get textScale() { return textScale; },
     init,
     toggle: toggleDark,
     setAccent,
+    setScale,
   };
 }
 
