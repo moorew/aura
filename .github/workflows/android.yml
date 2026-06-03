@@ -44,10 +44,10 @@ jobs:
         working-directory: ./frontend/android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease > build.log 2>&1 || {
+          ./gradlew assembleRelease > build-output.txt 2>&1 || {
             git config --global user.email "bot@example.com"
             git config --global user.name "Bot"
-            git add build.log
+            git add -f build-output.txt
             git commit -m "chore: add build log"
             git push
             exit 1
