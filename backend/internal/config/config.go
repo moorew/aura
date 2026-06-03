@@ -1,6 +1,9 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 type Config struct {
 	Port        string
@@ -17,9 +20,12 @@ type Config struct {
 	// Inbound SMTP (email forwarding)
 	SMTPPort string // e.g. "2525"; empty disables the SMTP server
 
-	// Auth — optional; if AuthPassword is empty, auth is disabled
-	AuthUsername string
-	AuthPassword string
+	// Auth — optional; if AuthPassword is empty, password auth is disabled
+	AuthUsername  string
+	AuthPassword  string
+	// Google Sign-In: comma-separated emails allowed to log in.
+	// If empty, any Google account is accepted (fine for self-hosted on Tailscale).
+	AllowedEmails []string
 
 	// Webhook token for Cloudflare Email Routing → POST /api/v1/tasks/from-email
 	EmailForwardToken string
@@ -44,6 +50,7 @@ func Load() Config {
 		SMTPPort:          env("SMTP_PORT", "2525"),
 		AuthUsername:      env("SEMPA_USERNAME", "admin"),
 		AuthPassword:      env("SEMPA_PASSWORD", ""),
+		AllowedEmails:     splitEmails(env("SEMPA_ALLOWED_EMAILS", "")),
 		EmailForwardToken: env("EMAIL_FORWARD_TOKEN", ""),
 		InboxPollInterval: env("INBOX_POLL_INTERVAL", "1m"),
 		AnthropicAPIKey:   env("ANTHROPIC_API_KEY", ""),
@@ -55,4 +62,18 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func splitEmails(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, strings.ToLower(v))
+		}
+	}
+	return out
 }

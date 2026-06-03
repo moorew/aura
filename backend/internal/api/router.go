@@ -79,6 +79,8 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 			r.Post("/login", auth.login)
 			r.Post("/logout", auth.logout)
 			r.Get("/me", auth.me)
+			r.Get("/google", auth.googleAuth)
+			r.Get("/google/callback", auth.googleCallback)
 		})
 
 		// Cloudflare email webhook — token-auth, not session-auth

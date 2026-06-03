@@ -25,6 +25,7 @@
 
   let isLoginPage      = $derived(($page.url.pathname as string) === '/login');
   let shortcutsOpen    = $state(false);
+  let userEmail        = $state<string | undefined>(undefined);
 
   const SHORTCUT_HELP = [
     { key: 'n',   desc: 'New task (on day view)' },
@@ -65,6 +66,8 @@
         const me = await api.auth.me();
         if (!me.authenticated) {
           goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
+        } else {
+          userEmail = me.email;
         }
       } catch {
         goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
@@ -156,6 +159,20 @@
           </span>
           {theme.dark ? 'Light mode' : 'Dark mode'}
         </button>
+
+        <!-- Signed-in user + sign out -->
+        {#if userEmail}
+          <div class="mt-1 rounded-lg px-3 py-2" style="border-top: 1px solid var(--sempa-border);">
+            <p class="truncate text-[11px]" style="color: var(--sempa-text-dim);" title={userEmail}>{userEmail}</p>
+            <button onclick={async () => { await api.auth.logout(); goto('/login'); }}
+                    class="mt-0.5 text-[11px] transition-colors"
+                    style="color: var(--sempa-text-dim);"
+                    onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'}
+                    onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}>
+              Sign out
+            </button>
+          </div>
+        {/if}
       </div>
     </nav>
   </aside>
