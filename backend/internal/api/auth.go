@@ -236,12 +236,20 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := r.Cookie(sessionCookieName)
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, "not authenticated")
+		respond(w, http.StatusOK, map[string]any{
+			"authenticated":  false,
+			"auth_enabled":   true,
+			"google_enabled": h.googleEnabled(),
+		})
 		return
 	}
 	entry, ok := h.sessions.get(c.Value)
 	if !ok {
-		respondError(w, http.StatusUnauthorized, "not authenticated")
+		respond(w, http.StatusOK, map[string]any{
+			"authenticated":  false,
+			"auth_enabled":   true,
+			"google_enabled": h.googleEnabled(),
+		})
 		return
 	}
 	respond(w, http.StatusOK, map[string]any{
