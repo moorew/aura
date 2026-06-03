@@ -1,7 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Aura</string>
-    <string name="title_activity_main">Aura</string>
-    <string name="package_name">com.clevercode.aura</string>
-    <string name="custom_url_scheme">com.clevercode.aura</string>
+    <string name="app_name">sempa</string>
+    <string name="title_activity_main">sempa</string>
+    <string name="package_name">com.clevercode.sempa</string>
+    <string name="custom_url_scheme">com.clevercode.sempa</string>
+    <string name="widget_small_desc">Today\'s task count and progress</string>
+    <string name="widget_medium_desc">Today\'s tasks with quick actions</string>
+    <string name="widget_large_desc">Weekly overview with today\'s task list</string>
 </resources>

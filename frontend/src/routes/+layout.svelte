@@ -8,6 +8,7 @@
   import { theme } from '$lib/stores/theme.svelte';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { hapticTick } from '$lib/haptics';
   import { api } from '$lib/api';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
@@ -242,7 +243,7 @@
   <!-- FAB for task creation on task-list pages -->
   {#if isTaskListPage}
     <button
-      onclick={() => goto(`/day/${todayDate}?new=1`)}
+      onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=1`); }}
       aria-label="New task"
       style="position: fixed; bottom: 84px; right: 20px; width: 52px; height: 52px;
              border-radius: 16px; background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);

@@ -17,6 +17,7 @@
   import { ChevronLeft, ChevronRight, Plus, Clock, Mail } from 'lucide-svelte';
   import JiraPanel from '$lib/components/JiraPanel.svelte';
   import MobileTaskCard from '$lib/components/MobileTaskCard.svelte';
+  import { syncWidgetData } from '$lib/widget-bridge';
 
   // "date" is used to anchor the week and mark today
   let date      = $derived($page.params.date ?? today());
@@ -114,6 +115,18 @@
   const doneTasks    = $derived(totalTasks.filter(t => t.status === 'done').length);
   const estimateMins = $derived(totalTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
   const actualMins   = $derived(totalTasks.reduce((s, t) => s + (t.time_actual_minutes ?? 0), 0));
+
+  // Sync task data to Android widgets whenever tasks change
+  $effect(() => {
+    if (tasks.length === 0 && loading) return;
+    const todayList = tasks.filter(t => t.planned_date === todayDate && t.status !== 'cancelled');
+    const weekCounts = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.status === 'cancelled') continue;
+      weekCounts.set(t.planned_date, (weekCounts.get(t.planned_date) ?? 0) + 1);
+    }
+    syncWidgetData(todayList, weekCounts);
+  });
 
   // Mobile: stats for selected day
   const mobileDayTasks  = $derived(dayTasks(date));
