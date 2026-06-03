@@ -309,47 +309,50 @@
       </div>
     {:else}
       <div class="flex items-start gap-3 pb-6">
-        <!-- Mon–Fri main columns -->
+        <!-- Mon–Fri -->
         {#each weekDays.slice(0, 5) as day (day.date)}
-          <WeekDayColumn
-            date={day.date} dayName={day.dayName} dayNum={day.dayNum}
-            isToday={day.isToday}
-            tasks={dayTasks(day.date)}
-            isDragOver={dragOverDate === day.date}
-            onTaskDragStart={handleDragStart}
-            onTaskFocusClick={handleFocus}
-            onTaskComplete={handleComplete}
-            onTaskClick={openEdit}
-            onDrop={handleDrop}
-            onEmailDrop={handleEmailDrop}
-            onDragOver={(d) => (dragOverDate = d)}
-            onDragLeave={() => (dragOverDate = null)}
-            onAddClick={openCreate}
-          />
+          <div class="w-44 shrink-0">
+            <WeekDayColumn
+              date={day.date} dayName={day.dayName} dayNum={day.dayNum}
+              isToday={day.isToday} isWeekend={false}
+              tasks={dayTasks(day.date)}
+              isDragOver={dragOverDate === day.date}
+              onTaskDragStart={handleDragStart}
+              onTaskFocusClick={handleFocus}
+              onTaskComplete={handleComplete}
+              onTaskClick={openEdit}
+              onDrop={handleDrop}
+              onEmailDrop={handleEmailDrop}
+              onDragOver={(d) => (dragOverDate = d)}
+              onDragLeave={() => (dragOverDate = null)}
+              onAddClick={openCreate}
+            />
+          </div>
         {/each}
 
-        <!-- Sat–Sun (narrower) -->
-        <div class="flex shrink-0 gap-2">
-          {#each weekDays.slice(5) as day (day.date)}
-            <div class="w-40">
-              <WeekDayColumn
-                date={day.date} dayName={day.dayName} dayNum={day.dayNum}
-                isToday={day.isToday}
-                tasks={dayTasks(day.date)}
-                isDragOver={dragOverDate === day.date}
-                onTaskDragStart={handleDragStart}
-                onTaskFocusClick={handleFocus}
-                onTaskComplete={handleComplete}
-                onTaskClick={openEdit}
-                onDrop={handleDrop}
-                onEmailDrop={handleEmailDrop}
-                onDragOver={(d) => (dragOverDate = d)}
-                onDragLeave={() => (dragOverDate = null)}
-                onAddClick={openCreate}
-              />
-            </div>
-          {/each}
-        </div>
+        <!-- Thin divider before weekend -->
+        <div class="w-px self-stretch bg-gray-200 dark:bg-gray-700/50 mt-7 mb-2"></div>
+
+        <!-- Sat–Sun (narrower, visually softer) -->
+        {#each weekDays.slice(5) as day (day.date)}
+          <div class="w-36 shrink-0">
+            <WeekDayColumn
+              date={day.date} dayName={day.dayName} dayNum={day.dayNum}
+              isToday={day.isToday} isWeekend={true}
+              tasks={dayTasks(day.date)}
+              isDragOver={dragOverDate === day.date}
+              onTaskDragStart={handleDragStart}
+              onTaskFocusClick={handleFocus}
+              onTaskComplete={handleComplete}
+              onTaskClick={openEdit}
+              onDrop={handleDrop}
+              onEmailDrop={handleEmailDrop}
+              onDragOver={(d) => (dragOverDate = d)}
+              onDragLeave={() => (dragOverDate = null)}
+              onAddClick={openCreate}
+            />
+          </div>
+        {/each}
       </div>
     {/if}
   </main>

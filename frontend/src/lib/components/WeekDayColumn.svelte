@@ -4,11 +4,12 @@
   import { Plus } from 'lucide-svelte';
 
   let {
-    date,          // YYYY-MM-DD
-    dayName,       // "Mon"
-    dayNum,        // "3" or "Jun 3"
+    date,
+    dayName,     // "Mon"
+    dayNum,      // "3"
     isToday,
-    tasks,         // all tasks for this day (any status except cancelled), sorted by position
+    isWeekend,
+    tasks,       // all non-cancelled tasks for this day
     isDragOver,
     onTaskDragStart,
     onTaskFocusClick,
@@ -20,7 +21,8 @@
     onDragLeave,
     onAddClick,
   }: {
-    date: string; dayName: string; dayNum: string; isToday: boolean;
+    date: string; dayName: string; dayNum: string;
+    isToday: boolean; isWeekend: boolean;
     tasks: Task[]; isDragOver: boolean;
     onTaskDragStart: (id: string) => void;
     onTaskFocusClick?: (id: string, title: string) => void;
@@ -51,7 +53,7 @@
   }
 </script>
 
-<div class="flex w-52 shrink-0 flex-col"
+<div class="flex flex-col"
      ondragover={(e) => { e.preventDefault(); insertIdx = calcInsertIdx(e); onDragOver(date); }}
      ondragleave={(e) => {
        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
@@ -69,44 +71,44 @@
        insertIdx = null;
      }}>
 
-  <!-- Column header -->
-  <div class="mb-2.5 rounded-xl px-3 py-2.5 text-center transition-colors
-              {isToday ? 'text-white shadow-sm' : 'bg-gray-100/70 dark:bg-gray-800/40'}"
-       style={isToday ? 'background:var(--a500)' : ''}>
-    <p class="text-[10px] font-semibold uppercase tracking-widest
-              {isToday ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}">
+  <!-- Compact header: MON + day-number circle -->
+  <div class="mb-2 flex items-center gap-1.5 px-1">
+    <span class="text-[10px] font-semibold uppercase tracking-wider
+                 {isWeekend ? 'text-gray-400 dark:text-gray-600' : 'text-gray-400 dark:text-gray-500'}">
       {dayName}
-    </p>
-    <p class="text-lg font-bold leading-tight
-              {isToday ? 'text-white' : 'text-gray-700 dark:text-gray-200'}">
+    </span>
+    <!-- Day number — circle only on today -->
+    <span class="flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold leading-none
+                 {isToday ? 'text-white' : isWeekend ? 'text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}"
+          style={isToday ? 'background:var(--a500)' : ''}>
       {dayNum}
-    </p>
+    </span>
+    <!-- Task count -->
     {#if tasks.length > 0}
-      <p class="text-[10px] {isToday ? 'text-white/60' : 'text-gray-400 dark:text-gray-600'}">
+      <span class="ml-auto text-[10px] tabular-nums
+                   {isWeekend ? 'text-gray-300 dark:text-gray-700' : 'text-gray-400 dark:text-gray-600'}">
         {done.length}/{tasks.length}
-      </p>
+      </span>
     {/if}
   </div>
 
-  <!-- Task area -->
-  <div class="relative flex flex-1 flex-col rounded-2xl transition-all duration-150
+  <!-- Column body -->
+  <div class="flex flex-1 flex-col rounded-xl transition-all duration-150
               {isDragOver
-                ? 'ring-2 ring-offset-1 dark:ring-offset-gray-950'
-                : 'bg-gray-100/50 dark:bg-gray-800/20'}"
-       style={isDragOver ? 'background:var(--a50);ring-color:var(--a400)' : ''}>
-
-    <!-- Priority gradient — very subtle "start here" visual at top -->
-    <div class="pointer-events-none absolute inset-x-0 top-0 h-16 rounded-t-2xl"
-         style="background:linear-gradient(to bottom, var(--a50) 0%, transparent 100%); opacity:0.6">
-    </div>
+                ? 'ring-2 ring-inset'
+                : isWeekend
+                  ? 'bg-gray-50/40 dark:bg-gray-800/10'
+                  : 'bg-gray-100/60 dark:bg-gray-800/25'}"
+       style={isDragOver ? 'background:var(--a50);ring-color:var(--a400);' : ''}>
 
     <div role="list" bind:this={taskListEl}
-         class="relative flex flex-col gap-2 overflow-y-auto p-2
-                [scrollbar-width:thin] [scrollbar-color:theme(colors.gray.200)_transparent]">
+         class="flex flex-col gap-2 overflow-y-auto p-2
+                [scrollbar-width:thin] [scrollbar-color:theme(colors.gray.200)_transparent]
+                dark:[scrollbar-color:theme(colors.gray.700)_transparent]">
 
       {#each active as task, i (task.id)}
         {#if isDragOver && insertIdx === i}
-          <div class="h-0.5 rounded-full mx-1" style="background:var(--a400)"></div>
+          <div class="h-px rounded-full mx-1" style="background:var(--a500)"></div>
         {/if}
         <div data-task-idx={i}>
           <TaskCard {task} accent="bg-gray-400"
@@ -118,19 +120,19 @@
       {/each}
 
       {#if isDragOver && insertIdx === active.length}
-        <div class="h-0.5 rounded-full mx-1" style="background:var(--a400)"></div>
+        <div class="h-px rounded-full mx-1" style="background:var(--a500)"></div>
       {/if}
       {#if active.length === 0 && !isDragOver}
-        <div class="min-h-[60px]"></div>
+        <div class="min-h-[80px]"></div>
       {/if}
     </div>
 
-    <!-- Done tasks (collapsible) -->
+    <!-- Completed tasks (collapsed by default) -->
     {#if done.length > 0}
-      <div class="px-2 pb-1">
+      <div class="border-t border-gray-100/80 px-2 pb-1 pt-0.5 dark:border-gray-700/30">
         <button onclick={() => showDone = !showDone}
-                class="flex w-full items-center gap-1 rounded-lg px-2 py-1 text-[10px]
-                       text-gray-400 hover:bg-white/60 transition-colors dark:text-gray-600 dark:hover:bg-gray-700/30">
+                class="flex w-full items-center gap-1 rounded px-1 py-1 text-[10px]
+                       text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-600 dark:hover:text-gray-400">
           <svg class="h-3 w-3 transition-transform {showDone ? 'rotate-180' : ''}"
                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" d="M19 9l-7 7-7-7"/>
@@ -138,7 +140,7 @@
           {done.length} done
         </button>
         {#if showDone}
-          <div class="flex flex-col gap-1.5 pt-1">
+          <div class="flex flex-col gap-1.5 pt-1 pb-1">
             {#each done as task (task.id)}
               <TaskCard {task} accent="bg-green-400"
                        onDragStart={onTaskDragStart}
@@ -152,10 +154,10 @@
 
     <!-- Add task -->
     <button onclick={() => onAddClick(date)}
-            class="flex items-center gap-1.5 rounded-b-2xl px-3 py-2.5 text-xs text-gray-400
+            class="flex items-center gap-1.5 rounded-b-xl px-3 py-2 text-xs text-gray-400
                    hover:bg-white/60 hover:text-gray-600 transition-colors
                    dark:text-gray-600 dark:hover:bg-gray-700/30 dark:hover:text-gray-400">
-      <Plus size={12} />
+      <Plus size={11} />
       Add task
     </button>
   </div>
