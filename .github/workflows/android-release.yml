@@ -42,11 +42,11 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
-      - name: Decode google-services.json
+      - name: Write google-services.json
         working-directory: frontend/android/app
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > google-services.json
+        run: echo "$GOOGLE_SERVICES_JSON" > google-services.json
 
       - name: Decode release keystore
         working-directory: frontend/android/app
