@@ -5,7 +5,9 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -21,17 +23,59 @@ type Event struct {
 	AllDay      bool
 }
 
-// Fetch downloads and parses an ICS URL, returning all events.
-func Fetch(url string) ([]Event, error) {
-	resp, err := http.Get(url) //nolint:gosec
+// isPrivateIP checks if an IP belongs to a private, loopback, or link-local range.
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
+}
+
+// validateURL ensures the URL is http(s) and does not resolve to a private/internal IP.
+func validateURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("ical fetch %q: %w", url, err)
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme %q; only http and https are allowed", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("URL has no hostname")
+	}
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+	}
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("URL resolves to a private/internal IP address; refusing to fetch")
+		}
+	}
+	return nil
+}
+
+// Fetch downloads and parses an ICS URL, returning all events.
+// It validates the URL to prevent SSRF against private networks.
+func Fetch(rawURL string) ([]Event, error) {
+	if err := validateURL(rawURL); err != nil {
+		return nil, fmt.Errorf("ical: %w", err)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(rawURL) //nolint:gosec
+	if err != nil {
+		return nil, fmt.Errorf("ical fetch %q: %w", rawURL, err)
 	}
 	defer resp.Body.Close()
+
+	// Limit response body to 10 MB to avoid memory exhaustion
+	body := io.LimitReader(resp.Body, 10<<20)
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ical fetch: HTTP %d", resp.StatusCode)
 	}
-	return Parse(resp.Body)
+	return Parse(body)
 }
 
 // Parse reads an ICS stream and returns parsed events.

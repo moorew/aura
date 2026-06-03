@@ -41,7 +41,7 @@ func main() {
 
 	// Inbound SMTP server.
 	if cfg.SMTPPort != "" {
-		smtpSrv := emailrecv.New(":"+cfg.SMTPPort, db.NewTaskStore(database))
+		smtpSrv := emailrecv.New(":"+cfg.SMTPPort, db.NewTaskStore(database), cfg.SMTPAllowedSenders)
 		go func() {
 			slog.Info("smtp listening", "port", cfg.SMTPPort)
 			if err := smtpSrv.ListenAndServe(); err != nil {

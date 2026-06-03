@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -702,11 +703,13 @@ func (h *integrationHandler) fromEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auth := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if auth != h.cfg.EmailForwardToken {
+	if subtle.ConstantTimeCompare([]byte(auth), []byte(h.cfg.EmailForwardToken)) != 1 {
 		respondError(w, http.StatusUnauthorized, "invalid token")
 		return
 	}
-	if err := emailrecv.CreateFromReader(r.Context(), r.Body, h.tasks); err != nil {
+	// Limit email body to 25 MB
+	body := http.MaxBytesReader(w, r.Body, 25<<20)
+	if err := emailrecv.CreateFromReader(r.Context(), body, h.tasks); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

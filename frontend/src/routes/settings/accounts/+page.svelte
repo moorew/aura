@@ -49,6 +49,16 @@
   let showIcalForm  = $state(false);
   let icalFormEl    = $state<HTMLElement | undefined>();
 
+  // Sub-nav active section tracking
+  let activeSection = $state('integrations');
+  let scrollContainer = $state<HTMLElement | undefined>();
+
+  const NAV_SECTIONS = [
+    { id: 'integrations', label: 'Integrations' },
+    { id: 'tasks', label: 'Tasks' },
+    { id: 'appearance', label: 'Appearance' },
+  ] as const;
+
   onMount(async () => {
     const connected = $page.url.searchParams.get('connected');
     if (connected === '1') window.history.replaceState({}, '', '/settings/accounts');
@@ -68,19 +78,48 @@
     } else {
       jira = await api.integrations.jira.get().catch(() => ({ connected: false }));
     }
+
+    // IntersectionObserver for sub-nav active state
+    setupObserver();
   });
+
+  function setupObserver() {
+    if (!scrollContainer) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            activeSection = entry.target.id.replace('settings-', '');
+          }
+        }
+      },
+      { root: scrollContainer, rootMargin: '-10% 0px -80% 0px', threshold: 0 }
+    );
+    for (const s of NAV_SECTIONS) {
+      const el = document.getElementById(`settings-${s.id}`);
+      if (el) observer.observe(el);
+    }
+  }
+
+  function scrollTo(id: string) {
+    const el = document.getElementById(`settings-${id}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   async function addIcalSub() {
     if (!icalUrl.trim()) return;
     icalAdding = true; icalError = '';
     try {
+      let parsedUrl = icalUrl.trim();
+      // Convert webcal:// to https:// for URL parsing
+      const urlForParsing = parsedUrl.replace(/^webcal:\/\//, 'https://');
       const sub = await api.ical.createSubscription({
-        name: icalName.trim() || new URL(icalUrl).hostname,
-        url:  icalUrl.trim(),
+        name: icalName.trim() || new URL(urlForParsing).hostname,
+        url:  parsedUrl,
         color: icalColor,
       });
       icalSubs = [...icalSubs, sub];
-      icalUrl = ''; icalName = ''; showIcalForm = false;
+      icalUrl = ''; icalName = ''; icalColor = '#6366f1'; showIcalForm = false;
     } catch (e) { icalError = (e as Error).message; }
     finally { icalAdding = false; }
   }
@@ -193,6 +232,7 @@
     if (!confirm('Disconnect Fastmail? Imported tasks will be kept.')) return;
     await api.integrations.fastmail.delete();
     fastmail = { connected: false }; fmCal = { connected: false, enabled: false };
+    taskInbox = { connected: false };
   }
 
   async function disconnectTaskInbox() {
@@ -206,600 +246,648 @@
     return new Date(s).toLocaleString();
   }
 
-  function sectionLabel(text: string) { return text; }
+  function formatTime(s?: string | null) {
+    if (!s) return '';
+    return new Date(s).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
 </script>
 
-<div class="mx-auto max-w-xl px-6 py-8 pb-16">
-  <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">Settings</h1>
-  <p class="mb-8 text-sm" style="color: var(--sempa-text-soft);">Manage integrations, appearance, and tasks.</p>
+<!-- Settings page: sub-nav + scrollable content -->
+<div class="flex h-full">
 
-  <!-- ════════════════════════════════════════════════════════════════════════
-       SECTION: Email & Calendar
-  ══════════════════════════════════════════════════════════════════════════ -->
-  <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Email & Calendar</p>
+  <!-- ── Settings sub-nav ──────────────────────────────────────────────── -->
+  <nav class="flex w-[148px] shrink-0 flex-col gap-1 px-3 pt-8"
+       style="background: var(--sempa-bg-nav); border-right: 1px solid var(--sempa-border);">
+    <h1 class="mb-4 px-3 text-base font-semibold" style="color: var(--sempa-text);">Settings</h1>
+    {#each NAV_SECTIONS as section}
+      <button onclick={() => scrollTo(section.id)}
+              class="rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors"
+              style={activeSection === section.id
+                ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                : 'color: var(--sempa-text-soft);'}>
+        {section.label}
+      </button>
+    {/each}
+  </nav>
 
-  <!-- ── Gmail ─────────────────────────────────────────────────────────── -->
-  <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-    <div class="flex items-center gap-3 border-b px-5 py-4" style="border-color: var(--sempa-border);">
-      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950">
-        <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
-        </svg>
-      </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold" style="color: var(--sempa-text);">Gmail</p>
-        {#if gmail.connected}
-          <p class="text-xs truncate" style="color: var(--sempa-text-soft);">{gmail.email}</p>
-        {:else}
-          <p class="text-xs" style="color: var(--sempa-text-dim);">Not connected</p>
-        {/if}
-      </div>
-      {#if gmail.connected}
-        <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950 dark:text-green-400">
-          <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Connected
-        </span>
-      {/if}
-    </div>
+  <!-- ── Scrollable content ────────────────────────────────────────────── -->
+  <div bind:this={scrollContainer} class="flex-1 overflow-y-auto">
+    <div class="mx-auto max-w-xl px-6 py-8 pb-16">
 
-    {#if gmail.connected}
-      <div class="px-5 py-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs" style="color: var(--sempa-text-soft);">Last synced: {formatDate(gmail.last_synced_at)}</span>
-          <button onclick={() => syncService('gmail', api.integrations.gmail.sync)}
-                  disabled={syncing['gmail']}
-                  class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                  style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-            {syncing['gmail'] ? 'Syncing…' : 'Sync starred'}
-          </button>
-        </div>
-        {#if syncResults['gmail']}
-          <p class="text-xs" style="color: var(--sempa-accent);">{syncResults['gmail']}</p>
-        {/if}
+      <!-- ═══════════════════════════════════════════════════════════════════
+           SECTION: Integrations
+      ════════════════════════════════════════════════════════════════════ -->
+      <div id="settings-integrations">
 
-        <!-- Google Calendar toggle -->
-        <div class="flex items-center justify-between rounded-lg px-3 py-2.5" style="background: var(--sempa-accent-bg);">
-          <div>
-            <p class="text-sm font-medium" style="color: var(--sempa-text);">Google Calendar</p>
-            <p class="text-xs" style="color: var(--sempa-text-dim);">Import today's events as tasks</p>
+        <!-- ── Email & Calendar ──────────────────────────────────────── -->
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Email & Calendar</p>
+
+        <!-- ── Gmail ─────────────────────────────────────────────────── -->
+        <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+          <!-- Header -->
+          <div class="flex items-center gap-3 px-5 py-4"
+               class:border-b={gmail.connected}
+               style="border-color: var(--sempa-border);">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950">
+              <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold" style="color: var(--sempa-text);">Gmail</p>
+              {#if gmail.connected}
+                <p class="text-xs truncate" style="color: var(--sempa-text-soft);">
+                  {gmail.email} &middot; Last synced {formatTime(gmail.last_synced_at)}
+                </p>
+              {:else}
+                <p class="text-xs" style="color: var(--sempa-text-dim);">Import starred emails as tasks</p>
+              {/if}
+            </div>
+            {#if gmail.connected}
+              <span class="inline-flex items-center gap-1.5 text-xs font-medium" style="color: var(--sempa-text-soft);">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Connected
+              </span>
+            {:else}
+              <a href={api.integrations.gmail.authUrl(false)}
+                 class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+                 style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                Connect &rarr;
+              </a>
+            {/if}
           </div>
-          {#if calendar.connected}
-            <div class="flex items-center gap-2">
-              <button onclick={() => syncService('calendar', () => api.integrations.calendar.sync())}
-                      disabled={syncing['calendar']}
-                      class="rounded border px-2 py-1 text-xs transition-colors disabled:opacity-50"
-                      style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-                {syncing['calendar'] ? 'Syncing…' : 'Sync today'}
-              </button>
-              <button onclick={() => toggleCalendar(false)} class="text-xs" style="color: var(--sempa-text-dim);">Disable</button>
-            </div>
-          {:else}
-            <a href={api.integrations.gmail.authUrl(true)}
-               class="rounded-lg px-3 py-1.5 text-xs font-medium text-white"
-               style="background: var(--sempa-accent);">
-              Connect Calendar
-            </a>
-          {/if}
-        </div>
-        {#if syncResults['calendar']}
-          <p class="text-xs" style="color: var(--sempa-accent);">{syncResults['calendar']}</p>
-        {/if}
 
-        <button onclick={disconnectGmail} class="text-xs text-red-500 hover:text-red-700 dark:text-red-400">
-          Disconnect Gmail
-        </button>
-      </div>
-    {:else}
-      <div class="px-5 py-5 text-center">
-        <p class="mb-3 text-sm" style="color: var(--sempa-text-soft);">Import starred emails as tasks. Read-only access.</p>
-        <a href={api.integrations.gmail.authUrl(false)}
-           class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors"
-           style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text);">
-          <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
-          </svg>
-          Connect with Google
-        </a>
-      </div>
-    {/if}
-  </section>
-
-  <!-- ── Fastmail ────────────────────────────────────────────────────────── -->
-  <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-    <div class="flex items-center gap-3 border-b px-5 py-4" style="border-color: var(--sempa-border);">
-      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
-        <svg class="h-4 w-4" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-        </svg>
-      </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold" style="color: var(--sempa-text);">Fastmail</p>
-        {#if fastmail.connected}
-          <p class="text-xs truncate" style="color: var(--sempa-text-soft);">{fastmail.email}</p>
-        {:else}
-          <p class="text-xs" style="color: var(--sempa-text-dim);">Not connected</p>
-        {/if}
-      </div>
-      {#if fastmail.connected}
-        <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950 dark:text-green-400">
-          <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Connected
-        </span>
-      {/if}
-    </div>
-
-    {#if fastmail.connected}
-      <div class="px-5 py-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs" style="color: var(--sempa-text-soft);">Last synced: {formatDate(fastmail.last_synced_at)}</span>
-          <button onclick={() => syncService('fastmail', api.integrations.fastmail.sync)}
-                  disabled={syncing['fastmail']}
-                  class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                  style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-            {syncing['fastmail'] ? 'Syncing…' : 'Sync starred'}
-          </button>
-        </div>
-        {#if syncResults['fastmail']}
-          <p class="text-xs" style="color: var(--sempa-accent);">{syncResults['fastmail']}</p>
-        {/if}
-
-        <!-- Fastmail Calendar toggle -->
-        {#if fmCal.connected}
-          <div class="space-y-2 rounded-lg px-3 py-2.5" style="background: var(--sempa-accent-bg);">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium" style="color: var(--sempa-text);">Fastmail Calendar</p>
-                <p class="text-xs" style="color: var(--sempa-text-dim);">Sync events via JMAP Calendars</p>
-              </div>
-              <!-- Toggle switch -->
-              <button onclick={() => toggleFastmailCalendar(!fmCal.enabled)}
-                      disabled={syncing['fmcal-toggle']}
-                      class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50"
-                      style="background: {fmCal.enabled ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
-                <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
-                      style="transform: translateX({fmCal.enabled ? '18px' : '3px'});"></span>
-              </button>
-            </div>
-            {#if fmCal.enabled}
-              <div class="flex items-center justify-between pt-1">
-                <span class="text-xs" style="color: var(--sempa-text-soft);">Last synced: {formatDate(fmCal.last_synced_at)}</span>
-                <button onclick={syncFastmailCalendar}
-                        disabled={syncing['fmcal']}
-                        class="rounded border px-2 py-1 text-xs transition-colors disabled:opacity-50"
-                        style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-                  {syncing['fmcal'] ? 'Syncing…' : 'Sync now'}
+          {#if gmail.connected}
+            <!-- Sub-features -->
+            <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                 style="border-color: var(--sempa-border);">
+              <span style="color: var(--sempa-text-soft);">Starred emails</span>
+              <div class="flex items-center gap-3">
+                {#if syncResults['gmail']}
+                  <span style="color: var(--sempa-accent);">{syncResults['gmail']}</span>
+                {/if}
+                <button onclick={() => syncService('gmail', api.integrations.gmail.sync)}
+                        disabled={syncing['gmail']}
+                        class="transition-colors disabled:opacity-50"
+                        style="color: var(--sempa-text-dim);">
+                  {syncing['gmail'] ? 'Syncing...' : 'Sync'}
                 </button>
               </div>
-              {#if syncResults['fmcal']}
-                <p class="text-xs" style="color: var(--sempa-accent);">{syncResults['fmcal']}</p>
+            </div>
+
+            <!-- Google Calendar sub-feature -->
+            <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                 style="border-color: var(--sempa-border);">
+              <span style="color: var(--sempa-text-soft);">Google Calendar</span>
+              <div class="flex items-center gap-3">
+                {#if syncResults['calendar']}
+                  <span style="color: var(--sempa-accent);">{syncResults['calendar']}</span>
+                {/if}
+                {#if calendar.connected}
+                  <button onclick={() => syncService('calendar', () => api.integrations.calendar.sync())}
+                          disabled={syncing['calendar']}
+                          class="transition-colors disabled:opacity-50"
+                          style="color: var(--sempa-text-dim);">
+                    {syncing['calendar'] ? 'Syncing...' : 'Sync today'}
+                  </button>
+                  <button onclick={() => toggleCalendar(false)}
+                          aria-label="Disable Google Calendar"
+                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                          style="background: var(--sempa-accent);">
+                    <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                          style="transform: translateX(18px);"></span>
+                  </button>
+                {:else}
+                  <a href={api.integrations.gmail.authUrl(true)}
+                     class="transition-colors"
+                     style="color: var(--sempa-accent);">
+                    Enable
+                  </a>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Gmail labels link -->
+            <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                 style="border-color: var(--sempa-border);">
+              <span style="color: var(--sempa-text-soft);">Label filters</span>
+              <a href="/settings/integrations/gmail" style="color: var(--sempa-text-dim);">
+                Configure &rarr;
+              </a>
+            </div>
+
+            <!-- Disconnect -->
+            <div class="px-5 py-3">
+              <button onclick={disconnectGmail} class="text-xs transition-colors" style="color: var(--sempa-text-dim);">
+                Disconnect Gmail
+              </button>
+            </div>
+          {/if}
+        </section>
+
+        <!-- ── Fastmail ──────────────────────────────────────────────── -->
+        <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+          <!-- Header -->
+          <div class="flex items-center gap-3 px-5 py-4"
+               class:border-b={fastmail.connected || fmShowForm}
+               style="border-color: var(--sempa-border);">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
+              <svg class="h-4 w-4" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold" style="color: var(--sempa-text);">Fastmail</p>
+              {#if fastmail.connected}
+                <p class="text-xs truncate" style="color: var(--sempa-text-soft);">
+                  {fastmail.email} &middot; Last synced {formatTime(fastmail.last_synced_at)}
+                </p>
+              {:else}
+                <p class="text-xs" style="color: var(--sempa-text-dim);">Sync starred emails and calendar via JMAP</p>
               {/if}
-              <p class="text-[10px]" style="color: var(--sempa-text-dim);">
-                Syncs 4 weeks of events into your schedule panel. Events flow into Sempa; full bidirectional write coming soon.
-              </p>
-            {/if}
-          </div>
-        {/if}
-
-        <button onclick={disconnectFastmail} class="text-xs text-red-500 hover:text-red-700 dark:text-red-400">
-          Disconnect Fastmail
-        </button>
-      </div>
-    {:else}
-      <div class="px-5 py-5">
-        {#if !fmShowForm}
-          <p class="mb-3 text-sm" style="color: var(--sempa-text-soft);">Import starred emails and sync your calendar using a Fastmail app password.</p>
-          <button onclick={() => fmShowForm = true}
-                  class="rounded-lg px-4 py-2 text-sm font-medium text-white"
-                  style="background: var(--sempa-accent);">
-            Connect Fastmail
-          </button>
-        {:else}
-          <div class="space-y-3">
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="fm-email">Email</label>
-              <input id="fm-email" type="email" bind:value={fmEmail} placeholder="you@fastmail.com"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
             </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="fm-pass">App Password</label>
-              <input id="fm-pass" type="password" bind:value={fmPassword}
-                     placeholder="Generate at fastmail.com → Settings → Security"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-              <p class="mt-1 text-xs" style="color: var(--sempa-text-dim);">
-                Create at fastmail.com → Settings → Privacy & Security → App Passwords
-              </p>
-            </div>
-            {#if fmError}<p class="text-sm text-red-600 dark:text-red-400">{fmError}</p>{/if}
-            <div class="flex gap-2">
-              <button onclick={connectFastmail} disabled={fmSaving || !fmEmail || !fmPassword}
-                      class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-                      style="background: var(--sempa-accent);">
-                {fmSaving ? 'Connecting…' : 'Connect'}
-              </button>
-              <button onclick={() => { fmShowForm = false; fmError = ''; }}
-                      class="rounded-lg border px-4 py-2 text-sm transition-colors"
+            {#if fastmail.connected}
+              <span class="inline-flex items-center gap-1.5 text-xs font-medium" style="color: var(--sempa-text-soft);">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Connected
+              </span>
+            {:else if !fmShowForm}
+              <button onclick={() => fmShowForm = true}
+                      class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
                       style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-                Cancel
+                Connect &rarr;
               </button>
-            </div>
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </section>
-
-  <!-- ── Calendar Feeds (ICS) ──────────────────────────────────────────── -->
-  <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-    <div class="flex items-center justify-between border-b px-5 py-4" style="border-color: var(--sempa-border);">
-      <div>
-        <h2 class="text-sm font-semibold" style="color: var(--sempa-text);">Calendar Feeds</h2>
-        <p class="mt-0.5 text-xs" style="color: var(--sempa-text-dim);">Subscribe to any ICS/webcal URL for read-only events in the Schedule panel</p>
-      </div>
-      <button onclick={openIcalForm}
-              class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-              style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-        + Add feed
-      </button>
-    </div>
-
-    <div class="px-5 py-4 space-y-3">
-      {#if icalSubs.length === 0 && !showIcalForm}
-        <p class="text-sm" style="color: var(--sempa-text-dim);">
-          No calendar feeds yet. Add a webcal or ICS URL — useful for work calendars, public holidays, etc.
-        </p>
-      {/if}
-
-      {#each icalSubs as sub (sub.id)}
-        <div class="flex items-center gap-3 rounded-lg border px-3 py-2.5" style="border-color: var(--sempa-border);">
-          <div class="h-3 w-3 shrink-0 rounded-full" style="background:{sub.color}"></div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium truncate" style="color: var(--sempa-text);">{sub.name}</p>
-            <p class="text-xs truncate" style="color: var(--sempa-text-dim);">{sub.url}</p>
-            {#if sub.error_msg}
-              <p class="text-xs text-red-500 dark:text-red-400">Error: {sub.error_msg}</p>
-            {:else if sub.last_synced_at}
-              <p class="text-xs" style="color: var(--sempa-text-dim);">Last synced: {new Date(sub.last_synced_at).toLocaleString()}</p>
             {/if}
           </div>
-          <button onclick={() => syncIcalSub(sub.id)} disabled={syncing['ical_' + sub.id]}
-                  class="text-xs disabled:opacity-40 transition-colors"
-                  style="color: var(--sempa-text-dim);">
-            {syncing['ical_' + sub.id] ? '…' : 'Sync'}
-          </button>
-          <button onclick={() => removeIcalSub(sub.id)} aria-label="Remove feed"
-                  class="text-gray-300 hover:text-red-400 transition-colors dark:text-gray-600">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-      {/each}
 
-      {#if showIcalForm}
-        <div bind:this={icalFormEl}
-             class="space-y-3 rounded-xl border p-4" style="border-color: var(--sempa-border); background: var(--sempa-bg-main);">
-          <div>
-            <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-url">
-              ICS / Webcal URL <span class="text-red-400">*</span>
-            </label>
-            <input id="ical-url" type="url" bind:value={icalUrl}
-                   placeholder="https://example.com/calendar.ics  or  webcal://..."
-                   class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                   style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text);" />
-            <p class="mt-1 text-[10px]" style="color: var(--sempa-text-dim);">
-              Paste the ICS link — works with Google Calendar, Fastmail, Outlook, etc.
-            </p>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-name">Name (optional)</label>
-              <input id="ical-name" type="text" bind:value={icalName}
-                     placeholder="Work calendar"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text);" />
+          {#if fastmail.connected}
+            <!-- Starred emails -->
+            <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                 style="border-color: var(--sempa-border);">
+              <span style="color: var(--sempa-text-soft);">Starred emails</span>
+              <div class="flex items-center gap-3">
+                {#if syncResults['fastmail']}
+                  <span style="color: var(--sempa-accent);">{syncResults['fastmail']}</span>
+                {/if}
+                <button onclick={() => syncService('fastmail', api.integrations.fastmail.sync)}
+                        disabled={syncing['fastmail']}
+                        class="transition-colors disabled:opacity-50"
+                        style="color: var(--sempa-text-dim);">
+                  {syncing['fastmail'] ? 'Syncing...' : 'Sync'}
+                </button>
+              </div>
             </div>
+
+            <!-- Fastmail Calendar -->
+            {#if fmCal.connected}
+              <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                   style="border-color: var(--sempa-border);">
+                <span style="color: var(--sempa-text-soft);">
+                  Calendar
+                  {#if fmCal.enabled && fmCal.last_synced_at}
+                    <span style="color: var(--sempa-text-dim);"> &middot; {formatTime(fmCal.last_synced_at)}</span>
+                  {/if}
+                </span>
+                <div class="flex items-center gap-3">
+                  {#if syncResults['fmcal']}
+                    <span style="color: var(--sempa-accent);">{syncResults['fmcal']}</span>
+                  {/if}
+                  {#if fmCal.enabled}
+                    <button onclick={syncFastmailCalendar}
+                            disabled={syncing['fmcal']}
+                            class="transition-colors disabled:opacity-50"
+                            style="color: var(--sempa-text-dim);">
+                      {syncing['fmcal'] ? 'Syncing...' : 'Sync'}
+                    </button>
+                  {/if}
+                  <button onclick={() => toggleFastmailCalendar(!fmCal.enabled)}
+                          disabled={syncing['fmcal-toggle']}
+                          aria-label="Toggle Fastmail Calendar"
+                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50"
+                          style="background: {fmCal.enabled ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
+                    <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                          style="transform: translateX({fmCal.enabled ? '18px' : '3px'});"></span>
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Email Inbox (Fastmail sub-feature) -->
+            {#if taskInbox.connected}
+              <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                   style="border-color: var(--sempa-border);">
+                <span style="color: var(--sempa-text-soft);">
+                  Email Inbox
+                  {#if taskInbox.inbox_address}
+                    <span class="font-mono" style="color: var(--sempa-text-dim);"> &middot; {taskInbox.inbox_address}</span>
+                  {/if}
+                </span>
+                <div class="flex items-center gap-3">
+                  {#if syncResults['task-inbox']}
+                    <span style="color: var(--sempa-accent);">{syncResults['task-inbox']}</span>
+                  {/if}
+                  <button onclick={() => syncService('task-inbox', api.integrations.taskInbox.sync)}
+                          disabled={syncing['task-inbox']}
+                          class="transition-colors disabled:opacity-50"
+                          style="color: var(--sempa-text-dim);">
+                    {syncing['task-inbox'] ? 'Syncing...' : 'Sync'}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Allowed senders (expandable detail within Fastmail) -->
+              <div class="border-b px-5 py-3 space-y-2" style="border-color: var(--sempa-border);">
+                <div class="flex items-center justify-between">
+                  <p class="text-xs font-medium" style="color: var(--sempa-text-soft);">Allowed senders</p>
+                  {#if (taskInbox.allowed_senders ?? []).length === 0}
+                    <p class="text-xs" style="color: var(--sempa-text-dim);">All senders allowed</p>
+                  {/if}
+                </div>
+                {#if (taskInbox.allowed_senders ?? []).length > 0}
+                  <div class="flex flex-wrap gap-1.5">
+                    {#each (taskInbox.allowed_senders ?? []) as sender}
+                      <span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
+                            style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                        {sender}
+                        <button onclick={() => removeSender(sender)} aria-label="Remove {sender}" class="hover:text-red-500 transition-colors">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </span>
+                    {/each}
+                  </div>
+                {/if}
+                <form onsubmit={(e) => { e.preventDefault(); addSender(); }} class="flex gap-2">
+                  <input bind:value={senderInput}
+                         placeholder="@company.com or user@example.com"
+                         class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none"
+                         style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                  <button type="submit" disabled={senderSaving || !senderInput.trim()}
+                          class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40"
+                          style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                    Add
+                  </button>
+                </form>
+              </div>
+
+              <!-- Disconnect inbox -->
+              <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                   style="border-color: var(--sempa-border);">
+                <button onclick={disconnectTaskInbox} class="transition-colors" style="color: var(--sempa-text-dim);">
+                  Remove email inbox
+                </button>
+              </div>
+            {:else}
+              <!-- Email inbox not set up yet -->
+              <div class="flex h-10 items-center justify-between border-b px-5 text-xs"
+                   style="border-color: var(--sempa-border);">
+                <span style="color: var(--sempa-text-soft);">Email Inbox &mdash; forward emails to create tasks</span>
+                <button onclick={() => tiShowForm = true}
+                        class="transition-colors"
+                        style="color: var(--sempa-accent);">
+                  Set up &rarr;
+                </button>
+              </div>
+            {/if}
+
+            <!-- Email inbox setup form (inline) -->
+            {#if tiShowForm && !taskInbox.connected}
+              <div class="border-b px-5 py-4 space-y-3" style="border-color: var(--sempa-border);">
+                <div>
+                  <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-email">Fastmail email</label>
+                  <input id="ti-email" type="email" bind:value={tiEmail} placeholder="you@fastmail.com"
+                         class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                         style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-pass">App password</label>
+                  <input id="ti-pass" type="password" bind:value={tiPassword}
+                         placeholder="Generate at Fastmail -> Settings -> Privacy & Security"
+                         class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                         style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-addr">Forwarding address</label>
+                  <input id="ti-addr" type="email" bind:value={tiAddress} placeholder="tasks@sempa.ca"
+                         class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                         style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                </div>
+                {#if tiError}<p class="text-sm text-red-600 dark:text-red-400">{tiError}</p>{/if}
+                <div class="flex gap-2">
+                  <button onclick={connectTaskInbox} disabled={tiSaving || !tiEmail || !tiPassword || !tiAddress}
+                          class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+                          style="background: var(--sempa-accent);">
+                    {tiSaving ? 'Connecting...' : 'Connect'}
+                  </button>
+                  <button onclick={() => { tiShowForm = false; tiError = ''; }}
+                          class="rounded-lg border px-4 py-2 text-sm transition-colors"
+                          style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Disconnect Fastmail -->
+            <div class="px-5 py-3">
+              <button onclick={disconnectFastmail} class="text-xs transition-colors" style="color: var(--sempa-text-dim);">
+                Disconnect Fastmail
+              </button>
+            </div>
+
+          {:else if fmShowForm}
+            <!-- Fastmail connect form -->
+            <div class="px-5 py-4 space-y-3">
+              <div>
+                <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="fm-email">Email</label>
+                <input id="fm-email" type="email" bind:value={fmEmail} placeholder="you@fastmail.com"
+                       class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                       style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="fm-pass">App Password</label>
+                <input id="fm-pass" type="password" bind:value={fmPassword}
+                       placeholder="Generate at fastmail.com -> Settings -> Security"
+                       class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                       style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                <p class="mt-1 text-xs" style="color: var(--sempa-text-dim);">
+                  Create at fastmail.com -> Settings -> Privacy & Security -> App Passwords
+                </p>
+              </div>
+              {#if fmError}<p class="text-sm text-red-600 dark:text-red-400">{fmError}</p>{/if}
+              <div class="flex gap-2">
+                <button onclick={connectFastmail} disabled={fmSaving || !fmEmail || !fmPassword}
+                        class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+                        style="background: var(--sempa-accent);">
+                  {fmSaving ? 'Connecting...' : 'Connect'}
+                </button>
+                <button onclick={() => { fmShowForm = false; fmError = ''; }}
+                        class="rounded-lg border px-4 py-2 text-sm transition-colors"
+                        style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- ── Calendar Feeds (ICS) ──────────────────────────────────── -->
+        <section class="mb-8 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+          <!-- Header -->
+          <div class="flex items-center gap-3 px-5 py-4"
+               class:border-b={icalSubs.length > 0 || showIcalForm}
+               style="border-color: var(--sempa-border);">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                 style="background: var(--sempa-cal-feed-bg, #1a2820);">
+              <svg class="h-4 w-4" style="color: #4ade80;" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold" style="color: var(--sempa-text);">Calendar Feeds</p>
+              <p class="text-xs" style="color: var(--sempa-text-dim);">Subscribe to ICS/webcal URLs</p>
+            </div>
+            <button onclick={openIcalForm}
+                    class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+                    style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+              + Add feed
+            </button>
+          </div>
+
+          {#if icalSubs.length === 0 && !showIcalForm}
+            <div class="border-t px-5 py-3" style="border-color: var(--sempa-border);">
+              <p class="text-xs" style="color: var(--sempa-text-dim);">No feeds added yet.</p>
+            </div>
+          {/if}
+
+          {#each icalSubs as sub (sub.id)}
+            <div class="flex h-10 items-center gap-3 border-t px-5 text-xs"
+                 style="border-color: var(--sempa-border);">
+              <div class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{sub.color}"></div>
+              <span class="flex-1 min-w-0 truncate" style="color: var(--sempa-text-soft);">{sub.name}</span>
+              {#if sub.error_msg}
+                <span class="text-red-500 dark:text-red-400 truncate max-w-[120px]" title={sub.error_msg}>Error</span>
+              {:else if sub.last_synced_at}
+                <span style="color: var(--sempa-text-dim);">{formatTime(sub.last_synced_at)}</span>
+              {/if}
+              <button onclick={() => syncIcalSub(sub.id)} disabled={syncing['ical_' + sub.id]}
+                      class="transition-colors disabled:opacity-40"
+                      style="color: var(--sempa-text-dim);">
+                {syncing['ical_' + sub.id] ? '...' : 'Sync'}
+              </button>
+              <button onclick={() => removeIcalSub(sub.id)} aria-label="Remove feed"
+                      class="transition-colors" style="color: var(--sempa-text-dim);">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          {/each}
+
+          {#if showIcalForm}
+            <div bind:this={icalFormEl}
+                 class="border-t px-5 py-4 space-y-3" style="border-color: var(--sempa-border);">
+              <div>
+                <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-url">
+                  ICS / Webcal URL <span class="text-red-400">*</span>
+                </label>
+                <input id="ical-url" type="url" bind:value={icalUrl}
+                       placeholder="https://example.com/calendar.ics  or  webcal://..."
+                       class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                       style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-name">Name (optional)</label>
+                  <input id="ical-name" type="text" bind:value={icalName}
+                         placeholder="Work calendar"
+                         class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                         style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-color">Colour</label>
+                  <div class="flex items-center gap-2">
+                    <input id="ical-color" type="color" bind:value={icalColor}
+                           class="h-9 w-14 cursor-pointer rounded-lg border p-1"
+                           style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);" />
+                    <span class="text-xs font-mono" style="color: var(--sempa-text-dim);">{icalColor}</span>
+                  </div>
+                </div>
+              </div>
+              {#if icalError}<p class="text-sm text-red-600 dark:text-red-400">{icalError}</p>{/if}
+              <div class="flex gap-2">
+                <button onclick={addIcalSub} disabled={icalAdding || !icalUrl.trim()}
+                        class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-colors"
+                        style="background: var(--sempa-accent);">
+                  {icalAdding ? 'Adding...' : 'Subscribe'}
+                </button>
+                <button onclick={() => { showIcalForm = false; icalError = ''; }}
+                        class="rounded-lg border px-4 py-2 text-sm transition-colors"
+                        style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- ── Project Management ────────────────────────────────────── -->
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Project Management</p>
+
+        <div class="mb-8">
+          <a href="/settings/integrations/jira"
+             class="flex items-center gap-3 overflow-hidden rounded-xl border px-5 py-4 transition-colors"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
+              <svg class="h-4 w-4" style="color: var(--sempa-accent);" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.757a5.215 5.215 0 0 0 5.214 5.214h2.129v2.058A5.218 5.218 0 0 0 18.313 18.3V6.763a1.006 1.006 0 0 0-1.019-1.006zM23.277.007H11.749a5.215 5.215 0 0 0 5.214 5.214h2.129v2.058A5.218 5.218 0 0 0 24.282 12.5V1.012A1.005 1.005 0 0 0 23.277.007z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold" style="color: var(--sempa-text);">Jira</p>
+              {#if jira.connected}
+                <p class="text-xs" style="color: var(--sempa-text-soft);">Connected &middot; syncs assigned issues</p>
+              {:else}
+                <p class="text-xs" style="color: var(--sempa-text-dim);">Sync assigned Jira issues as tasks</p>
+              {/if}
+            </div>
+            {#if jira.connected}
+              <span class="inline-flex items-center gap-1.5 text-xs font-medium" style="color: var(--sempa-text-soft);">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Connected
+              </span>
+            {:else}
+              <span class="text-xs" style="color: var(--sempa-text-dim);">Connect &rarr;</span>
+            {/if}
+          </a>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           SECTION: Tasks
+      ════════════════════════════════════════════════════════════════════ -->
+      <div id="settings-tasks">
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Tasks</p>
+
+        <div class="mb-8 flex flex-col gap-2">
+          <a href="/settings/tags"
+             class="flex items-center gap-3 rounded-xl border px-5 py-4 transition-colors"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950">
+              <svg class="h-4 w-4 text-violet-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 0 1 0 2.828l-7 7a2 2 0 0 1-2.828 0l-7-7A2 2 0 0 1 3 12V7a4 4 0 0 1 4-4z"/>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold" style="color: var(--sempa-text);">Tags</p>
+              <p class="text-xs" style="color: var(--sempa-text-soft);">Colour-coded labels for your tasks</p>
+            </div>
+            <svg class="h-4 w-4" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
+            </svg>
+          </a>
+
+          <a href="/settings/recurring"
+             class="flex items-center gap-3 rounded-xl border px-5 py-4 transition-colors"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
+              <svg class="h-4 w-4" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold" style="color: var(--sempa-text);">Recurring Tasks</p>
+              <p class="text-xs" style="color: var(--sempa-text-soft);">Daily, weekly, and monthly templates</p>
+            </div>
+            <svg class="h-4 w-4" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           SECTION: Appearance
+      ════════════════════════════════════════════════════════════════════ -->
+      <div id="settings-appearance">
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Appearance</p>
+
+        <section class="overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+          <div class="px-5 py-5 space-y-6">
+
+            <!-- Accent colour -->
             <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-color">Colour</label>
-              <div class="flex items-center gap-2">
-                <input id="ical-color" type="color" bind:value={icalColor}
-                       class="h-9 w-14 cursor-pointer rounded-lg border p-1"
-                       style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);" />
-                <span class="text-xs font-mono" style="color: var(--sempa-text-dim);">{icalColor}</span>
+              <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Accent colour</p>
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, 28px); gap: 8px;">
+                {#each Object.entries(ACCENT_PRESETS) as [name, preset]}
+                  <button onclick={() => theme.setAccent(name as AccentName)}
+                          title={preset.label}
+                          class="h-7 w-7 rounded-full transition-transform hover:scale-110"
+                          style="background: {preset.swatch};
+                                 {theme.accent === name
+                                   ? `outline: 2px solid var(--sempa-accent); outline-offset: 2px;`
+                                   : ''}">
+                  </button>
+                {/each}
+              </div>
+              <p class="mt-3 text-[10px]" style="color: var(--sempa-text-dim);">
+                Currently: <span class="font-medium" style="color: var(--sempa-text-soft);">{ACCENT_PRESETS[theme.accent].label}</span>
+              </p>
+            </div>
+
+            <!-- Text size -->
+            <div>
+              <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Text size</p>
+              <div class="flex items-center gap-3">
+                <span class="text-xs" style="color: var(--sempa-text-dim);">A</span>
+                <input type="range" min="80" max="130" step="5"
+                       value={theme.textScale}
+                       oninput={(e) => theme.setScale(parseInt((e.target as HTMLInputElement).value, 10))}
+                       class="flex-1 h-1.5 appearance-none rounded-full cursor-pointer"
+                       style="background: var(--sempa-border); accent-color: var(--sempa-accent);" />
+                <span class="text-base" style="color: var(--sempa-text-dim);">A</span>
+                <span class="w-10 text-right tabular-nums text-xs" style="color: var(--sempa-text-dim);">{theme.textScale}%</span>
+              </div>
+              <button onclick={() => theme.setScale(100)}
+                      class="mt-2 text-xs" style="color: var(--sempa-text-dim);">
+                Reset to default
+              </button>
+            </div>
+
+            <!-- Mode: segmented pill -->
+            <div>
+              <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Mode</p>
+              <div class="inline-flex rounded-lg border overflow-hidden" style="border-color: var(--sempa-border);">
+                <button onclick={() => { if (theme.dark) theme.toggle(); }}
+                        class="px-4 py-1.5 text-sm font-medium transition-colors"
+                        style={!theme.dark
+                          ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                          : 'background: transparent; color: var(--sempa-text-soft);'}>
+                  Light
+                </button>
+                <button onclick={() => { if (!theme.dark) theme.toggle(); }}
+                        class="px-4 py-1.5 text-sm font-medium transition-colors"
+                        style="border-left: 1px solid var(--sempa-border);
+                               {theme.dark
+                                 ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                                 : 'background: transparent; color: var(--sempa-text-soft);'}">
+                  Dark
+                </button>
               </div>
             </div>
           </div>
-          {#if icalError}<p class="text-sm text-red-600 dark:text-red-400">{icalError}</p>{/if}
-          <div class="flex gap-2">
-            <button onclick={addIcalSub} disabled={icalAdding || !icalUrl.trim()}
-                    class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-colors"
-                    style="background: var(--sempa-accent);">
-              {icalAdding ? 'Adding…' : 'Subscribe'}
-            </button>
-            <button onclick={() => { showIcalForm = false; icalError = ''; }}
-                    class="rounded-lg border px-4 py-2 text-sm transition-colors"
-                    style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-              Cancel
-            </button>
-          </div>
-        </div>
-      {/if}
+        </section>
+      </div>
     </div>
-  </section>
-
-  <!-- ── Email Inbox (task forwarding) ─────────────────────────────────── -->
-  <section class="mb-8 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-    <div class="flex items-center gap-3 border-b px-5 py-4" style="border-color: var(--sempa-border);">
-      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950">
-        <svg class="h-4 w-4 text-violet-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-7 9 7v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 21V12h6v9"/>
-        </svg>
-      </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold" style="color: var(--sempa-text);">Email Inbox</p>
-        {#if taskInbox.connected}
-          <p class="text-xs font-mono truncate" style="color: var(--sempa-text-soft);">{taskInbox.inbox_address}</p>
-        {:else}
-          <p class="text-xs" style="color: var(--sempa-text-dim);">Forward emails here to create tasks</p>
-        {/if}
-      </div>
-      {#if taskInbox.connected}
-        <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 dark:bg-green-950 dark:text-green-400">
-          <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Active
-        </span>
-      {/if}
-    </div>
-
-    {#if taskInbox.connected}
-      <div class="px-5 py-4 space-y-4">
-        <div class="flex items-center justify-between">
-          <span class="text-xs" style="color: var(--sempa-text-soft);">Last synced: {formatDate(taskInbox.last_synced_at)}</span>
-          <button onclick={() => syncService('task-inbox', api.integrations.taskInbox.sync)}
-                  disabled={syncing['task-inbox']}
-                  class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                  style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-            {syncing['task-inbox'] ? 'Syncing…' : 'Sync now'}
-          </button>
-        </div>
-        {#if syncResults['task-inbox']}
-          <p class="text-xs" style="color: var(--sempa-accent);">{syncResults['task-inbox']}</p>
-        {/if}
-
-        <!-- Allowed senders -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <p class="text-xs font-medium" style="color: var(--sempa-text-soft);">Allowed senders</p>
-            {#if (taskInbox.allowed_senders ?? []).length === 0}
-              <p class="text-xs" style="color: var(--sempa-text-dim);">All senders allowed</p>
-            {/if}
-          </div>
-          {#if (taskInbox.allowed_senders ?? []).length > 0}
-            <div class="flex flex-wrap gap-1.5">
-              {#each (taskInbox.allowed_senders ?? []) as sender}
-                <span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
-                      style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-                  {sender}
-                  <button onclick={() => removeSender(sender)} class="hover:text-red-500 transition-colors">
-                    <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-                </span>
-              {/each}
-            </div>
-          {:else}
-            <p class="text-xs italic" style="color: var(--sempa-text-dim);">
-              No restrictions — add domains or addresses below to limit who can create tasks.
-            </p>
-          {/if}
-          <form onsubmit={(e) => { e.preventDefault(); addSender(); }} class="flex gap-2">
-            <input bind:value={senderInput}
-                   placeholder="@company.com or user@example.com"
-                   class="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none"
-                   style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-            <button type="submit" disabled={senderSaving || !senderInput.trim()}
-                    class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40"
-                    style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-              Add
-            </button>
-          </form>
-        </div>
-
-        <button onclick={disconnectTaskInbox} class="text-xs text-red-500 hover:text-red-700 dark:text-red-400">
-          Remove email inbox
-        </button>
-      </div>
-    {:else}
-      <div class="px-5 py-5">
-        {#if !tiShowForm}
-          <p class="mb-3 text-sm" style="color: var(--sempa-text-soft);">
-            Forward any email to a Fastmail address and Sempa will create a task from it.
-          </p>
-          <button onclick={() => tiShowForm = true}
-                  class="rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white hover:bg-violet-600">
-            Set up email inbox
-          </button>
-        {:else}
-          <div class="space-y-3">
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-email">Fastmail email</label>
-              <input id="ti-email" type="email" bind:value={tiEmail} placeholder="you@fastmail.com"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-pass">App password</label>
-              <input id="ti-pass" type="password" bind:value={tiPassword}
-                     placeholder="Generate at Fastmail → Settings → Privacy & Security"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-addr">Forwarding address</label>
-              <input id="ti-addr" type="email" bind:value={tiAddress} placeholder="tasks@sempa.ca"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-            </div>
-            {#if tiError}<p class="text-sm text-red-600 dark:text-red-400">{tiError}</p>{/if}
-            <div class="flex gap-2">
-              <button onclick={connectTaskInbox} disabled={tiSaving || !tiEmail || !tiPassword || !tiAddress}
-                      class="rounded-lg bg-violet-500 px-4 py-2 text-sm font-medium text-white hover:bg-violet-600 disabled:opacity-40">
-                {tiSaving ? 'Connecting…' : 'Connect'}
-              </button>
-              <button onclick={() => { tiShowForm = false; tiError = ''; }}
-                      class="rounded-lg border px-4 py-2 text-sm transition-colors"
-                      style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-                Cancel
-              </button>
-            </div>
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </section>
-
-  <!-- ════════════════════════════════════════════════════════════════════════
-       SECTION: Project Management
-  ══════════════════════════════════════════════════════════════════════════ -->
-  <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Project Management</p>
-
-  <div class="mb-8 flex flex-col gap-2">
-    <a href="/settings/integrations/jira"
-       class="flex items-center gap-4 rounded-xl border px-5 py-4 transition-colors"
-       style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
-        <svg class="h-5 w-5" style="color: var(--sempa-accent);" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.757a5.215 5.215 0 0 0 5.214 5.214h2.129v2.058A5.218 5.218 0 0 0 18.313 18.3V6.763a1.006 1.006 0 0 0-1.019-1.006zM23.277.007H11.749a5.215 5.215 0 0 0 5.214 5.214h2.129v2.058A5.218 5.218 0 0 0 24.282 12.5V1.012A1.005 1.005 0 0 0 23.277.007z"/>
-        </svg>
-      </div>
-      <div class="flex-1 min-w-0">
-        <p class="font-medium" style="color: var(--sempa-text);">Jira</p>
-        {#if jira.connected}
-          <p class="text-sm" style="color: var(--sempa-text-soft);">Connected — syncs assigned issues</p>
-        {:else}
-          <p class="text-sm" style="color: var(--sempa-text-dim);">Not connected</p>
-        {/if}
-      </div>
-      <div class="flex items-center gap-2">
-        {#if jira.connected}
-          <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
-            <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>Connected
-          </span>
-        {/if}
-        <svg class="h-4 w-4" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
-        </svg>
-      </div>
-    </a>
   </div>
-
-  <!-- ════════════════════════════════════════════════════════════════════════
-       SECTION: Tasks
-  ══════════════════════════════════════════════════════════════════════════ -->
-  <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Tasks</p>
-
-  <div class="mb-8 flex flex-col gap-2">
-    <a href="/settings/tags"
-       class="flex items-center gap-4 rounded-xl border px-5 py-4 transition-colors"
-       style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950">
-        <svg class="h-5 w-5 text-violet-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 0 1 0 2.828l-7 7a2 2 0 0 1-2.828 0l-7-7A2 2 0 0 1 3 12V7a4 4 0 0 1 4-4z"/>
-        </svg>
-      </div>
-      <div class="flex-1">
-        <p class="font-medium" style="color: var(--sempa-text);">Tags</p>
-        <p class="text-sm" style="color: var(--sempa-text-soft);">Colour-coded labels for your tasks</p>
-      </div>
-      <svg class="h-4 w-4" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
-      </svg>
-    </a>
-
-    <a href="/settings/recurring"
-       class="flex items-center gap-4 rounded-xl border px-5 py-4 transition-colors"
-       style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
-        <span class="text-xl" style="color: var(--sempa-accent);">↺</span>
-      </div>
-      <div class="flex-1">
-        <p class="font-medium" style="color: var(--sempa-text);">Recurring Tasks</p>
-        <p class="text-sm" style="color: var(--sempa-text-soft);">Daily, weekly, and monthly templates</p>
-      </div>
-      <svg class="h-4 w-4" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
-      </svg>
-    </a>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════════════════
-       SECTION: Appearance
-  ══════════════════════════════════════════════════════════════════════════ -->
-  <p class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Appearance</p>
-
-  <section class="overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-    <div class="px-5 py-4 space-y-5">
-      <!-- Accent colour -->
-      <div>
-        <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Accent colour</p>
-        <div class="flex flex-wrap gap-2">
-          {#each Object.entries(ACCENT_PRESETS) as [name, preset]}
-            <button onclick={() => theme.setAccent(name as AccentName)}
-                    title={preset.label}
-                    class="group relative flex h-8 w-8 items-center justify-center rounded-full
-                           border-2 transition-all hover:scale-110
-                           {theme.accent === name
-                             ? 'border-gray-500 scale-110 shadow-md dark:border-gray-400'
-                             : 'border-transparent hover:border-gray-300 dark:hover:border-gray-500'}"
-                    style="background:{preset.swatch}">
-              {#if theme.accent === name}
-                <svg class="h-4 w-4 text-white drop-shadow" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-                </svg>
-              {/if}
-              <span class="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap
-                           rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-white opacity-0
-                           group-hover:opacity-100 transition-opacity dark:bg-gray-600">
-                {preset.label}
-              </span>
-            </button>
-          {/each}
-        </div>
-        <p class="mt-3 text-[10px]" style="color: var(--sempa-text-dim);">
-          Currently: <span class="font-medium" style="color: var(--sempa-text-soft);">{ACCENT_PRESETS[theme.accent].label}</span>
-        </p>
-      </div>
-
-      <!-- Text size -->
-      <div>
-        <div class="mb-3 flex items-center justify-between">
-          <p class="text-xs font-medium" style="color: var(--sempa-text-soft);">Text size</p>
-          <span class="tabular-nums text-xs" style="color: var(--sempa-text-dim);">{theme.textScale}%</span>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="text-xs" style="color: var(--sempa-text-dim);">A</span>
-          <input type="range" min="80" max="130" step="5"
-                 value={theme.textScale}
-                 oninput={(e) => theme.setScale(parseInt((e.target as HTMLInputElement).value, 10))}
-                 class="flex-1 h-1.5 appearance-none rounded-full cursor-pointer"
-                 style="background: var(--sempa-border); accent-color: var(--sempa-accent);" />
-          <span class="text-base" style="color: var(--sempa-text-dim);">A</span>
-        </div>
-        <button onclick={() => theme.setScale(100)}
-                class="mt-2 text-xs underline" style="color: var(--sempa-text-dim);">
-          Reset to default
-        </button>
-      </div>
-
-      <!-- Dark / light -->
-      <div>
-        <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Mode</p>
-        <button onclick={theme.toggle}
-                class="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors"
-                style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-          {theme.dark ? '☀️ Switch to light mode' : '🌙 Switch to dark mode'}
-        </button>
-      </div>
-    </div>
-  </section>
 </div>
+
+<style>
+  :root {
+    --sempa-cal-feed-bg: #e8f4ee;
+  }
+  :global(.dark) {
+    --sempa-cal-feed-bg: #1a2820;
+  }
+</style>

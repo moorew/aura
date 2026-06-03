@@ -21,7 +21,9 @@ func respondError(w http.ResponseWriter, status int, msg string) {
 }
 
 func decode(r *http.Request, v any) error {
-	return json.NewDecoder(r.Body).Decode(v)
+	// Limit request bodies to 1 MB to prevent memory exhaustion
+	limited := http.MaxBytesReader(nil, r.Body, 1<<20)
+	return json.NewDecoder(limited).Decode(v)
 }
 
 func mondayOfDate(date string) string {

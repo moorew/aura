@@ -287,7 +287,7 @@ func (h *authHandler) googleAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirect := r.URL.Query().Get("redirect")
-	if redirect == "" {
+	if redirect == "" || !strings.HasPrefix(redirect, "/") || strings.HasPrefix(redirect, "//") {
 		redirect = "/"
 	}
 	state := h.states.create(redirect)

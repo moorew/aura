@@ -22,17 +22,22 @@ import (
 	"github.com/clevercode/sempa/internal/db"
 )
 
+// maxEmailSize is the maximum email size accepted (25 MB, matching common provider limits).
+const maxEmailSize = 25 << 20
+
 type Server struct {
-	smtp  *gosmtp.Server
-	tasks *db.TaskStore
+	smtp           *gosmtp.Server
+	tasks          *db.TaskStore
+	allowedSenders []string // lowercase email addresses or @domain suffixes; empty = accept all
 }
 
-func New(addr string, tasks *db.TaskStore) *Server {
-	s := &Server{tasks: tasks}
+func New(addr string, tasks *db.TaskStore, allowedSenders []string) *Server {
+	s := &Server{tasks: tasks, allowedSenders: allowedSenders}
 	srv := gosmtp.NewServer(s)
 	srv.Addr = addr
 	srv.Domain = "sempa"
 	srv.EnableSMTPUTF8 = true
+	srv.MaxMessageBytes = maxEmailSize
 	s.smtp = srv
 	return s
 }
@@ -44,13 +49,41 @@ func (s *Server) NewSession(_ *gosmtp.Conn) (gosmtp.Session, error) {
 	return &session{srv: s}, nil
 }
 
-type session struct {
-	srv *Server
+// senderAllowed checks if a sender email is permitted by the server's allowlist.
+// If the allowlist is empty, all senders are accepted.
+func (s *Server) senderAllowed(from string) bool {
+	if len(s.allowedSenders) == 0 {
+		return true
+	}
+	from = strings.ToLower(strings.TrimSpace(from))
+	for _, allowed := range s.allowedSenders {
+		if strings.HasPrefix(allowed, "@") {
+			// Domain match: "@example.com" matches "user@example.com"
+			if strings.HasSuffix(from, allowed) {
+				return true
+			}
+		} else if from == allowed {
+			return true
+		}
+	}
+	return false
 }
 
-func (s *session) Mail(_ string, _ *gosmtp.MailOptions) error { return nil }
+type session struct {
+	srv  *Server
+	from string
+}
+
+func (s *session) Mail(from string, _ *gosmtp.MailOptions) error {
+	if !s.srv.senderAllowed(from) {
+		slog.Warn("emailrecv: rejected sender", "from", from)
+		return &gosmtp.SMTPError{Code: 550, EnhancedCode: gosmtp.EnhancedCode{5, 7, 1}, Message: "sender not allowed"}
+	}
+	s.from = from
+	return nil
+}
 func (s *session) Rcpt(_ string, _ *gosmtp.RcptOptions) error { return nil }
-func (s *session) Reset()                                      {}
+func (s *session) Reset()                                      { s.from = "" }
 func (s *session) Logout() error                               { return nil }
 
 func (s *session) Data(r io.Reader) error {
@@ -60,7 +93,7 @@ func (s *session) Data(r io.Reader) error {
 // CreateFromReader parses a raw MIME email and creates a task in today's planned column.
 // Safe to call concurrently; idempotent on Message-ID.
 func CreateFromReader(ctx context.Context, r io.Reader, tasks *db.TaskStore) error {
-	raw, err := io.ReadAll(r)
+	raw, err := io.ReadAll(io.LimitReader(r, maxEmailSize))
 	if err != nil {
 		return err
 	}
