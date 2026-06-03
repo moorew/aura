@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "527610768820",
+    "project_id": "sempa-517fd",
+    "storage_bucket": "sempa-517fd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:527610768820:android:9a1f13a27171a99b4e56e1",
+        "android_client_info": {
+          "package_name": "com.clevercode.sempa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtDxp0X18hN6_eWbB56VAqt7OxEnaf3ao"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

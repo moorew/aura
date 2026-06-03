@@ -13,6 +13,7 @@ import (
 	"github.com/clevercode/sempa/internal/config"
 	"github.com/clevercode/sempa/internal/db"
 	"github.com/clevercode/sempa/internal/integrations/emailrecv"
+	"github.com/clevercode/sempa/internal/notify"
 	"github.com/clevercode/sempa/internal/poller"
 )
 
@@ -60,6 +61,10 @@ func main() {
 		poller.StartInbox(ctx, database, interval, cfg.OllamaBaseURL, cfg.OllamaModel)
 		slog.Info("inbox poller started", "interval", interval)
 	}
+
+	// Push notification reminders.
+	notifySvc := notify.New(db.NewDeviceTokenStore(database), cfg.FCMKeyPath)
+	go notify.StartReminders(ctx, db.NewTaskStore(database), notifySvc)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

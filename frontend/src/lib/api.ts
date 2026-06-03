@@ -63,6 +63,13 @@ export const api = {
     delete: (id: string) => req<void>(`/api/v1/tasks/${id}`, { method: 'DELETE' }),
   },
 
+  devices: {
+    register: (token: string, platform: string) =>
+      req<any>('/api/v1/devices', { method: 'POST', body: body({ token, platform }) }),
+    unregister: (token: string) =>
+      req<void>('/api/v1/devices', { method: 'DELETE', body: body({ token }) }),
+  },
+
   objectives: {
     listByWeek: (weekStart: string) =>
       req<Objective[]>(`/api/v1/objectives?week_start=${weekStart}`),

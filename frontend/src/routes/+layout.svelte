@@ -9,6 +9,7 @@
   import { tagStore } from '$lib/stores/tags.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { hapticTick } from '$lib/haptics';
+  import { initPushNotifications } from '$lib/push';
   import { api } from '$lib/api';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
@@ -80,6 +81,8 @@
           return;
         }
         userEmail = me.email;
+        // Register for push notifications after auth confirmed
+        initPushNotifications();
         // Redirect to first-run wizard if setup hasn't been completed
         const setup = await api.setup.status();
         if (!setup.done) {

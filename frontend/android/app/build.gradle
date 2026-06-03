@@ -42,11 +42,11 @@ android {
         kotlinCompilerExtensionVersion '1.5.14'
     }
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = '21'
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
     lintOptions {
         abortOnError false
@@ -78,9 +78,10 @@ dependencies {
     // WorkManager (widget refresh)
     implementation "androidx.work:work-runtime-ktx:2.9.1"
 
-    // Firebase Cloud Messaging
-    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    // Firebase (BoM manages all Firebase dependency versions)
+    implementation platform('com.google.firebase:firebase-bom:34.14.0')
     implementation 'com.google.firebase:firebase-messaging'
+    implementation 'com.google.firebase:firebase-analytics'
 
     // Kotlin coroutines
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
@@ -99,12 +100,4 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
-
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}
+apply plugin: 'com.google.gms.google-services'

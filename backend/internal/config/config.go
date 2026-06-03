@@ -37,6 +37,9 @@ type Config struct {
 	// Optional: Ollama base URL for local AI-powered task title cleanup
 	OllamaBaseURL string // e.g. http://ollama:11434
 	OllamaModel   string // default: qwen2.5:1.5b
+
+	// Firebase Cloud Messaging — path to service account JSON key file
+	FCMKeyPath string // e.g. ./firebase-service-account.json
 }
 
 func Load() Config {
@@ -58,6 +61,7 @@ func Load() Config {
 		InboxPollInterval: env("INBOX_POLL_INTERVAL", "1m"),
 		OllamaBaseURL:     env("OLLAMA_BASE_URL", ""),
 		OllamaModel:       env("OLLAMA_MODEL", "qwen2.5:1.5b"),
+		FCMKeyPath:        env("FCM_KEY_PATH", ""),
 	}
 }
 

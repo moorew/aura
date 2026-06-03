@@ -64,6 +64,7 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 		fmCalStore: fmCalStore,
 		configs:    configStore,
 	}
+	devices      := &deviceHandler{store: db.NewDeviceTokenStore(database)}
 	integrations := &integrationHandler{
 		configs:    configStore,
 		tasks:      db.NewTaskStore(database),
@@ -152,6 +153,11 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 			r.Route("/pomodoros", func(r chi.Router) {
 				r.Get("/", sessions.listByTask)
 				r.Post("/", sessions.create)
+			})
+
+			r.Route("/devices", func(r chi.Router) {
+				r.Post("/", devices.register)
+				r.Delete("/", devices.unregister)
 			})
 
 			r.Route("/integrations", func(r chi.Router) {
