@@ -69,8 +69,9 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 		_ = h.store.GenerateForDate(r.Context(), date)
 	}
 
-	parentID := q.Get("parent_id")
-	source   := q.Get("source")
+	parentID          := q.Get("parent_id")
+	source            := q.Get("source")
+	recurrenceOrigin  := q.Get("recurrence_origin")
 
 	var (
 		tasks []db.Task
@@ -79,6 +80,8 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case parentID != "":
 		tasks, err = h.store.ListByParent(r.Context(), parentID)
+	case recurrenceOrigin != "":
+		tasks, err = h.store.ListByRecurrenceOrigin(r.Context(), recurrenceOrigin)
 	case source != "":
 		tasks, err = h.store.ListBySource(r.Context(), source)
 	case date != "":

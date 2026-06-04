@@ -5,14 +5,21 @@
   import { api } from '$lib/api';
   import type { Objective, Task } from '$lib/types';
   import { appendPosition, formatWeekRange, offsetDate, today, weekStart as calcWeekStart } from '$lib/utils';
+  import { mobile } from '$lib/stores/mobile.svelte';
 
   let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(new Date().toISOString().split('T')[0]));
 
-  let objectives   = $state<Objective[]>([]);
-  let tasks        = $state<Task[]>([]);
-  let loading      = $state(true);
-  let error        = $state<string | null>(null);
-  let copied       = $state(false);
+  let objectives       = $state<Objective[]>([]);
+  let tasks            = $state<Task[]>([]);
+  let loading          = $state(true);
+  let error            = $state<string | null>(null);
+  let copied           = $state(false);
+  let showUnscheduled  = $state(false);
+
+  const unscheduled = $derived(
+    tasks.filter(t => !t.planned_date && t.status !== 'done' && t.status !== 'cancelled')
+         .sort((a, b) => a.position - b.position)
+  );
 
   let expandedId   = $state<string | null>(null);
   let addingTitle  = $state('');
@@ -68,6 +75,15 @@
       const obj = await api.objectives.create({ week_start: weekStartDate, title, position: pos });
       objectives = [...objectives, obj];
     } catch (e) { error = e instanceof Error ? e.message : 'Failed'; }
+  }
+
+  async function scheduleToday(t: Task) {
+    const d = today();
+    tasks = tasks.map(x => x.id === t.id ? { ...x, planned_date: d } : x);
+    try {
+      const updated = await api.tasks.update(t.id, { planned_date: d, week_start: weekStartDate, status: 'planned' });
+      tasks = tasks.map(x => x.id === updated.id ? updated : x);
+    } catch { await load(); }
   }
 
   async function deleteObjective(id: string) {
@@ -153,7 +169,8 @@
 <!-- Header -->
 <header class="sticky top-0 z-10 backdrop-blur-sm"
         style="background: color-mix(in srgb, var(--sempa-bg-main) 95%, transparent);
-               border-bottom: 1px solid var(--sempa-border);">
+               border-bottom: 1px solid var(--sempa-border);
+               padding-top: env(safe-area-inset-top, 0px);">
   <div class="flex items-center justify-between px-6 py-3">
     <div class="flex items-center gap-2">
       <button onclick={() => navigate(-1)} aria-label="Previous week"
@@ -177,31 +194,70 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- Copy markdown -->
-      <button onclick={copyMarkdown}
-              class="flex items-center gap-1.5 font-medium transition-colors"
-              style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);
-                     background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 12px;">
-        {#if copied}
-          <svg class="h-3.5 w-3.5 text-green-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+      {#if mobile.value}
+        <!-- Mobile: icon-only actions -->
+        <button onclick={copyMarkdown}
+                title="Copy as markdown"
+                class="flex items-center justify-center rounded-lg transition-colors"
+                style="width:34px; height:34px; border: 1px solid var(--sempa-border);
+                       color: {copied ? '#22c55e' : 'var(--sempa-text-soft)'}; background: transparent;">
+          {#if copied}
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+          {:else}
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          {/if}
+        </button>
+        <a href="/week/{weekStartDate}/review"
+           title="Review week"
+           class="flex items-center justify-center rounded-lg transition-colors"
+           style="width:34px; height:34px; border: 1px solid var(--sempa-border);
+                  color: var(--sempa-text-soft); background: transparent;">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
           </svg>
-          Copied!
-        {:else}
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <rect x="9" y="9" width="13" height="13" rx="2"/>
-            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </a>
+        <a href="/week/{weekStartDate}/plan"
+           class="flex items-center gap-1 shadow-sm"
+           style="background: var(--sempa-btn-bg); color: var(--sempa-btn-fg); border-radius: 9px;
+                  padding: 7px 12px; font-size: 13px; font-weight: 500; border: none; cursor: pointer;"
+           onmouseenter={(e) => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+           onmouseleave={(e) => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
           </svg>
-          Copy as markdown
-        {/if}
-      </button>
+          Plan
+        </a>
+      {:else}
+        <!-- Desktop: text buttons -->
+        <button onclick={copyMarkdown}
+                class="flex items-center gap-1.5 font-medium transition-colors"
+                style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);
+                       background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 12px;">
+          {#if copied}
+            <svg class="h-3.5 w-3.5 text-green-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            Copied!
+          {:else}
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+            Copy as markdown
+          {/if}
+        </button>
 
-      <a href="/week/{weekStartDate}/review"
-         class="flex items-center gap-1.5 font-medium transition-colors"
-         style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);
-                background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 12px;">
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
+        <a href="/week/{weekStartDate}/review"
+           class="flex items-center gap-1.5 font-medium transition-colors"
+           style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);
+                  background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 12px;">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
         </svg>
         Review week
       </a>
@@ -217,6 +273,7 @@
         </svg>
         Plan week
       </a>
+      {/if}
     </div>
   </div>
 </header>
@@ -429,5 +486,53 @@
         </div>
       {/if}
     </div>
+
+    <!-- Unscheduled tasks for this week -->
+    {#if unscheduled.length > 0}
+      <div class="mt-4" style="border-radius:12px; border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
+        <button class="flex w-full items-center justify-between px-4 py-3"
+                onclick={() => showUnscheduled = !showUnscheduled}>
+          <span class="text-sm font-semibold" style="color: var(--sempa-text);">Unscheduled this week</span>
+          <div class="flex items-center gap-2">
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+                  style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+              {unscheduled.length}
+            </span>
+            <svg class="h-4 w-4 transition-transform {showUnscheduled ? 'rotate-180' : ''}"
+                 fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                 style="color: var(--sempa-text-dim);">
+              <path stroke-linecap="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </button>
+        {#if showUnscheduled}
+          <div class="space-y-1 px-4 pb-4 pt-1" style="border-top: 1px solid var(--sempa-border);">
+            {#each unscheduled as t (t.id)}
+              <div class="group flex items-center gap-3 rounded-lg px-1 py-2">
+                <button onclick={() => toggleTask(t)}
+                        class="h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all
+                               {t.status === 'done' ? 'border-green-500 bg-green-500' : 'border-gray-300'}">
+                  {#if t.status === 'done'}
+                    <svg class="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  {/if}
+                </button>
+                <span class="flex-1 text-sm {t.status === 'done' ? 'line-through' : ''}"
+                      style="color: {t.status === 'done' ? 'var(--sempa-text-dim)' : 'var(--sempa-text)'}">
+                  {t.title}
+                </span>
+                <button onclick={() => scheduleToday(t)}
+                        class="opacity-0 group-hover:opacity-100 rounded-lg px-2 py-1 text-[11px] font-medium transition-all"
+                        style="background: var(--sempa-accent-bg); color: var(--sempa-accent);"
+                        title="Schedule to today">
+                  Plan today
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </main>

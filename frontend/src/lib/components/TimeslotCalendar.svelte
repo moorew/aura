@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import type { ICalEvent, Task } from '$lib/types';
-  import { formatMinutes } from '$lib/utils';
+  import { formatMinutes, today as getToday } from '$lib/utils';
 
   let {
     date,
@@ -25,6 +25,20 @@
   let dragOver    = $state(false);
   let ghostHour   = $state<number | null>(null);
   let icalEvents  = $state<ICalEvent[]>([]);
+  let nowPx       = $state<number | null>(null);
+
+  function updateNow() {
+    if (date !== getToday()) { nowPx = null; return; }
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60;
+    nowPx = (h >= START_HOUR && h < END_HOUR) ? (h - START_HOUR) * HOUR_PX : null;
+  }
+
+  $effect(() => {
+    date; updateNow();
+    const id = setInterval(updateNow, 60_000);
+    return () => clearInterval(id);
+  });
 
   $effect(() => {
     date; // re-load when date changes
@@ -133,6 +147,15 @@
       {#if dragOver && ghostHour !== null}
         <div class="absolute left-0 right-0 border-t-2 border-dashed border-blue-400 z-10 pointer-events-none"
              style="top: {(ghostHour - START_HOUR) * HOUR_PX}px;">
+        </div>
+      {/if}
+
+      <!-- Current time indicator -->
+      {#if nowPx !== null}
+        <div class="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+             style="top: {nowPx}px;">
+          <div class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" style="margin-left: -5px;"></div>
+          <div class="h-px flex-1 bg-red-500/70"></div>
         </div>
       {/if}
 
