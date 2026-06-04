@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 static SYNCING: AtomicBool = AtomicBool::new(false);
 
@@ -123,12 +122,8 @@ async fn check_connectivity(server_url: &str) -> bool {
     }
 }
 
-async fn get_server_url_from_store(app: &AppHandle) -> String {
-    // Read from the tauri-plugin-store persisted config
-    if let Some(store) = app.try_state::<tauri_plugin_store::StoreCollection<tauri::Wry>>() {
-        // The store API is accessed from the frontend; here we use a fallback
-        // environment variable or empty string.
-    }
-
+async fn get_server_url_from_store(_app: &AppHandle) -> String {
+    // The store is accessed from the frontend JS side.
+    // Rust side uses the env var as the sync URL source.
     std::env::var("SEMPA_SERVER_URL").unwrap_or_default()
 }
