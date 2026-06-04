@@ -4,6 +4,7 @@
   import { tagStore } from '$lib/stores/tags.svelte';
   import { hapticClick } from '$lib/haptics';
   import { api } from '$lib/api';
+  import { mobile } from '$lib/stores/mobile.svelte';
 
   let {
     task, accent,
@@ -72,25 +73,27 @@
   onmouseenter={() => onHover?.(task.id)}
   onmouseleave={() => onHover?.(null)}
   class="group relative flex flex-col gap-2 rounded-xl border border-gray-100 bg-white p-3
-         shadow-sm cursor-grab active:cursor-grabbing active:opacity-60 active:shadow-lg
-         transition-all duration-100 hover:border-gray-200 hover:shadow-md
+         shadow-sm cursor-grab active:cursor-grabbing active:scale-[0.98] active:shadow-none
+         transition-all duration-100 hover:border-gray-200 hover:shadow-md min-h-[44px]
          dark:border-gray-700/40 dark:bg-gray-800 dark:hover:border-gray-600/60"
 >
-  <div class="flex items-start gap-2.5">
-    <!-- Quick-complete circle -->
+  <div class="flex items-start gap-1.5">
+    <!-- Quick-complete — 44×44 tap target wrapping a 16×16 visual circle (FIX 3) -->
     <button
       type="button"
       onclick={(e) => { e.stopPropagation(); hapticClick(); onComplete?.(task.id); }}
       title={isDone ? 'Completed' : 'Mark complete'}
-      class="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer
-             {isDone ? 'border-green-500 bg-green-500' : 'border-gray-200 hover:border-green-400 hover:bg-green-50 dark:border-gray-600 dark:hover:border-green-500 dark:hover:bg-green-950'}"
+      class="shrink-0 flex items-center justify-center h-[44px] w-[44px] -ml-1 -my-1 cursor-pointer"
       aria-label="Complete task"
     >
-      {#if isDone}
-        <svg class="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-        </svg>
-      {/if}
+      <span class="flex h-4 w-4 items-center justify-center rounded-full border-2 transition-all
+                   {isDone ? 'border-green-500 bg-green-500' : 'border-gray-200 hover:border-green-400 hover:bg-green-50 dark:border-gray-600 dark:hover:border-green-500 dark:hover:bg-green-950'}">
+        {#if isDone}
+          <svg class="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+        {/if}
+      </span>
     </button>
 
     <!-- Title + click to edit -->
@@ -104,11 +107,13 @@
       </p>
     </div>
 
-    <!-- Hover actions -->
-    <div class="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+    <!-- Hover/mobile actions (FIX 2) -->
+    <div class="flex shrink-0 items-center gap-0.5 transition-opacity
+                {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
       {#if onFocusMode && !isDone}
         <button onclick={(e) => { e.stopPropagation(); onFocusMode?.(task.id); }}
-                class="rounded p-1 text-gray-300 hover:text-[var(--sempa-accent)] transition-colors
+                class="{mobile.value ? 'h-[44px] w-[44px] flex items-center justify-center' : 'rounded p-1'}
+                       text-gray-300 hover:text-[var(--sempa-accent)] transition-colors
                        dark:text-gray-600 dark:hover:text-[var(--sempa-accent)]"
                 title="Focus mode">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -118,7 +123,8 @@
       {/if}
       {#if onFocusClick && !isDone}
         <button onclick={(e) => { e.stopPropagation(); onFocusClick?.(task.id, task.title); }}
-                class="rounded p-1 text-gray-300 hover:text-amber-500 transition-colors
+                class="{mobile.value ? 'h-[44px] w-[44px] flex items-center justify-center' : 'rounded p-1'}
+                       text-gray-300 hover:text-amber-500 transition-colors
                        dark:text-gray-600 dark:hover:text-amber-400"
                 title="Start focus timer">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -128,13 +134,33 @@
       {/if}
       {#if onTrash}
         <button onclick={(e) => { e.stopPropagation(); onTrash?.(task.id, task.title); }}
-                class="rounded p-1 text-gray-300 hover:text-red-500 transition-colors
+                class="{mobile.value ? 'h-[44px] w-[44px] flex items-center justify-center' : 'rounded p-1'}
+                       text-gray-300 hover:text-red-500 transition-colors
                        dark:text-gray-600 dark:hover:text-red-400"
                 title="Delete task">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
           </svg>
         </button>
+      {/if}
+      {#if mobile.value}
+        <!-- 6-dot drag handle (FIX 6c) -->
+        <div
+          onpointerdown={(e) => {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            onDragStart(task.id);
+          }}
+          class="flex h-[44px] w-[44px] cursor-grab items-center justify-center text-gray-300 dark:text-gray-600"
+          aria-label="Drag to reorder"
+          role="button"
+          tabindex="-1"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
+            <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
+            <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
+          </svg>
+        </div>
       {/if}
     </div>
   </div>
