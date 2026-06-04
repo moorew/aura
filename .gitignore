@@ -12,6 +12,10 @@ frontend/build/
 frontend/.svelte-kit/
 frontend/node_modules/
 
+# Tauri
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+
 # Secrets — user-specific, never commit
 .env
 .env.local

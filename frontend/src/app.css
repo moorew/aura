@@ -139,3 +139,33 @@
     -webkit-touch-callout: none;
   }
 }
+
+/* ── JetBrains Mono for timestamps, shortcuts, numeric readouts ──────── */
+.font-mono, kbd, code, [data-mono] {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── Button micro-interactions (scale(0.97) active state) ────────────── */
+button, [role="button"] {
+  transition: transform 80ms ease-out;
+}
+button:active, [role="button"]:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:active, [role="button"]:active {
+    transform: none;
+  }
+}
+
+/* ── Tauri: custom titlebar drag region ──────────────────────────────── */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] textarea {
+  -webkit-app-region: no-drag;
+}
