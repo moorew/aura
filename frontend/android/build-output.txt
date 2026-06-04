@@ -19,77 +19,78 @@ WARNING: Using flatDir should be avoided because it doesn't support any meta-dat
 WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
 
 > Task :app:buildKotlinToolingMetadata
-> Task :app:checkKotlinGradlePluginConfigurationErrors
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preReleaseBuild UP-TO-DATE
 > Task :capacitor-android:preBuild UP-TO-DATE
 > Task :capacitor-android:preReleaseBuild UP-TO-DATE
+> Task :capacitor-app:preBuild UP-TO-DATE
+> Task :capacitor-app:preReleaseBuild UP-TO-DATE
+> Task :capacitor-android:writeReleaseAarMetadata
+> Task :capacitor-app:writeReleaseAarMetadata
+> Task :capacitor-browser:preBuild UP-TO-DATE
+> Task :capacitor-browser:preReleaseBuild UP-TO-DATE
 > Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-browser:writeReleaseAarMetadata
 > Task :capacitor-cordova-android-plugins:preReleaseBuild UP-TO-DATE
 > Task :capacitor-cordova-android-plugins:writeReleaseAarMetadata
-> Task :capacitor-android:writeReleaseAarMetadata
 > Task :app:generateReleaseResValues
-> Task :capacitor-android:generateReleaseResValues
-> Task :capacitor-android:generateReleaseResources
-> Task :app:checkReleaseAarMetadata
-> Task :capacitor-android:packageReleaseResources
-> Task :capacitor-cordova-android-plugins:generateReleaseResValues
-> Task :capacitor-cordova-android-plugins:generateReleaseResources
-> Task :capacitor-cordova-android-plugins:packageReleaseResources
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:packageReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :capacitor-android:extractDeepLinksRelease
-> Task :capacitor-cordova-android-plugins:extractDeepLinksRelease
-> Task :app:parseReleaseLocalResources
-> Task :capacitor-cordova-android-plugins:processReleaseManifest
-> Task :capacitor-android:processReleaseManifest
-> Task :capacitor-android:compileReleaseLibraryResources
-> Task :app:processReleaseMainManifest
-> Task :app:processReleaseManifest
-> Task :app:mergeReleaseResources
-> Task :capacitor-android:parseReleaseLocalResources
-> Task :capacitor-cordova-android-plugins:compileReleaseLibraryResources
-> Task :app:processReleaseManifestForPackage
-> Task :capacitor-cordova-android-plugins:parseReleaseLocalResources
-> Task :capacitor-android:javaPreCompileRelease
-> Task :capacitor-cordova-android-plugins:javaPreCompileRelease
-> Task :app:javaPreCompileRelease
-> Task :app:extractProguardFiles
-> Task :capacitor-cordova-android-plugins:generateReleaseRFile
-> Task :capacitor-android:generateReleaseRFile
-> Task :capacitor-android:processReleaseJavaRes NO-SOURCE
-> Task :app:processReleaseResources
+> Task :app:processReleaseGoogleServices FAILED
+> Task :app:checkReleaseAarMetadata FAILED
 
-> Task :capacitor-android:compileReleaseJavaWithJavac
-Note: Some input files use unchecked or unsafe operations.
-Note: Recompile with -Xlint:unchecked for details.
+FAILURE: Build completed with 2 failures.
 
-> Task :capacitor-cordova-android-plugins:compileReleaseJavaWithJavac NO-SOURCE
-> Task :capacitor-cordova-android-plugins:bundleLibCompileToJarRelease
-> Task :capacitor-android:extractProguardFiles
-> Task :capacitor-android:bundleLibRuntimeToJarRelease
-> Task :capacitor-android:bundleLibCompileToJarRelease
-> Task :capacitor-android:generateReleaseLintModel
-> Task :app:compileReleaseKotlin FAILED
-[Incubating] Problems report is available at: file:///home/runner/work/sempa/sempa/frontend/android/build/reports/problems/problems-report.html
-
-FAILURE: Build failed with an exception.
-
+1: Task failed with an exception.
+-----------
 * What went wrong:
-Execution failed for task ':app:compileReleaseKotlin'.
-> Inconsistent JVM-target compatibility detected for tasks 'compileReleaseJavaWithJavac' (21) and 'compileReleaseKotlin' (17).
-  
-  Consider using JVM Toolchain: https://kotl.in/gradle/jvm/toolchain
-  Learn more about JVM-target validation: https://kotl.in/gradle/jvm/target-validation 
+Execution failed for task ':app:processReleaseGoogleServices'.
+> File google-services.json is missing. 
+  The Google Services Plugin cannot function without it. 
+  Searched locations: /home/runner/work/sempa/sempa/frontend/android/app/src/release/google-services.json, /home/runner/work/sempa/sempa/frontend/android/app/src/release/google-services.json, /home/runner/work/sempa/sempa/frontend/android/app/src/google-services.json, /home/runner/work/sempa/sempa/frontend/android/app/src/release/google-services.json, /home/runner/work/sempa/sempa/frontend/android/app/src/Release/google-services.json, /home/runner/work/sempa/sempa/frontend/android/app/google-services.json
 
 * Try:
 > Run with --stacktrace option to get the stack trace.
 > Run with --info or --debug option to get more log output.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
+==============================================================================
 
-BUILD FAILED in 1m 26s
-44 actionable tasks: 44 executed
+2: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':app:checkReleaseAarMetadata'.
+> A failure occurred while executing com.android.build.gradle.internal.tasks.CheckAarMetadataWorkAction
+   > 2 issues were found when checking AAR metadata:
+     
+       1.  Dependency 'androidx.browser:browser:1.9.0' requires libraries and applications that
+           depend on it to compile against version 36 or later of the
+           Android APIs.
+     
+           :app is currently compiled against android-35.
+     
+           Also, the maximum recommended compile SDK version for Android Gradle
+           plugin 8.7.2 is 35.
+     
+           Recommended action: Update this project's version of the Android Gradle
+           plugin to one that supports 36, then update this project to use
+           compileSdk of at least 36.
+     
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+     
+       2.  Dependency 'androidx.browser:browser:1.9.0' requires Android Gradle plugin 8.9.1 or higher.
+     
+           This build currently uses Android Gradle plugin 8.7.2.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+BUILD FAILED in 1m 10s
+8 actionable tasks: 8 executed
