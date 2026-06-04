@@ -13,6 +13,7 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.layout.*
 import androidx.glance.text.*
 import androidx.glance.appwidget.cornerRadius
+import androidx.glance.unit.ColorProvider
 import com.clevercode.sempa.MainActivity
 import java.time.DayOfWeek
 import java.time.LocalDate
