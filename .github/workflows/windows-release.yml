@@ -38,6 +38,13 @@ jobs:
           key: windows-cargo-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
           restore-keys: windows-cargo-
 
+      - name: Generate Windows icon from PNG
+        shell: pwsh
+        working-directory: frontend/src-tauri/icons
+        run: |
+          magick 128x128.png -define icon:auto-resize=256,48,32,16 icon.ico
+          Write-Host "icon.ico size: $((Get-Item icon.ico).Length) bytes"
+
       - name: Install npm dependencies
         working-directory: frontend
         run: npm ci
