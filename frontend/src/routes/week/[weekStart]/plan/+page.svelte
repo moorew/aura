@@ -173,7 +173,8 @@
 
 <svelte:head><title>Plan week · {formatWeekRange(ws)} — Sempa</title></svelte:head>
 
-<div class="mx-auto max-w-2xl px-6 py-10 animate-fade-in">
+<div class="mx-auto max-w-2xl px-6 py-10 animate-fade-in"
+     style="padding-top: calc(env(safe-area-inset-top, 0px) + 40px);">
 
   <!-- Header -->
   <div class="mb-8 flex items-start justify-between">

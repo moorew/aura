@@ -183,6 +183,16 @@ func (s *TaskStore) FindPendingRecurringInstance(ctx context.Context, originID s
 	return &t, nil
 }
 
+func (s *TaskStore) ListByRecurrenceOrigin(ctx context.Context, originID string) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+taskCols+` FROM tasks WHERE recurrence_origin_id = ? ORDER BY planned_date DESC LIMIT 90`, originID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectTasks(rows)
+}
+
 type CreateTaskParams struct {
 	ID                  string
 	Title               string

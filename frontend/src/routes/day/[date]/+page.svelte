@@ -123,7 +123,7 @@
     const weekCounts = new Map<string, number>();
     for (const t of tasks) {
       if (t.status === 'cancelled') continue;
-      weekCounts.set(t.planned_date, (weekCounts.get(t.planned_date) ?? 0) + 1);
+      if (t.planned_date) weekCounts.set(t.planned_date, (weekCounts.get(t.planned_date) ?? 0) + 1);
     }
     syncWidgetData(todayList, weekCounts);
   });
@@ -209,12 +209,26 @@
     pomodoro.start(id, title, t?.time_actual_minutes ?? 0);
   }
 
-  // ── Keyboard shortcut: n = new task ──────────────────────────────────────
+  // ── Focus mode (full-screen) ───────────────────────────────────────────────
+  function handleFocusMode(id: string) {
+    goto(`/focus/${id}`);
+  }
+
+  // ── Hover tracking for keyboard shortcut ─────────────────────────────────
+  let hoveredTaskId = $state<string | null>(null);
+  function handleTaskHover(id: string | null) { hoveredTaskId = id; }
+
+  // ── Keyboard shortcut: n = new task, e = edit hovered ────────────────────
   function handleKeydown(e: KeyboardEvent) {
     const tgt = e.target as HTMLElement;
     if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'n' && !panelOpen) { e.preventDefault(); openCreate(todayDate); }
+    if (e.key === 'e' && !panelOpen && hoveredTaskId) {
+      e.preventDefault();
+      const t = tasks.find(t => t.id === hoveredTaskId);
+      if (t) openEdit(t);
+    }
   }
 
   // ── Trash (with confirm modal) ──────────────────────────────────────────
@@ -565,9 +579,11 @@
               isDragOver={dragOverDate === day.date}
               onTaskDragStart={handleDragStart}
               onTaskFocusClick={handleFocus}
+              onTaskFocusMode={handleFocusMode}
               onTaskComplete={handleComplete}
               onTaskTrash={handleTrashRequest}
               onTaskClick={openEdit}
+              onTaskHover={handleTaskHover}
               onDrop={handleDrop}
               onEmailDrop={handleEmailDrop}
               onDragOver={(d) => (dragOverDate = d)}
@@ -590,9 +606,11 @@
               isDragOver={dragOverDate === day.date}
               onTaskDragStart={handleDragStart}
               onTaskFocusClick={handleFocus}
+              onTaskFocusMode={handleFocusMode}
               onTaskComplete={handleComplete}
               onTaskTrash={handleTrashRequest}
               onTaskClick={openEdit}
+              onTaskHover={handleTaskHover}
               onDrop={handleDrop}
               onEmailDrop={handleEmailDrop}
               onDragOver={(d) => (dragOverDate = d)}
