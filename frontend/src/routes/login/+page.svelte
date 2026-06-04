@@ -3,16 +3,21 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
+  import { Capacitor } from '@capacitor/core';
 
   // In dev: set VITE_API_URL=http://localhost:9001
   const base = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+
+  // On native, Google OAuth opens the system browser and the callback can't return
+  // to the app — so we go straight to the password form.
+  const isNative = Capacitor.isNativePlatform();
 
   let authInfo = $state<{ google_enabled: boolean; password_enabled: boolean } | null>(null);
   let username = $state('');
   let password = $state('');
   let loading  = $state(false);
   let error    = $state('');
-  let showPasswordForm = $state(false);
+  let showPasswordForm = $state(isNative);
 
   const redirectTarget = $derived($page.url.searchParams.get('redirect') ?? '/');
 
@@ -94,8 +99,8 @@
                style="border-top-color: var(--sempa-accent);"></div>
         </div>
 
-      {:else if authInfo.google_enabled}
-        <!-- Google Sign-In (primary) -->
+      {:else if authInfo.google_enabled && !isNative}
+        <!-- Google Sign-In (primary, web only — deep linking not yet wired up for native) -->
         <button onclick={googleSignIn}
                 class="flex w-full items-center justify-center gap-3 rounded-xl border px-4 py-3
                        text-sm font-medium shadow-sm transition-all hover:shadow-md"
