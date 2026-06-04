@@ -9,14 +9,15 @@
   let date       = $derived($page.params.date ?? new Date().toISOString().split('T')[0]);
   let yesterday  = $derived(offsetDate(date, -1));
 
-  let step         = $state<1 | 2 | 3>(1);
-  let intention    = $state('');
-  let carryover    = $state<Task[]>([]);
-  let todayTasks   = $state<Task[]>([]);
-  let selected     = $state(new Set<string>());
-  let saving       = $state(false);
-  let error        = $state<string | null>(null);
+  let step                  = $state<1 | 2 | 3>(1);
+  let intention             = $state('');
+  let carryover             = $state<Task[]>([]);
+  let todayTasks            = $state<Task[]>([]);
+  let selected              = $state(new Set<string>());
+  let saving                = $state(false);
+  let error                 = $state<string | null>(null);
   let intentionEl: HTMLTextAreaElement | undefined = $state();
+  let yesterdayReflection   = $state<string | null>(null);
 
   let totalEstimate = $derived(
     todayTasks.reduce((sum, t) => sum + (t.time_estimate_minutes ?? 0), 0)
@@ -24,11 +25,15 @@
 
   onMount(async () => {
     try {
-      // Load existing plan if any
+      // Load existing plan if any + yesterday's reflection
       try {
         const plan = await api.plans.get(date);
         if (plan.intention) intention = plan.intention;
       } catch { /* 404 is expected */ }
+      try {
+        const yPlan = await api.plans.get(yesterday);
+        if (yPlan.reflection) yesterdayReflection = yPlan.reflection;
+      } catch { /* ignore */ }
 
       const [yTasks, dTasks] = await Promise.all([
         api.tasks.listByDate(yesterday),
@@ -131,6 +136,13 @@
           {isToday(date) ? 'Good morning!' : formatDate(date)}
         </h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">What's your theme or focus for today?</p>
+
+        {#if yesterdayReflection}
+          <div class="mb-5 rounded-xl px-4 py-3" style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border);">
+            <p class="text-[10px] font-semibold uppercase tracking-wider mb-1" style="color: var(--sempa-text-dim);">Yesterday you noted</p>
+            <p class="text-sm italic" style="color: var(--sempa-text-soft);">"{yesterdayReflection}"</p>
+          </div>
+        {/if}
 
         <textarea
           bind:this={intentionEl}

@@ -10,6 +10,8 @@
   import { mobile } from '$lib/stores/mobile.svelte';
   import { hapticTick } from '$lib/haptics';
   import { initPushNotifications } from '$lib/push';
+  import { SplashScreen } from '@capacitor/splash-screen';
+  import { Capacitor } from '@capacitor/core';
   import { api } from '$lib/api';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
@@ -19,7 +21,7 @@
   import {
     Sun, Calendar, ClipboardCheck, Inbox, Moon, Settings,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
-    Target, Timer, LayoutDashboard, Palette, Menu,
+    Target, Timer, LayoutDashboard, Palette, Menu, Layers,
   } from 'lucide-svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -29,9 +31,11 @@
 
   let isLoginPage      = $derived(($page.url.pathname as string) === '/login');
   let isSetupPage      = $derived(($page.url.pathname as string) === '/setup');
-  let shortcutsOpen    = $state(false);
-  let userEmail        = $state<string | undefined>(undefined);
-  let moreSheetOpen    = $state(false);
+  let shortcutsOpen      = $state(false);
+  let userEmail          = $state<string | undefined>(undefined);
+  let moreSheetOpen      = $state(false);
+  let showIntroAnimation = $state(false);
+  let introFadingOut     = $state(false);
 
   // Mobile: is this a task-list page where we show the FAB?
   let isTaskListPage = $derived(
@@ -39,7 +43,8 @@
   );
 
   const SHORTCUT_HELP = [
-    { key: 'n',   desc: 'New task (on day view)' },
+    { key: 'n',   desc: 'New task (day view)' },
+    { key: 'e',   desc: 'Edit hovered task (day view)' },
     { key: 't',   desc: 'Go to today' },
     { key: 'j',   desc: 'Previous week' },
     { key: 'k',   desc: 'Next week' },
@@ -62,7 +67,7 @@
     const curWs   = weekStart(curDate);
 
     switch (e.key) {
-      case 't': e.preventDefault(); goto(`/day/${todayDate}`); break;
+      case 't': e.preventDefault(); goto('/home'); break;
       case 'j': e.preventDefault(); goto(`/day/${offsetDate(curWs, -7)}`); break;
       case 'k': e.preventDefault(); goto(`/day/${offsetDate(curWs, 7)}`); break;
       case '?': e.preventDefault(); shortcutsOpen = true; break;
@@ -90,6 +95,13 @@
         }
       } catch {
         goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
+      } finally {
+        if (Capacitor.isNativePlatform()) {
+          await SplashScreen.hide({ fadeOutDuration: 400 });
+        }
+        showIntroAnimation = true;
+        setTimeout(() => { introFadingOut = true; }, 1600);
+        setTimeout(() => { showIntroAnimation = false; introFadingOut = false; }, 1800);
       }
     }
   });
@@ -100,7 +112,7 @@
 
   // Bottom tab nav items
   const tabs = $derived([
-    { href: `/day/${todayDate}`, label: 'Today', prefix: '/day/', icon: 'today' },
+    { href: '/home', label: 'Today', prefix: '/home', icon: 'today' },
     { href: `/week/${thisWeek}`, label: 'Week',  prefix: '/week/', icon: 'week' },
     { href: '/email',            label: 'Inbox', prefix: '/email', icon: 'inbox' },
     { href: '#more',             label: 'More',  prefix: '__more', icon: 'more' },
@@ -151,10 +163,11 @@
         </a>
       {/snippet}
 
-      {@render navItem(`/day/${todayDate}`, 'Today', LayoutDashboard)}
+      {@render navItem('/home', 'Today', LayoutDashboard)}
       {@render navItem(`/week/${thisWeek}`, 'This Week', Calendar)}
       {@render navItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
       {@render navItem('/email', 'Email', Inbox)}
+      {@render navItem('/backlog', 'Backlog', Layers)}
       {@render navItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
 
       <!-- Pomodoro in-progress -->
@@ -209,7 +222,9 @@
   <!-- ── Main content ───────────────────────────────────────────────────── -->
   <div class="flex-1 overflow-auto" style="background: var(--sempa-bg-main);
        {mobile.value ? 'padding-bottom: 88px;' : ''}">
-    {@render children()}
+    {#key $page.url.pathname}
+      <div class="animate-fade-in">{@render children()}</div>
+    {/key}
   </div>
 </div>
 
@@ -248,7 +263,7 @@
     <button
       onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=1`); }}
       aria-label="New task"
-      style="position: fixed; bottom: 84px; right: 20px; width: 52px; height: 52px;
+      style="position: fixed; bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 12px); right: 20px; width: 52px; height: 52px;
              border-radius: 16px; background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);
              display: flex; align-items: center; justify-content: center; z-index: 30;
              box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: none; cursor: pointer;">
@@ -315,6 +330,20 @@
   <PomodoroTimer />
 {/if}
 
+<!-- ── Intro animation overlay ──────────────────────────────────────────── -->
+{#if showIntroAnimation}
+  <div class="intro-overlay" style="opacity:{introFadingOut ? '0' : '1'};">
+    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <path class="arc" d="M22,40 a28,28 0 0 0 56,0"
+            stroke="var(--sempa-accent)" stroke-width="9"
+            stroke-linecap="round" stroke-linejoin="round"
+            stroke-dasharray="88" stroke-dashoffset="88"/>
+      <circle class="dot" cx="50" cy="35" r="7.5" fill="var(--sempa-accent)"/>
+    </svg>
+    <span class="wordmark">sempa</span>
+  </div>
+{/if}
+
 <!-- Keyboard shortcuts help modal -->
 {#if shortcutsOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -343,3 +372,52 @@
   </div>
 {/if}
 {/if}
+
+<style>
+  .intro-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--sempa-bg-main);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    transition: opacity 200ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .intro-overlay :global(.arc) {
+      animation: arc-draw 700ms ease-out 0ms forwards;
+    }
+    .intro-overlay :global(.dot) {
+      transform-origin: 50px 35px;
+      transform: scale(0);
+      animation: dot-pop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) 400ms forwards;
+    }
+    .intro-overlay :global(.wordmark) {
+      opacity: 0;
+      transform: translateY(8px);
+      animation: wordmark-in 400ms ease-out 600ms forwards;
+    }
+  }
+
+  .wordmark {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 500;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    color: var(--sempa-text);
+  }
+
+  @keyframes arc-draw {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes dot-pop {
+    to { transform: scale(1); }
+  }
+  @keyframes wordmark-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
