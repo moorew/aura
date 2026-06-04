@@ -86,16 +86,20 @@
 
   onMount(() => {
     loadTasks(); loadRollover();
-    // Handle FAB deep link
+  });
+  $effect(() => { ws; loadTasks(); });
+
+  // Handle FAB deep link (?new=1) reactively so it works even when
+  // the component is already mounted and SvelteKit reuses it.
+  $effect(() => {
     if ($page.url.searchParams.get('new') === '1') {
       openCreate(date);
-      // Clean URL
+      // Clean URL without triggering navigation
       const url = new URL($page.url);
       url.searchParams.delete('new');
       history.replaceState({}, '', url.pathname);
     }
   });
-  $effect(() => { ws; loadTasks(); });
 
   async function rolloverAll() {
     await Promise.all(rolloverTasks.map(t =>
