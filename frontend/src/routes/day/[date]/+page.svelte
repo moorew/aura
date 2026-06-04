@@ -32,6 +32,7 @@
   let rolloverTasks    = $state<Task[]>([]);
   let rolloverDismissed = $state(false);
 
+  let kanbanScroll  = $state<HTMLElement | undefined>();
   let draggingId    = $state<string | null>(null);
   let dragOverDate  = $state<string | null>(null);
   let emailPanel    = $state<EmailPanel | undefined>(undefined);
@@ -123,7 +124,7 @@
     const weekCounts = new Map<string, number>();
     for (const t of tasks) {
       if (t.status === 'cancelled') continue;
-      weekCounts.set(t.planned_date, (weekCounts.get(t.planned_date) ?? 0) + 1);
+      if (t.planned_date) weekCounts.set(t.planned_date, (weekCounts.get(t.planned_date) ?? 0) + 1);
     }
     syncWidgetData(todayList, weekCounts);
   });
@@ -151,10 +152,14 @@
   }
 
   $effect(() => {
-    if (mobile.value) return; // skip scroll on mobile
+    if (mobile.value) return;
     const d = date;
     requestAnimationFrame(() => {
-      document.getElementById(`day-col-${d}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      if (!kanbanScroll) return;
+      const el = document.getElementById(`day-col-${d}`) as HTMLElement | null;
+      if (!el) return;
+      const targetLeft = el.offsetLeft - (kanbanScroll.clientWidth / 2 - el.offsetWidth / 2);
+      kanbanScroll.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
     });
   });
 
@@ -209,12 +214,26 @@
     pomodoro.start(id, title, t?.time_actual_minutes ?? 0);
   }
 
-  // ── Keyboard shortcut: n = new task ──────────────────────────────────────
+  // ── Focus mode (full-screen) ───────────────────────────────────────────────
+  function handleFocusMode(id: string) {
+    goto(`/focus/${id}`);
+  }
+
+  // ── Hover tracking for keyboard shortcut ─────────────────────────────────
+  let hoveredTaskId = $state<string | null>(null);
+  function handleTaskHover(id: string | null) { hoveredTaskId = id; }
+
+  // ── Keyboard shortcut: n = new task, e = edit hovered ────────────────────
   function handleKeydown(e: KeyboardEvent) {
     const tgt = e.target as HTMLElement;
     if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'n' && !panelOpen) { e.preventDefault(); openCreate(todayDate); }
+    if (e.key === 'e' && !panelOpen && hoveredTaskId) {
+      e.preventDefault();
+      const t = tasks.find(t => t.id === hoveredTaskId);
+      if (t) openEdit(t);
+    }
   }
 
   // ── Trash (with confirm modal) ──────────────────────────────────────────
@@ -318,7 +337,9 @@
                  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);">
     <div class="flex items-center justify-between mb-1">
       <button onclick={() => navigateDay(-1)} aria-label="Previous day"
-              class="rounded-lg p-2" style="color: var(--sempa-text-dim);">
+              class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors
+                     active:bg-gray-100 dark:active:bg-gray-800"
+              style="color: var(--sempa-text-dim);">
         <ChevronLeft size={20} />
       </button>
       <div class="text-center">
@@ -330,7 +351,9 @@
         {/if}
       </div>
       <button onclick={() => navigateDay(1)} aria-label="Next day"
-              class="rounded-lg p-2" style="color: var(--sempa-text-dim);">
+              class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors
+                     active:bg-gray-100 dark:active:bg-gray-800"
+              style="color: var(--sempa-text-dim);">
         <ChevronRight size={20} />
       </button>
     </div>
@@ -387,7 +410,7 @@
   {/if}
 
   <!-- Mobile task list -->
-  <main class="px-4 pb-4 animate-fade-in">
+  <main class="px-4 pb-24 animate-fade-in">
     {#if loading}
       <div class="flex h-48 items-center justify-center text-sm" style="color: var(--sempa-text-dim);">Loading...</div>
     {:else if error}
@@ -443,12 +466,9 @@
     {/if}
   </main>
 
-  <!-- TaskPanel as BottomSheet on mobile -->
-  <BottomSheet open={panelOpen} onClose={() => panelOpen = false}>
-    <TaskPanel open={true} task={panelTask} defaultStatus={panelStatus} defaultDate={panelDate}
-               onSave={handlePanelSave} onClose={() => panelOpen = false}
-               inline={true} />
-  </BottomSheet>
+  <!-- TaskPanel handles its own mobile bottom sheet (FIX 5) -->
+  <TaskPanel open={panelOpen} task={panelTask} defaultStatus={panelStatus} defaultDate={panelDate}
+             onSave={handlePanelSave} onClose={() => panelOpen = false} />
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- DESKTOP LAYOUT (unchanged)                                             -->
@@ -519,7 +539,7 @@
 <div class="flex h-[calc(100vh-57px)] overflow-hidden">
 
   <!-- Kanban area -->
-  <main class="flex-1 overflow-auto px-4 py-5 animate-fade-in">
+  <main bind:this={kanbanScroll} class="flex-1 overflow-auto px-4 py-5 animate-fade-in">
 
     <!-- Rollover banner -->
     {#if rolloverTasks.length > 0 && !rolloverDismissed}
@@ -565,9 +585,11 @@
               isDragOver={dragOverDate === day.date}
               onTaskDragStart={handleDragStart}
               onTaskFocusClick={handleFocus}
+              onTaskFocusMode={handleFocusMode}
               onTaskComplete={handleComplete}
               onTaskTrash={handleTrashRequest}
               onTaskClick={openEdit}
+              onTaskHover={handleTaskHover}
               onDrop={handleDrop}
               onEmailDrop={handleEmailDrop}
               onDragOver={(d) => (dragOverDate = d)}
@@ -590,9 +612,11 @@
               isDragOver={dragOverDate === day.date}
               onTaskDragStart={handleDragStart}
               onTaskFocusClick={handleFocus}
+              onTaskFocusMode={handleFocusMode}
               onTaskComplete={handleComplete}
               onTaskTrash={handleTrashRequest}
               onTaskClick={openEdit}
+              onTaskHover={handleTaskHover}
               onDrop={handleDrop}
               onEmailDrop={handleEmailDrop}
               onDragOver={(d) => (dragOverDate = d)}

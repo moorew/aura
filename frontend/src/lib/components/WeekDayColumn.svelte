@@ -13,9 +13,11 @@
     isDragOver,
     onTaskDragStart,
     onTaskFocusClick,
+    onTaskFocusMode,
     onTaskComplete,
     onTaskTrash,
     onTaskClick,
+    onTaskHover,
     onDrop,
     onEmailDrop,
     onDragOver,
@@ -27,9 +29,11 @@
     tasks: Task[]; isDragOver: boolean;
     onTaskDragStart: (id: string) => void;
     onTaskFocusClick?: (id: string, title: string) => void;
+    onTaskFocusMode?: (id: string) => void;
     onTaskComplete?: (id: string) => void;
     onTaskTrash?: (id: string, title: string) => void;
     onTaskClick?: (task: Task) => void;
+    onTaskHover?: (id: string | null) => void;
     onDrop: (date: string, insertIndex?: number) => void;
     onEmailDrop?: (emailData: { id: string; subject: string }, date: string) => void;
     onDragOver: (date: string) => void;
@@ -48,6 +52,19 @@
   const fillPct    = $derived(Math.min((estimateMins / CAPACITY_MINS) * 100, 100));
   const overloaded = $derived(estimateMins > CAPACITY_MINS);
   const nearFull   = $derived(!overloaded && estimateMins > CAPACITY_MINS * 0.75);
+
+  const segments = $derived(
+    estimateMins === 0 ? [] :
+    tasks
+      .filter(t => t.status !== 'cancelled' && t.time_estimate_minutes)
+      .sort((a, b) => a.position - b.position)
+      .map(t => ({
+        pct: (t.time_estimate_minutes! / estimateMins) * fillPct,
+        color: t.status === 'done' ? '#22c55e'
+             : t.status === 'in_progress' ? '#f59e0b'
+             : 'var(--sempa-accent)',
+      }))
+  );
 
   function fmtCapacity(mins: number): string {
     const h = Math.floor(mins / 60);
@@ -114,12 +131,11 @@
   {#if estimateMins > 0}
     <div class="mb-2 px-1">
       <div class="flex items-center gap-1.5">
-        <div class="h-1 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-          <div class="h-full rounded-full transition-all duration-300
-                      {overloaded ? 'bg-red-400 dark:bg-red-500'
-                        : nearFull ? 'bg-amber-400 dark:bg-amber-500'
-                        : 'bg-blue-300 dark:bg-blue-600'}"
-               style="width: {fillPct}%"></div>
+        <div class="h-1 flex-1 flex overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+          {#each segments as seg}
+            <div class="h-full transition-all duration-300"
+                 style="width: {seg.pct}%; background: {overloaded ? '#f87171' : seg.color}; opacity: 0.85;"></div>
+          {/each}
         </div>
         <span class="min-w-[28px] text-right text-[9px] tabular-nums
                      {overloaded ? 'text-red-500 dark:text-red-400 font-semibold'
@@ -153,8 +169,10 @@
           <TaskCard {task} accent="bg-gray-400"
                    onDragStart={onTaskDragStart}
                    onFocusClick={onTaskFocusClick}
+                   onFocusMode={onTaskFocusMode}
                    onComplete={onTaskComplete}
                    onTrash={onTaskTrash}
+                   onHover={onTaskHover}
                    onClick={onTaskClick} />
         </div>
       {/each}

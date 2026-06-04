@@ -63,6 +63,13 @@ export const localApi = {
             );
             return rows.map(parseTaskRow);
         },
+        listByRecurrenceOrigin: async (originId: string): Promise<Task[]> => {
+            const rows = await query<Record<string, unknown>[]>(
+                `SELECT * FROM tasks WHERE recurrence_origin_id = ? ORDER BY planned_date ASC`,
+                [originId],
+            );
+            return rows.map(parseTaskRow);
+        },
         listBySource: async (source: string): Promise<Task[]> => {
             const rows = await query<Record<string, unknown>[]>(
                 `SELECT * FROM tasks WHERE source = ? ORDER BY position ASC`,

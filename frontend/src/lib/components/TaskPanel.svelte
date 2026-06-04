@@ -4,6 +4,8 @@
   import { api } from '$lib/api';
   import { weekStart as calcWeekStart } from '$lib/utils';
   import SubTaskList from './SubTaskList.svelte';
+  import { mobile } from '$lib/stores/mobile.svelte';
+  import { onMount } from 'svelte';
 
   const TIME_OPTIONS = [
     { label: 'No estimate',  value: null  },
@@ -52,8 +54,42 @@
   let plannedDate = $state('');
   let estimateMinutes = $state<number | null>(null);
   let actualMinutesInput = $state('');
-  let scheduledStart = $state('');
-  let scheduledEnd = $state('');
+  // Split date+time state (FIX 4 — datetime-local broken on Android)
+  let scheduledStartDate = $state('');
+  let scheduledStartTime = $state('');
+  let scheduledEndDate   = $state('');
+  let scheduledEndTime   = $state('');
+
+  // Mobile bottom sheet state (FIX 5)
+  let sheetMaxHeight  = $state(600);
+  let dragDeltaY      = $state(0);
+  let draggingSheet   = $state(false);
+  let sheetTouchStartY = $state(0);
+
+  onMount(() => {
+    function updateHeight() {
+      sheetMaxHeight = Math.round((window.visualViewport?.height ?? window.innerHeight) * 0.92);
+    }
+    window.visualViewport?.addEventListener('resize', updateHeight);
+    updateHeight();
+    return () => window.visualViewport?.removeEventListener('resize', updateHeight);
+  });
+
+  function sheetTouchStart(e: TouchEvent) {
+    sheetTouchStartY = e.touches[0].clientY;
+    dragDeltaY = 0;
+    draggingSheet = true;
+  }
+  function sheetTouchMove(e: TouchEvent) {
+    if (!draggingSheet) return;
+    dragDeltaY = Math.max(0, e.touches[0].clientY - sheetTouchStartY);
+  }
+  function sheetTouchEnd() {
+    if (!draggingSheet) return;
+    draggingSheet = false;
+    if (dragDeltaY > 80) onClose();
+    dragDeltaY = 0;
+  }
   let selectedObjectiveId = $state<string | null>(null);
   let weekObjectives = $state<Objective[]>([]);
   let recurrenceRule = $state('');
@@ -71,14 +107,17 @@
     api.pomodoros.listByTask(task.id).then(s => { sessions = s; }).catch(() => {});
   });
 
-  function toLocalDatetimeInput(iso: string | null | undefined): string {
-    if (!iso) return '';
-    // Convert ISO to datetime-local format (YYYY-MM-DDTHH:MM)
-    return iso.substring(0, 16);
+  // FIX 4 helpers — split/combine for separate date+time inputs
+  function splitFromISO(iso: string | null | undefined): { date: string; time: string } {
+    if (!iso) return { date: '', time: '' };
+    const local = iso.substring(0, 16); // treat stored value as local-ish
+    const [date, time] = local.split('T');
+    return { date: date ?? '', time: time ?? '' };
   }
-  function fromLocalDatetimeInput(val: string): string | null {
-    if (!val) return null;
-    return new Date(val).toISOString();
+  function combineToISO(date: string, time: string): string | null {
+    if (!date) return null;
+    const t = time || '00:00';
+    return new Date(`${date}T${t}`).toISOString();
   }
 
   const recurrenceOptions = $derived.by(() => {
@@ -102,15 +141,18 @@
       plannedDate = task.planned_date ?? defaultDate;
       estimateMinutes = task.time_estimate_minutes ?? null;
       actualMinutesInput = task.time_actual_minutes ? String(task.time_actual_minutes) : '';
-      scheduledStart = toLocalDatetimeInput(task.scheduled_start);
-      scheduledEnd = toLocalDatetimeInput(task.scheduled_end);
+      const ss = splitFromISO(task.scheduled_start);
+      scheduledStartDate = ss.date; scheduledStartTime = ss.time;
+      const se = splitFromISO(task.scheduled_end);
+      scheduledEndDate = se.date; scheduledEndTime = se.time;
       recurrenceRule = task.recurrence_rule ?? '';
       selectedTags = [...(task.tags ?? [])];
       selectedObjectiveId = task.weekly_objective_id ?? null;
     } else {
       title = ''; description = ''; plannedDate = defaultDate;
       estimateMinutes = null; actualMinutesInput = '';
-      scheduledStart = ''; scheduledEnd = '';
+      scheduledStartDate = ''; scheduledStartTime = '';
+      scheduledEndDate = '';   scheduledEndTime = '';
       recurrenceRule = ''; selectedTags = [];
       selectedObjectiveId = null;
     }
@@ -167,8 +209,8 @@
           time_estimate_minutes: estimateMinutes ?? null,
           time_actual_minutes: actualMin,
           tags: selectedTags,
-          scheduled_start: fromLocalDatetimeInput(scheduledStart),
-          scheduled_end: fromLocalDatetimeInput(scheduledEnd),
+          scheduled_start: combineToISO(scheduledStartDate, scheduledStartTime),
+          scheduled_end:   combineToISO(scheduledEndDate,   scheduledEndTime),
           weekly_objective_id: selectedObjectiveId ?? null,
         });
       } else {
@@ -347,7 +389,7 @@
           {/each}
           <input bind:value={tagSearch}
                  onfocus={() => tagDropdownOpen = true}
-                 onblur={() => setTimeout(() => tagDropdownOpen = false, 150)}
+                 onblur={() => setTimeout(() => tagDropdownOpen = false, 300)}
                  onkeydown={handleTagKeydown}
                  type="text"
                  placeholder={selectedTags.length ? '' : 'Search or add tags…'}
@@ -383,32 +425,46 @@
         {/if}
       </div>
 
-      <!-- Scheduled time (edit mode only) -->
+      <!-- Scheduled time (edit mode only) — split date+time inputs for Android (FIX 4) -->
       {#if isEdit}
         <div>
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
             Scheduled time <span class="font-normal text-gray-400 dark:text-gray-600">— drag to calendar or set here</span>
           </label>
           <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="mb-1 block text-[10px] text-gray-400 dark:text-gray-600" for="sched-start">Start</label>
-              <input id="sched-start" type="datetime-local" bind:value={scheduledStart}
+            <div class="space-y-1.5">
+              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-start-date">Start date</label>
+              <input id="sched-start-date" type="date" bind:value={scheduledStartDate}
                      class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
                             text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
                             dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
                             [color-scheme:light] dark:[color-scheme:dark]" />
+              {#if scheduledStartDate}
+                <input id="sched-start-time" type="time" bind:value={scheduledStartTime}
+                       class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
+                              text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
+                              dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+                              [color-scheme:light] dark:[color-scheme:dark]" />
+              {/if}
             </div>
-            <div>
-              <label class="mb-1 block text-[10px] text-gray-400 dark:text-gray-600" for="sched-end">End</label>
-              <input id="sched-end" type="datetime-local" bind:value={scheduledEnd}
+            <div class="space-y-1.5">
+              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-end-date">End date</label>
+              <input id="sched-end-date" type="date" bind:value={scheduledEndDate}
                      class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
                             text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
                             dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
                             [color-scheme:light] dark:[color-scheme:dark]" />
+              {#if scheduledEndDate}
+                <input id="sched-end-time" type="time" bind:value={scheduledEndTime}
+                       class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
+                              text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
+                              dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+                              [color-scheme:light] dark:[color-scheme:dark]" />
+              {/if}
             </div>
           </div>
-          {#if scheduledStart}
-            <button onclick={() => { scheduledStart = ''; scheduledEnd = ''; }}
+          {#if scheduledStartDate}
+            <button onclick={() => { scheduledStartDate = ''; scheduledStartTime = ''; scheduledEndDate = ''; scheduledEndTime = ''; }}
                     class="mt-1 text-xs text-gray-400 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400">
               × Clear schedule
             </button>
@@ -501,13 +557,14 @@
 
     </div>
 
-    <!-- Footer -->
-    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800">
+    <!-- Footer — keyboard-safe bottom padding on mobile (FIX 5) -->
+    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800"
+         style={mobile.value && !inline ? 'padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));' : ''}>
       {#if isEdit && task}
         <button onclick={async () => {
                   if (!confirm('Delete this task?')) return;
                   await api.tasks.delete(task!.id);
-                  onSave({ ...task!, status: 'cancelled' } as Task); // signal deletion
+                  onSave({ ...task!, status: 'cancelled' } as Task);
                 }}
                 class="text-sm text-red-500 hover:text-red-700 transition-colors dark:text-red-400 dark:hover:text-red-300">
           Delete
@@ -535,9 +592,34 @@
     <div class="flex flex-col">
       {@render panelContent()}
     </div>
+  {:else if mobile.value}
+    <!-- Mobile bottom sheet (FIX 5) — shrinks when soft keyboard opens via visualViewport -->
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
+         onclick={onClose}></div>
+    <div role="dialog" aria-modal="true" aria-label="{isEdit ? 'Edit task' : 'New task'}"
+         class="fixed bottom-0 left-0 right-0 z-50 flex flex-col shadow-2xl"
+         style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
+                max-height: {sheetMaxHeight}px;
+                transform: translateY({dragDeltaY}px);
+                transition: {draggingSheet ? 'none' : 'transform 300ms ease-out'};
+                animation: sempa-sheet-up 300ms ease-out both;"
+         ontouchstart={sheetTouchStart}
+         ontouchmove={sheetTouchMove}
+         ontouchend={sheetTouchEnd}>
+      <!-- Drag handle -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="flex justify-center pt-3 pb-1 cursor-grab shrink-0" onclick={onClose}>
+        <div class="h-1 w-8 rounded-full" style="background: var(--sempa-border);"></div>
+      </div>
+      <div class="flex flex-1 flex-col overflow-hidden">
+        {@render panelContent()}
+      </div>
+    </div>
   {:else}
-    <div role="presentation"
-         class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
+    <!-- Desktop right-side drawer (unchanged) -->
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
          onclick={onClose}></div>
     <aside role="dialog" aria-modal="true"
            aria-label="{isEdit ? 'Edit task' : 'New task'}"
@@ -547,3 +629,10 @@
     </aside>
   {/if}
 {/if}
+
+<style>
+  @keyframes sempa-sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+</style>

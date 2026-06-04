@@ -57,6 +57,7 @@ const httpApi = {
     listByDate:   (date: string)        => req<Task[]>(`/api/v1/tasks?date=${date}`),
     listByWeek:   (weekStart: string)   => req<Task[]>(`/api/v1/tasks?week_start=${weekStart}`),
     listBacklog:  ()                    => req<Task[]>('/api/v1/tasks'),
+    listByRecurrenceOrigin: (originId: string) => req<Task[]>(`/api/v1/tasks?recurrence_origin=${originId}`),
     listBySource: (source: string)      => req<Task[]>(`/api/v1/tasks?source=${source}`),
     listByParent: (parentId: string)    => req<Task[]>(`/api/v1/tasks?parent_id=${parentId}`),
     get:          (id: string)        => req<Task>(`/api/v1/tasks/${id}`),
