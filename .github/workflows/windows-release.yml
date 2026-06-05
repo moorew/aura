@@ -48,10 +48,6 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Refresh Cargo.lock
-        working-directory: frontend/src-tauri
-        run: cargo update -p windows -p reqwest
-
       - name: Build Tauri app — x64
         working-directory: frontend
         run: npx tauri build --target x86_64-pc-windows-msvc
