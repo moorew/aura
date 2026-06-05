@@ -39,9 +39,11 @@
   let introFadingOut     = $state(false);
   let keyboardOpen       = $state(false);
 
-  // Mobile: is this a task-list page where we show the FAB?
+  // Mobile: show the FAB on task-list pages and the home dashboard
   let isTaskListPage = $derived(
-    $page.url.pathname.startsWith('/day/') || $page.url.pathname.startsWith('/week/')
+    $page.url.pathname === '/home' ||
+    $page.url.pathname.startsWith('/day/') ||
+    $page.url.pathname.startsWith('/week/')
   );
 
   const SHORTCUT_HELP = [

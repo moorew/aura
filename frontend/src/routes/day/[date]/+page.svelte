@@ -17,6 +17,7 @@
   import { ChevronLeft, ChevronRight, Plus, Clock, Mail } from 'lucide-svelte';
   import JiraPanel from '$lib/components/JiraPanel.svelte';
   import MobileTaskCard from '$lib/components/MobileTaskCard.svelte';
+  import MobileTaskView from '$lib/components/MobileTaskView.svelte';
   import { syncWidgetData } from '$lib/widget-bridge';
 
   // "date" is used to anchor the week and mark today
@@ -42,6 +43,17 @@
   let panelTask   = $state<Task | null>(null);
   let panelStatus = $state<TaskStatus>('planned');
   let panelDate   = $state(date);
+
+  // Mobile task detail view (read-first, tap Edit to open full panel)
+  let mobileViewOpen = $state(false);
+  let mobileViewTaskId = $state<string | null>(null);
+  // Derived so complete/edit actions update the view in real-time
+  const mobileViewTask = $derived(mobileViewTaskId ? (tasks.find(t => t.id === mobileViewTaskId) ?? null) : null);
+
+  function openMobileView(task: Task) {
+    mobileViewTaskId = task.id;
+    mobileViewOpen = true;
+  }
 
   // Week days: Mon–Sun
   const weekDays = $derived(
@@ -437,7 +449,7 @@
             {task}
             onComplete={handleComplete}
             onTrash={handleTrashRequest}
-            onClick={openEdit}
+            onClick={openMobileView}
             onFocusClick={handleFocus}
           />
         {/each}
@@ -455,7 +467,7 @@
                 {task}
                 onComplete={handleComplete}
                 onTrash={handleTrashRequest}
-                onClick={openEdit}
+                onClick={openMobileView}
               />
             {/each}
           </div>
@@ -464,7 +476,18 @@
     {/if}
   </main>
 
-  <!-- TaskPanel handles its own mobile bottom sheet (FIX 5) -->
+  <!-- Mobile task detail view: read-first, Edit button opens full TaskPanel -->
+  <MobileTaskView
+    open={mobileViewOpen}
+    task={mobileViewTask}
+    onClose={() => mobileViewOpen = false}
+    onEdit={() => { const t = mobileViewTask; mobileViewOpen = false; if (t) openEdit(t); }}
+    onComplete={handleComplete}
+    onDelete={handleTrashRequest}
+    onFocusStart={handleFocus}
+  />
+
+  <!-- TaskPanel handles its own mobile bottom sheet -->
   <TaskPanel open={panelOpen} task={panelTask} defaultStatus={panelStatus} defaultDate={panelDate}
              onSave={handlePanelSave} onClose={() => panelOpen = false} />
 
