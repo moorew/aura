@@ -48,18 +48,8 @@
     }
   },
   "plugins": {
-    "notification": {
-      "all": true
-    },
     "sql": {
-      "preload": {
-        "db": "sqlite:sempa.db"
-      }
-    },
-    "autostart": {
-      "macOSExtraArgs": [],
-      "args": ["--minimized"]
-    },
-    "store": {}
+      "preload": ["sqlite:sempa.db"]
+    }
   }
 }
