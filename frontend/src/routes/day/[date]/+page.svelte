@@ -109,7 +109,16 @@
   });
 
   async function rolloverAll() {
-    await Promise.all(rolloverTasks.map(t =>
+    const toRoll = rolloverTasks.filter(t => {
+      // Skip recurring tasks where today already has an instance from the same series.
+      if (!t.recurrence_origin_id) return true;
+      return !tasks.some(
+        existing => existing.recurrence_origin_id === t.recurrence_origin_id
+                 && existing.planned_date === todayDate
+                 && existing.id !== t.id
+      );
+    });
+    await Promise.all(toRoll.map(t =>
       api.tasks.update(t.id, { planned_date: todayDate, week_start: weekStart(todayDate), status: 'planned' })
     ));
     rolloverTasks = []; await loadTasks();

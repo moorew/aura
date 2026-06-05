@@ -2,8 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,168 +10,56 @@ import (
 	"github.com/google/uuid"
 )
 
-// GenerateForDate generates recurring task instances for the given date (YYYY-MM-DD).
-//
-// Rollover rule: if an uncompleted, non-customised instance exists on or before
-// `date`, move it forward to `date`.  If none exists and nothing already covers
-// this date, create a fresh instance.
+// GenerateForDate ensures exactly one planned instance of each due recurring
+// template exists on `date`.  It never moves instances — if a template is due
+// on a day, one instance is created there and stays there regardless of whether
+// earlier instances were completed.
 func (s *TaskStore) GenerateForDate(ctx context.Context, date string) error {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
 		return fmt.Errorf("invalid date %q: %w", date, err)
 	}
-
 	templates, err := s.ListRecurringTemplates(ctx)
 	if err != nil {
 		return err
 	}
-
 	for _, tmpl := range templates {
 		if tmpl.RecurrenceRule == nil || !isDueOn(*tmpl.RecurrenceRule, t) {
 			continue
 		}
-
-		// Skip if this date already has a live instance.
 		if s.recurringInstanceExistsForDate(ctx, tmpl.ID, date) {
 			continue
 		}
-
-		// Look for an uncompleted instance on or before `date` (never future).
-		pending, err := s.findPendingRecurringInstanceBefore(ctx, tmpl.ID, date)
-		if err != nil {
+		if _, err := s.Create(ctx, CreateTaskParams{
+			ID:                 uuid.New().String(),
+			Title:              tmpl.Title,
+			Description:        tmpl.Description,
+			PlannedDate:        &date,
+			Status:             "planned",
+			Position:           float64(t.UnixMilli()),
+			Tags:               tmpl.Tags,
+			RecurrenceOriginID: &tmpl.ID,
+		}); err != nil {
 			return err
-		}
-
-		if pending != nil {
-			pending.PlannedDate = &date
-			if _, err := s.Update(ctx, *pending); err != nil {
-				return err
-			}
-		} else {
-			if _, err := s.Create(ctx, CreateTaskParams{
-				ID:                 uuid.New().String(),
-				Title:              tmpl.Title,
-				Description:        tmpl.Description,
-				PlannedDate:        &date,
-				Status:             "planned",
-				Position:           float64(t.UnixMilli()),
-				Tags:               tmpl.Tags,
-				RecurrenceOriginID: &tmpl.ID,
-			}); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
-// GenerateForWeek ensures each day of the requested week has the right recurring
-// instances:
-//
-//   - Past weeks: no-op (history is settled).
-//   - Current week: delete stale uncompleted future instances, roll today's task
-//     forward via GenerateForDate, then seed fresh planned instances for every
-//     upcoming day in the week.
-//   - Future weeks: seed one planned instance per due day, no rollover.
+// GenerateForWeek ensures one instance per due day exists for every recurring
+// template across all 7 days of the week.
 func (s *TaskStore) GenerateForWeek(ctx context.Context, weekStart string) error {
-	today := time.Now().Format("2006-01-02")
 	ws, err := time.Parse("2006-01-02", weekStart)
 	if err != nil {
 		return fmt.Errorf("invalid weekStart %q: %w", weekStart, err)
 	}
-	weekEnd := ws.AddDate(0, 0, 6).Format("2006-01-02")
-
-	switch {
-	case today > weekEnd:
-		// Past week — nothing to do; instances are already settled.
-		return nil
-
-	case today < weekStart:
-		// Future week — seed planned instances without rollover.
-		return s.seedWeekInstances(ctx, ws, "")
-
-	default:
-		// Current week.
-		// 1. Wipe uncompleted non-customised instances for the rest of the week
-		//    so they can be re-seeded fresh (prevents stale accumulation).
-		s.db.ExecContext(ctx, `
-			DELETE FROM tasks
-			WHERE recurrence_origin_id IS NOT NULL
-			  AND is_customized = 0
-			  AND status IN ('backlog','planned')
-			  AND planned_date > ?
-			  AND planned_date <= ?`,
-			today, weekEnd)
-
-		// 2. Roll today's task forward (or create if none exists).
-		if err := s.GenerateForDate(ctx, today); err != nil {
-			return err
-		}
-
-		// 3. Seed one fresh instance per due day for the rest of the week.
-		return s.seedWeekInstances(ctx, ws, today)
-	}
-}
-
-// seedWeekInstances creates planned instances for each day in the week (Mon–Sun)
-// that is strictly after `afterDate` (use "" to include all days).
-// Skips days that already have a live instance for the template.
-func (s *TaskStore) seedWeekInstances(ctx context.Context, ws time.Time, afterDate string) error {
-	templates, err := s.ListRecurringTemplates(ctx)
-	if err != nil {
-		return err
-	}
 	for i := 0; i < 7; i++ {
-		d := ws.AddDate(0, 0, i)
-		date := d.Format("2006-01-02")
-		if afterDate != "" && date <= afterDate {
-			continue
-		}
-		for _, tmpl := range templates {
-			if tmpl.RecurrenceRule == nil || !isDueOn(*tmpl.RecurrenceRule, d) {
-				continue
-			}
-			if s.recurringInstanceExistsForDate(ctx, tmpl.ID, date) {
-				continue
-			}
-			planDate := date
-			if _, err := s.Create(ctx, CreateTaskParams{
-				ID:                 uuid.New().String(),
-				Title:              tmpl.Title,
-				Description:        tmpl.Description,
-				PlannedDate:        &planDate,
-				Status:             "planned",
-				Position:           float64(d.UnixMilli()),
-				Tags:               tmpl.Tags,
-				RecurrenceOriginID: &tmpl.ID,
-			}); err != nil {
-				return err
-			}
+		date := ws.AddDate(0, 0, i).Format("2006-01-02")
+		if err := s.GenerateForDate(ctx, date); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-// findPendingRecurringInstanceBefore finds the most recent uncompleted,
-// non-customised instance of a template with planned_date <= maxDate.
-// This prevents future pre-seeded instances from interfering with rollover.
-func (s *TaskStore) findPendingRecurringInstanceBefore(ctx context.Context, originID, maxDate string) (*Task, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT `+taskCols+` FROM tasks
-		 WHERE recurrence_origin_id = ?
-		   AND status IN ('backlog','planned')
-		   AND is_customized = 0
-		   AND planned_date <= ?
-		 ORDER BY planned_date DESC
-		 LIMIT 1`, originID, maxDate)
-	t, err := scanTask(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
 }
 
 // recurringInstanceExistsForDate returns true if a non-cancelled instance of

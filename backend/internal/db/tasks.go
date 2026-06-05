@@ -163,25 +163,6 @@ func (s *TaskStore) ListRecurringTemplates(ctx context.Context) ([]Task, error) 
 	return collectTasks(rows)
 }
 
-// FindPendingRecurringInstance finds the most recent non-done, non-cancelled, non-in_progress
-// instance of a recurring template that hasn't been customised (safe to carry forward).
-func (s *TaskStore) FindPendingRecurringInstance(ctx context.Context, originID string) (*Task, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT `+taskCols+` FROM tasks
-		 WHERE recurrence_origin_id = ?
-		   AND status IN ('backlog','planned')
-		   AND is_customized = 0
-		 ORDER BY planned_date DESC
-		 LIMIT 1`, originID)
-	t, err := scanTask(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-}
 
 func (s *TaskStore) ListByRecurrenceOrigin(ctx context.Context, originID string) ([]Task, error) {
 	rows, err := s.db.QueryContext(ctx,
