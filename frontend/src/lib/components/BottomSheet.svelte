@@ -41,13 +41,13 @@
 {#if open}
   <!-- Overlay -->
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="fixed inset-0 z-50 bg-black/40 transition-opacity"
+  <div class="fixed inset-0 z-[89] bg-black/40 transition-opacity"
        style="animation: sempa-fade-in 200ms ease both;"
        onclick={onClose}></div>
 
   <!-- Sheet -->
   <div bind:this={sheetEl}
-       class="fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden"
+       class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col overflow-hidden"
        style="max-height: 92vh; border-radius: 20px 20px 0 0;
               background: var(--sempa-bg-panel);
               padding-bottom: env(safe-area-inset-bottom);

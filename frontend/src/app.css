@@ -108,6 +108,25 @@
   --sempa-btn-fg:    #f7f3eb;
 }
 
+/* ── Safe-area insets + z-index scale (theme-independent) ────────────────── */
+:root {
+  /* Device notch / status-bar insets, exposed for use in calc()/max(). */
+  --sat: env(safe-area-inset-top,    0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+
+  /* App-wide stacking order. The top nav (40) always sits ABOVE inline
+     dropdowns (30) so it can never be covered; bottom sheets (90) and their
+     scrim (89) intentionally sit above everything as a full-screen interaction. */
+  --z-raised:   10;   /* card hover states            */
+  --z-sticky:   20;   /* sticky sub-headers           */
+  --z-dropdown: 30;   /* inline desktop dropdowns      */
+  --z-top-nav:  40;   /* week/day sticky top bar       */
+  --z-panel:    50;   /* TaskPanel slide-in            */
+  --z-scrim:    89;   /* backdrop behind bottom sheets */
+  --z-sheet:    90;   /* mobile bottom sheets          */
+  --z-toast:   100;   /* toasts                        */
+}
+
 /* ── Sempa animation library ─────────────────────────────────────────────── */
 @keyframes sempa-fade-in    { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 @keyframes sempa-slide-right{ from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:none} }

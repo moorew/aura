@@ -64,9 +64,10 @@
 
 <svelte:head><title>Backlog — Sempa</title></svelte:head>
 
-<header class="sticky top-0 z-10 backdrop-blur-sm"
+<header class="sticky top-0 z-[40] backdrop-blur-sm"
         style="background: color-mix(in srgb, var(--sempa-bg-main) 95%, transparent);
-               border-bottom: 1px solid var(--sempa-border);">
+               border-bottom: 1px solid var(--sempa-border);
+               padding-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));">
   <div class="flex items-center justify-between px-6 py-3">
     <div>
       <p class="text-sm font-semibold" style="color: var(--sempa-text);">Backlog</p>

@@ -4,6 +4,7 @@
   import { api } from '$lib/api';
   import { weekStart as calcWeekStart } from '$lib/utils';
   import SubTaskList from './SubTaskList.svelte';
+  import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { onMount } from 'svelte';
 
@@ -242,8 +243,10 @@
 </script>
 
 {#snippet panelContent()}
-    <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+    <!-- Header — clear the status bar on the desktop right-side drawer (fixed top-0).
+         The mobile sheet enters from the bottom, so it needs no top inset. -->
+    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800"
+         style={!mobile.value && !inline ? 'padding-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));' : ''}>
       <div>
         <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
           {isEdit ? 'Edit task' : 'New task'}
@@ -342,16 +345,9 @@
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-estimate">
             Time estimate
           </label>
-          <select id="task-estimate" bind:value={estimateMinutes}
-                  style="accent-color: var(--sempa-accent);"
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                         text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                         [color-scheme:light] dark:[color-scheme:dark]">
-            {#each TIME_OPTIONS as opt}
-              <option value={opt.value}>{opt.label}</option>
-            {/each}
-          </select>
+          <SempaSelect id="task-estimate" bind:value={estimateMinutes}
+                       placeholder="No estimate"
+                       options={TIME_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
         </div>
       </div>
 
@@ -361,17 +357,10 @@
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-objective">
             Weekly objective
           </label>
-          <select id="task-objective" bind:value={selectedObjectiveId}
-                  style="accent-color: var(--sempa-accent);"
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                         text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                         [color-scheme:light] dark:[color-scheme:dark]">
-            <option value={null}>No objective</option>
-            {#each weekObjectives as obj}
-              <option value={obj.id}>🎯 {obj.title}</option>
-            {/each}
-          </select>
+          <SempaSelect id="task-objective" bind:value={selectedObjectiveId}
+                       placeholder="No objective"
+                       options={[{ value: null, label: 'No objective' },
+                                 ...weekObjectives.map(o => ({ value: o.id, label: o.title, icon: '🎯' }))]} />
         </div>
       {/if}
 
@@ -541,16 +530,9 @@
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-recurrence">
             Repeat
           </label>
-          <select id="task-recurrence" bind:value={recurrenceRule}
-                  style="accent-color: var(--sempa-accent);"
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                         text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200
-                         [color-scheme:light] dark:[color-scheme:dark]">
-            {#each recurrenceOptions as opt}
-              <option value={opt.value}>{opt.label}</option>
-            {/each}
-          </select>
+          <SempaSelect id="task-recurrence" bind:value={recurrenceRule}
+                       placeholder="Doesn't repeat"
+                       options={recurrenceOptions} />
           {#if recurrenceRule}
             <p class="mt-1.5 text-xs text-violet-600 dark:text-violet-400">↺ Creates a recurring template</p>
           {/if}
@@ -601,10 +583,10 @@
   {:else if mobile.value}
     <!-- Mobile bottom sheet (FIX 5) — shrinks when soft keyboard opens via visualViewport -->
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
+    <div class="fixed inset-0 z-[89] bg-black/30 backdrop-blur-sm animate-fade-in"
          onclick={onClose}></div>
     <div role="dialog" aria-modal="true" aria-label="{isEdit ? 'Edit task' : 'New task'}"
-         class="fixed bottom-0 left-0 right-0 z-50 flex flex-col shadow-2xl"
+         class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col shadow-2xl"
          style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
                 max-height: {sheetMaxHeight}px;
                 transform: translateY({dragDeltaY}px);
@@ -623,9 +605,9 @@
       </div>
     </div>
   {:else}
-    <!-- Desktop right-side drawer (unchanged) -->
+    <!-- Desktop right-side drawer — scrim sits above the top nav (40), panel above scrim -->
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
+    <div class="fixed inset-0 z-[49] bg-black/30 backdrop-blur-sm animate-fade-in"
          onclick={onClose}></div>
     <aside role="dialog" aria-modal="true"
            aria-label="{isEdit ? 'Edit task' : 'New task'}"

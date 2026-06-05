@@ -66,12 +66,12 @@
 {#if open && task}
   <!-- Overlay -->
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+  <div class="fixed inset-0 z-[89] bg-black/30 backdrop-blur-sm"
        onclick={onClose}></div>
 
   <!-- Sheet -->
   <div role="dialog" aria-modal="true" aria-label="Task details" tabindex="-1"
-       class="fixed bottom-0 left-0 right-0 z-50 flex flex-col shadow-2xl"
+       class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col shadow-2xl"
        style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
               max-height: 88vh;
               transform: translateY({dragDeltaY}px);

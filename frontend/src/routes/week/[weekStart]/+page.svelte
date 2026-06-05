@@ -167,10 +167,10 @@
 <svelte:head><title>Week of {formatWeekRange(weekStartDate)} — Sempa</title></svelte:head>
 
 <!-- Header -->
-<header class="sticky top-0 z-10 backdrop-blur-sm"
+<header class="sticky top-0 z-[40] backdrop-blur-sm"
         style="background: color-mix(in srgb, var(--sempa-bg-main) 95%, transparent);
                border-bottom: 1px solid var(--sempa-border);
-               padding-top: env(safe-area-inset-top, 0px);">
+               padding-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));">
   <div class="flex items-center justify-between px-6 py-3">
     <div class="flex items-center gap-2">
       <button onclick={() => navigate(-1)} aria-label="Previous week"

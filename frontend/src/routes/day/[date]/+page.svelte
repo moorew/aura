@@ -352,8 +352,8 @@
 {#if mobile.value}
 
   <!-- Mobile header -->
-  <header class="sticky top-0 z-10 px-5 pt-4 pb-3"
-          style="background: var(--sempa-bg-main); padding-top: 16px;">
+  <header class="sticky top-0 z-[40] px-5 pt-4 pb-3"
+          style="background: var(--sempa-bg-main); padding-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));">
     <div class="flex items-center justify-between mb-1">
       <button onclick={() => navigateDay(-1)} aria-label="Previous day"
               class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors
@@ -506,9 +506,10 @@
 {:else}
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
-<header class="sticky top-0 z-10 backdrop-blur-sm"
+<header class="sticky top-0 z-[40] backdrop-blur-sm"
         style="background: color-mix(in srgb, var(--sempa-bg-main) 95%, transparent);
-               border-bottom: 1px solid var(--sempa-border);">
+               border-bottom: 1px solid var(--sempa-border);
+               padding-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));">
   <div class="flex items-center justify-between px-6 py-3">
     <!-- Week nav -->
     <div class="flex items-center gap-2">
