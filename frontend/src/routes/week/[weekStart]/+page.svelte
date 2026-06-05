@@ -523,7 +523,8 @@
                   {t.title}
                 </span>
                 <button onclick={() => scheduleToday(t)}
-                        class="opacity-0 group-hover:opacity-100 rounded-lg px-2 py-1 text-[11px] font-medium transition-all"
+                        class="rounded-lg px-2 py-1 text-[11px] font-medium transition-all
+                               {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
                         style="background: var(--sempa-accent-bg); color: var(--sempa-accent);"
                         title="Schedule to today">
                   Plan today

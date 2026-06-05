@@ -2,6 +2,7 @@
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
   import { appendPosition } from '$lib/utils';
+  import { mobile } from '$lib/stores/mobile.svelte';
 
   let { parentId, parentDate }: { parentId: string; parentDate?: string } = $props();
 
@@ -102,7 +103,8 @@
           </span>
           <button onclick={() => remove(sub.id)}
                   aria-label="Delete sub-task"
-                  class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all dark:text-gray-600 dark:hover:text-red-400">
+                  class="text-gray-300 hover:text-red-400 transition-all dark:text-gray-600 dark:hover:text-red-400
+                         {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
