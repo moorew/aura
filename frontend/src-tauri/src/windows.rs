@@ -48,10 +48,8 @@ pub fn create_widget(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
 #[cfg(target_os = "windows")]
 fn apply_widget_window_flags(window: &tauri::WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::*;
-    use windows::Win32::Foundation::HWND;
 
     let hwnd = window.hwnd().unwrap();
-    let hwnd = HWND(hwnd.0 as isize);
 
     unsafe {
         let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
