@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static SYNCING: AtomicBool = AtomicBool::new(false);
