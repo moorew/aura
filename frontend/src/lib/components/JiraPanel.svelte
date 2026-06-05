@@ -1,7 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
-  import { mobile } from '$lib/stores/mobile.svelte';
 
   let {
     onTaskDragStart,
@@ -407,8 +406,7 @@
 
               <!-- Open card -->
               <button onclick={() => openCard(task)}
-                      class="mt-0.5 shrink-0 transition-opacity
-                             {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
+                      class="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       style="color: var(--sempa-text-dim);" title="View details">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" d="M9 5l7 7-7 7"/>

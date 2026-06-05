@@ -37,13 +37,10 @@
   let moreSheetOpen      = $state(false);
   let showIntroAnimation = $state(false);
   let introFadingOut     = $state(false);
-  let keyboardOpen       = $state(false);
 
-  // Mobile: show the FAB on task-list pages and the home dashboard
+  // Mobile: is this a task-list page where we show the FAB?
   let isTaskListPage = $derived(
-    $page.url.pathname === '/home' ||
-    $page.url.pathname.startsWith('/day/') ||
-    $page.url.pathname.startsWith('/week/')
+    $page.url.pathname.startsWith('/day/') || $page.url.pathname.startsWith('/week/')
   );
 
   const SHORTCUT_HELP = [
@@ -77,15 +74,6 @@
       case '?': e.preventDefault(); shortcutsOpen = true; break;
     }
   }
-
-  onMount(() => {
-    function updateKeyboard() {
-      keyboardOpen = !!window.visualViewport &&
-        window.visualViewport.height < window.innerHeight * 0.75;
-    }
-    window.visualViewport?.addEventListener('resize', updateKeyboard);
-    return () => window.visualViewport?.removeEventListener('resize', updateKeyboard);
-  });
 
   onMount(async () => {
     theme.init();
@@ -144,7 +132,7 @@
 {#if isLoginPage || isSetupPage}
   {@render children()}
 {:else}
-<div class="flex overflow-hidden" style="background: var(--sempa-bg-main); height: calc(100vh - env(safe-area-inset-top, 0px));">
+<div class="flex h-screen overflow-hidden" style="background: var(--sempa-bg-main);">
 
   <!-- ── Sidebar (hidden on mobile) ───────────────────────────────────── -->
   {#if !mobile.value}
@@ -278,10 +266,10 @@
     {/each}
   </nav>
 
-  <!-- FAB for task creation on task-list pages; hidden when keyboard is open -->
-  {#if isTaskListPage && !keyboardOpen}
+  <!-- FAB for task creation on task-list pages -->
+  {#if isTaskListPage}
     <button
-      onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=${Date.now()}`); }}
+      onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=1`); }}
       aria-label="New task"
       style="position: fixed; bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 12px); right: 20px; width: 52px; height: 52px;
              border-radius: 16px; background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);

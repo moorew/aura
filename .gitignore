@@ -39,7 +39,3 @@ ts-sempa/
 .stfolder/
 .stignore
 *.sync-conflict-*
-
-# Local dev / scratch files
-screen.html
-sempa.ico
