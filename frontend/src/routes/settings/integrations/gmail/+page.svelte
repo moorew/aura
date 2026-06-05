@@ -80,7 +80,7 @@
 
 <div class="mx-auto max-w-xl px-6 py-8">
   <!-- Back -->
-  <a href="/settings/accounts" class="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
+  <a href="/settings/integrations" class="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
       <path stroke-linecap="round" d="m15 18-6-6 6-6"/>
     </svg>
