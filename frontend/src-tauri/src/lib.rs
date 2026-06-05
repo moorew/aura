@@ -5,10 +5,36 @@ mod tray;
 mod windows;
 
 use tauri::Manager;
+use std::io::Write;
+
+/// Write a line to a startup log file in a location that's always writable,
+/// so a launch failure is never silent (Windows release builds have no console).
+/// Writes to the OS temp dir, which exists and is writable on every platform.
+fn startup_log(msg: &str) {
+    let path = std::env::temp_dir().join("sempa-startup.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let _ = writeln!(f, "[sempa] {msg}");
+    }
+    // Also emit to stderr for dev/console builds.
+    eprintln!("[sempa] {msg}");
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    // Install a panic hook before anything else so any startup panic (e.g. a
+    // bad plugin config, a missing WebView2 runtime) is recorded to disk rather
+    // than vanishing silently on a windowed Windows build.
+    std::panic::set_hook(Box::new(|info| {
+        startup_log(&format!("PANIC: {info}"));
+    }));
+
+    startup_log("starting up");
+
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
@@ -22,8 +48,13 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
-            // Initialize the system tray
-            tray::create_tray(app.handle())?;
+            startup_log("setup: begin");
+
+            // Initialize the system tray. A tray failure must not take the
+            // whole app down — log it and continue so the window still opens.
+            if let Err(e) = tray::create_tray(app.handle()) {
+                startup_log(&format!("setup: tray creation failed (non-fatal): {e}"));
+            }
 
             // Run database migrations on startup
             let app_handle = app.handle().clone();
@@ -47,6 +78,7 @@ pub fn run() {
                 }
             }
 
+            startup_log("setup: complete");
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -72,6 +104,10 @@ pub fn run() {
             commands::get_sticky_positions,
             commands::update_taskbar_badge,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(e) = result {
+        startup_log(&format!("FATAL: tauri runtime exited with error: {e}"));
+        std::process::exit(1);
+    }
 }

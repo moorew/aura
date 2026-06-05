@@ -6,7 +6,10 @@ description = "sempa — calm, local-first task management"
 
 [lib]
 name = "sempa_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop-only Tauri app (Android ships via Capacitor, not Tauri mobile), so the
+# iOS-only `staticlib` crate-type is omitted — it produced a ~600 MB archive on
+# every build for no benefit. `cdylib` keeps the Tauri mobile entry point valid.
+crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
