@@ -37,6 +37,7 @@
   let moreSheetOpen      = $state(false);
   let showIntroAnimation = $state(false);
   let introFadingOut     = $state(false);
+  let keyboardOpen       = $state(false);
 
   // Mobile: is this a task-list page where we show the FAB?
   let isTaskListPage = $derived(
@@ -74,6 +75,15 @@
       case '?': e.preventDefault(); shortcutsOpen = true; break;
     }
   }
+
+  onMount(() => {
+    function updateKeyboard() {
+      keyboardOpen = !!window.visualViewport &&
+        window.visualViewport.height < window.innerHeight * 0.75;
+    }
+    window.visualViewport?.addEventListener('resize', updateKeyboard);
+    return () => window.visualViewport?.removeEventListener('resize', updateKeyboard);
+  });
 
   onMount(async () => {
     theme.init();
@@ -132,7 +142,7 @@
 {#if isLoginPage || isSetupPage}
   {@render children()}
 {:else}
-<div class="flex h-screen overflow-hidden" style="background: var(--sempa-bg-main);">
+<div class="flex overflow-hidden" style="background: var(--sempa-bg-main); height: calc(100vh - env(safe-area-inset-top, 0px));">
 
   <!-- ── Sidebar (hidden on mobile) ───────────────────────────────────── -->
   {#if !mobile.value}
@@ -266,8 +276,8 @@
     {/each}
   </nav>
 
-  <!-- FAB for task creation on task-list pages -->
-  {#if isTaskListPage}
+  <!-- FAB for task creation on task-list pages; hidden when keyboard is open -->
+  {#if isTaskListPage && !keyboardOpen}
     <button
       onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=1`); }}
       aria-label="New task"

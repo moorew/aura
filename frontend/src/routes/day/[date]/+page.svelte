@@ -333,8 +333,7 @@
 
   <!-- Mobile header -->
   <header class="sticky top-0 z-10 px-5 pt-4 pb-3"
-          style="background: var(--sempa-bg-main);
-                 padding-top: calc(env(safe-area-inset-top, 0px) + 16px);">
+          style="background: var(--sempa-bg-main); padding-top: 16px;">
     <div class="flex items-center justify-between mb-1">
       <button onclick={() => navigateDay(-1)} aria-label="Previous day"
               class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors

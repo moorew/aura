@@ -343,9 +343,11 @@
             Time estimate
           </label>
           <select id="task-estimate" bind:value={estimateMinutes}
+                  style="accent-color: var(--sempa-accent);"
                   class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
                          text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
+                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+                         [color-scheme:light] dark:[color-scheme:dark]">
             {#each TIME_OPTIONS as opt}
               <option value={opt.value}>{opt.label}</option>
             {/each}
@@ -360,9 +362,11 @@
             Weekly objective
           </label>
           <select id="task-objective" bind:value={selectedObjectiveId}
+                  style="accent-color: var(--sempa-accent);"
                   class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
                          text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
+                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
+                         [color-scheme:light] dark:[color-scheme:dark]">
             <option value={null}>No objective</option>
             {#each weekObjectives as obj}
               <option value={obj.id}>🎯 {obj.title}</option>
@@ -538,9 +542,11 @@
             Repeat
           </label>
           <select id="task-recurrence" bind:value={recurrenceRule}
+                  style="accent-color: var(--sempa-accent);"
                   class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
                          text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200
+                         [color-scheme:light] dark:[color-scheme:dark]">
             {#each recurrenceOptions as opt}
               <option value={opt.value}>{opt.label}</option>
             {/each}

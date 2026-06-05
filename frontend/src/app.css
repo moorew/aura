@@ -124,11 +124,12 @@
   .animate-scale-in,.animate-slide-down { animation:none }
 }
 
-/* ── PWA standalone: safe area padding ─────────────────────────────────── */
+/* ── Safe area: push body below device notch / status bar ───────────────── */
+/* env() returns 0 in regular browser tabs, so this is a no-op there.      */
+/* Applies in Capacitor WebView and standalone PWA where the status bar     */
+/* overlaps web content.                                                    */
 @supports (padding: env(safe-area-inset-top)) {
-  @media (display-mode: standalone) {
-    body { padding-top: env(safe-area-inset-top); }
-  }
+  body { padding-top: env(safe-area-inset-top); }
 }
 
 /* ── Touch: disable text selection on interactive elements ─────────────── */
