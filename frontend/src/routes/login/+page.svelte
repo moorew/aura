@@ -2,13 +2,10 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { api } from '$lib/api';
+  import { api, setServerUrl, getServerUrl } from '$lib/api';
   import { isTauri } from '$lib/tauri/bridge';
 
-  // In dev: set VITE_API_URL=http://localhost:9001
-  const base = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
-
-  let isNative = false;
+  let isNative = $state(false);
   let Capacitor: any = null;
   let Browser: any = null;
   let App: any = null;
@@ -16,12 +13,21 @@
   let authInfo = $state<{ google_enabled: boolean; password_enabled: boolean } | null>(null);
   let username = $state('');
   let password = $state('');
+  let serverUrl = $state('');
   let loading  = $state(false);
   let error    = $state('');
   let showPasswordForm = $state(false);
+  let showServerUrl = $state(false);
   let appUrlListener: { remove: () => void } | null = null;
 
   const redirectTarget = $derived($page.url.searchParams.get('redirect') ?? '/');
+
+  /** Derive the base URL for OAuth redirects (matches api.ts logic). */
+  function getBase(): string {
+    const envUrl = import.meta.env.VITE_API_URL as string | undefined;
+    if (envUrl) return envUrl;
+    return getServerUrl();
+  }
 
   async function handleAppUrl(event: { url: string }) {
     try {
@@ -60,6 +66,21 @@
       }
     } catch { /* Capacitor not available */ }
 
+    // On native platforms, load any previously saved server URL
+    if (isNative) {
+      serverUrl = getServerUrl();
+      // If no server URL is configured yet, show the URL field and wait
+      if (!serverUrl) {
+        showServerUrl = true;
+        authInfo = { google_enabled: false, password_enabled: true };
+        return;
+      }
+    }
+
+    await continueAuth();
+  });
+
+  async function continueAuth() {
     const errParam = $page.url.searchParams.get('error');
     if (errParam === 'not_allowed') error = 'Your Google account is not authorised for this Sempa instance.';
     else if (errParam) error = 'Google sign-in was cancelled or failed. Please try again.';
@@ -90,11 +111,12 @@
     } catch {
       authInfo = { google_enabled: false, password_enabled: true };
     }
-  });
+  }
 
   onDestroy(() => { appUrlListener?.remove(); });
 
   function googleSignIn() {
+    const base = getBase();
     const params = new URLSearchParams({ redirect: redirectTarget });
     if (isNative) {
       // Open in an in-app Chrome Custom Tab; the OAuth callback will redirect to
@@ -113,6 +135,33 @@
       goto(redirectTarget, { replaceState: true });
     } catch {
       error = 'Invalid username or password.';
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function connectServer() {
+    if (!serverUrl.trim()) return;
+    loading = true; error = '';
+    try {
+      // Normalize and save URL
+      let url = serverUrl.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      setServerUrl(url);
+      serverUrl = url;
+
+      // Test connectivity
+      const me = await api.auth.me();
+      if (me.authenticated) {
+        goto(redirectTarget, { replaceState: true });
+        return;
+      }
+      // Server reachable but not authenticated — proceed to auth
+      await continueAuth();
+    } catch {
+      error = 'Could not connect to server. Check the URL and try again.';
     } finally {
       loading = false;
     }
@@ -149,7 +198,29 @@
         </div>
       {/if}
 
-      {#if authInfo === null}
+      {#if showServerUrl && !getServerUrl()}
+        <!-- Server URL configuration (native/mobile) -->
+        <form onsubmit={(e) => { e.preventDefault(); connectServer(); }} class="space-y-4">
+          <div>
+            <label for="server-url" class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);">Server URL</label>
+            <input id="server-url" type="url" bind:value={serverUrl}
+                   placeholder="https://sempa.example.com"
+                   autofocus
+                   class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                   style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);"
+                   onfocus={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-accent)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2.5px rgba(179,89,46,0.12)'; }}
+                   onblur={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-border)'; (e.currentTarget as HTMLElement).style.boxShadow = ''; }} />
+            <p class="mt-1.5 text-xs" style="color: var(--sempa-text-dim);">
+              Enter your self-hosted Sempa server address
+            </p>
+          </div>
+          <button type="submit" disabled={loading || !serverUrl.trim()}
+                  class="w-full rounded-lg py-2.5 text-sm font-medium text-white disabled:opacity-40 transition-colors"
+                  style="background: var(--sempa-accent);">
+            {loading ? 'Connecting…' : 'Connect'}
+          </button>
+        </form>
+      {:else if authInfo === null}
         <!-- Loading -->
         <div class="flex justify-center py-6">
           <div class="h-5 w-5 animate-spin rounded-full border-2 border-gray-200"
@@ -239,6 +310,14 @@
         </form>
       {/if}
     </div>
+
+    {#if isNative && getServerUrl()}
+      <button onclick={() => { showServerUrl = true; localStorage.removeItem('sempa_server_url'); serverUrl = ''; authInfo = null; error = ''; }}
+              class="mt-4 w-full text-center text-xs transition-colors"
+              style="color: var(--sempa-text-dim);">
+        Change server ({getServerUrl().replace(/^https?:\/\//, '')})
+      </button>
+    {/if}
 
     <p class="mt-6 text-center text-xs" style="color: var(--sempa-text-dim);">
       Self-hosted · Your data stays yours

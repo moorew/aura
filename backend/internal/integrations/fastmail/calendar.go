@@ -76,7 +76,12 @@ func (c *Client) GetCalendars(ctx context.Context) ([]jmapCalendar, error) {
 		return nil, err
 	}
 	for _, mc := range jr.MethodResponses {
-		if name, _ := mc[0].(string); name != "Calendar/get" {
+		name, _ := mc[0].(string)
+		if name == "error" {
+			data, _ := json.Marshal(mc[1])
+			return nil, fmt.Errorf("Calendar/get JMAP error: %s", data)
+		}
+		if name != "Calendar/get" {
 			continue
 		}
 		data, _ := json.Marshal(mc[1])
@@ -88,7 +93,7 @@ func (c *Client) GetCalendars(ctx context.Context) ([]jmapCalendar, error) {
 		}
 		return result.List, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("Calendar/get: no matching response from server")
 }
 
 // SyncCalendar fetches calendar events for the given date range and stores them.
@@ -102,8 +107,11 @@ func SyncCalendar(ctx context.Context, cfg Config, store *db.FastmailCalStore, d
 		return 0, fmt.Errorf("this Fastmail account does not have JMAP Calendars access")
 	}
 
-	// Get calendar colors
-	cals, _ := client.GetCalendars(ctx)
+	// Get calendar colors (non-fatal — sync can proceed without colors)
+	cals, err := client.GetCalendars(ctx)
+	if err != nil {
+		fmt.Printf("fastmail: warning: could not fetch calendar colors: %v\n", err)
+	}
 	calColors := make(map[string]string, len(cals))
 	for _, cal := range cals {
 		if cal.Color != "" {
@@ -208,7 +216,12 @@ func (c *Client) getCalendarEventsForRange(ctx context.Context, dateFrom, dateTo
 	}
 
 	for _, mc := range jr.MethodResponses {
-		if name, _ := mc[0].(string); name != "CalendarEvent/get" {
+		name, _ := mc[0].(string)
+		if name == "error" {
+			data, _ := json.Marshal(mc[1])
+			return nil, fmt.Errorf("CalendarEvent JMAP error: %s", data)
+		}
+		if name != "CalendarEvent/get" {
 			continue
 		}
 		data, _ := json.Marshal(mc[1])
@@ -220,7 +233,7 @@ func (c *Client) getCalendarEventsForRange(ctx context.Context, dateFrom, dateTo
 		}
 		return result.List, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("CalendarEvent/get: no matching response from server")
 }
 
 // extractDescription handles the JMAP description field which may be a string

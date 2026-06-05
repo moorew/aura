@@ -18,10 +18,35 @@ import type {
   WeekReview,
 } from './types';
 
-// In dev: set VITE_API_URL=http://localhost:9001. In production (served from Go), leave unset → relative URLs.
-const base = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+// Resolve the API base URL:
+// 1. Build-time env var (dev): VITE_API_URL
+// 2. Runtime user-configured server (mobile/native): stored in localStorage
+// 3. Fallback: empty string → relative URLs (web served by Go)
+function getBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL as string | undefined;
+  if (envUrl) return envUrl;
+  if (typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem('sempa_server_url');
+    if (stored) return stored;
+  }
+  return '';
+}
+
+/** Update the stored server URL (call from login/settings). */
+export function setServerUrl(url: string) {
+  const trimmed = url.replace(/\/+$/, '');
+  localStorage.setItem('sempa_server_url', trimmed);
+}
+
+/** Read the currently configured server URL. */
+export function getServerUrl(): string {
+  return typeof localStorage !== 'undefined'
+    ? localStorage.getItem('sempa_server_url') ?? ''
+    : '';
+}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = getBaseUrl();
   const res = await fetch(`${base}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -158,7 +183,7 @@ const httpApi = {
     gmail: {
       get: () => req<GmailIntegrationConfig>('/api/v1/integrations/gmail'),
       authUrl: (withCalendar = false) =>
-        `${base}/api/v1/integrations/gmail/auth${withCalendar ? '?calendar=1' : ''}`,
+        `${getBaseUrl()}/api/v1/integrations/gmail/auth${withCalendar ? '?calendar=1' : ''}`,
       updateLabels: (labels: string[]) =>
         req<unknown>('/api/v1/integrations/gmail/labels', { method: 'PATCH', body: body({ labels }) }),
       sync: () => req<SyncResult>('/api/v1/integrations/gmail/sync', { method: 'POST' }),

@@ -18,6 +18,17 @@ Plan your day, track focused work, and end each day with intention — with your
 - **Recurring tasks** — daily, weekly, and monthly templates
 - **Keyboard shortcuts** — `n` new task, `t` today, `j/k` prev/next week, `?` help
 
+### Apps
+
+| Platform | How to get it |
+|----------|--------------|
+| **Web** | Self-host with Docker (see below) |
+| **Android** | APK from [GitHub Releases](../../releases) or build from source |
+| **Windows** | `.msi` installer from [GitHub Releases](../../releases) (x64 + ARM64) |
+| **PWA** | Install from your browser when visiting your Sempa instance |
+
+All apps connect to your self-hosted server — your data stays on your machine.
+
 ---
 
 ## Quick start
@@ -25,7 +36,7 @@ Plan your day, track focused work, and end each day with intention — with your
 **Prerequisites:** Docker and Docker Compose (v2).
 
 ```bash
-git clone https://github.com/yourname/sempa.git
+git clone https://github.com/moorew/sempa.git
 cd sempa
 bash install.sh
 ```
@@ -36,6 +47,46 @@ Open the URL it prints and follow the in-app setup wizard to connect your email 
 
 ---
 
+## Self-hosting with Tailscale (recommended)
+
+Tailscale is the easiest way to access Sempa securely from all your devices without exposing it to the public internet.
+
+### Why Tailscale?
+
+- **No port forwarding** — access your server from anywhere on your tailnet
+- **Automatic HTTPS** — Tailscale provides TLS certificates via MagicDNS
+- **Zero-trust networking** — only your devices can reach the server
+- **Works on all platforms** — desktop, mobile, and headless servers
+
+### Setup
+
+1. **Install Tailscale** on your server and all devices you want to access Sempa from: [tailscale.com/download](https://tailscale.com/download)
+
+2. **Run the installer:**
+   ```bash
+   bash install.sh
+   ```
+   When asked for the URL, use your Tailscale machine name:
+   ```
+   https://your-machine.tail1234.ts.net
+   ```
+
+3. **Generate a Tailscale auth key** at [Tailscale Admin → Keys](https://login.tailscale.com/admin/settings/keys) and paste it when the installer asks for `TS_AUTHKEY`. This lets the Docker sidecar join your tailnet automatically.
+
+4. **Enable HTTPS** (optional but recommended):
+   ```bash
+   tailscale cert your-machine.tail1234.ts.net
+   ```
+   The bundled `ts-sempa` Docker container handles this automatically.
+
+5. **Connect your phone/desktop app**: Open the app, enter your Tailscale URL (e.g. `https://sempa.tail1234.ts.net`) in the server field, and sign in.
+
+### Alternative: any reverse proxy
+
+Sempa works behind any reverse proxy (Caddy, nginx, Traefik). Set `APP_URL` to your public URL and configure the proxy to forward to port 9001. If you go this route, **make sure you have authentication enabled** (Google OAuth or username/password).
+
+---
+
 ## Manual setup
 
 If you prefer to configure things by hand:
@@ -43,7 +94,7 @@ If you prefer to configure things by hand:
 **1. Clone the repo**
 
 ```bash
-git clone https://github.com/yourname/sempa.git
+git clone https://github.com/moorew/sempa.git
 cd sempa
 ```
 
@@ -163,6 +214,21 @@ All integrations are optional and configured through the Settings UI after first
 
 ---
 
+## Connecting mobile & desktop apps
+
+The Android app and Windows desktop app connect to your self-hosted server:
+
+1. **Install the app** from [GitHub Releases](../../releases)
+2. **Open the app** — you'll see a "Server URL" field
+3. **Enter your server address** (e.g. `https://sempa.tail1234.ts.net`)
+4. **Sign in** with your Google account or username/password
+
+Both your phone and server must be on the same Tailscale network (or the server must be reachable from your phone's network).
+
+> **Tip:** Install Tailscale on your phone to access your server from anywhere, even on mobile data.
+
+---
+
 ## Upgrading
 
 ```bash
@@ -192,6 +258,19 @@ npm run dev
 
 The frontend dev server sets `VITE_API_URL=http://localhost:9001` automatically via `.env.development`. You can set `SEMPA_PASSWORD=dev` in your shell to enable auth locally.
 
+### Building native apps
+
+```bash
+# Android (requires Android SDK)
+cd frontend
+npx cap sync android
+npx cap open android   # opens in Android Studio
+
+# Windows (requires Rust toolchain)
+cd frontend
+npm run tauri build
+```
+
 ### Project structure
 
 ```
@@ -209,8 +288,10 @@ frontend/
       components/    Reusable UI components
       stores/        Svelte runes-based state
       api.ts         Typed API client
+  src-tauri/         Tauri (Windows/macOS/Linux) desktop app
+  android/           Capacitor Android wrapper
 deploy/
-  install.sh         (legacy systemd installer — use root install.sh instead)
+  update.sh          Pull + rebuild script
 ```
 
 ---
@@ -220,13 +301,14 @@ deploy/
 - **Single-user per instance.** Each person runs their own copy — like Gitea or Vaultwarden. Your data stays on your server.
 - **No cloud dependency.** Runs fully offline once configured. External services (Gmail, Jira) are optional integrations.
 - **Small footprint.** ~10 MB Docker image, ~20 MB RAM. SQLite database — no separate database server.
-- **API-first.** Everything the frontend does goes through the REST API. An Android client is planned.
+- **API-first.** Everything the frontend does goes through the REST API.
 
 ---
 
 ## Roadmap
 
-- [ ] Android app (Capacitor)
+- [x] Android app (Capacitor)
+- [x] Windows desktop app (Tauri)
 - [ ] Slack integration
 - [ ] CalDAV write-back (create Sempa tasks as calendar events)
 - [ ] Public Docker image on GitHub Container Registry
