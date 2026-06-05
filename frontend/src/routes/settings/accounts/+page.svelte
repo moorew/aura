@@ -68,21 +68,17 @@
     const connected = $page.url.searchParams.get('connected');
     if (connected === '1') window.history.replaceState({}, '', '/settings/accounts');
 
-    [gmail, calendar, fastmail, fmCal, taskInbox, icalSubs] = await Promise.all([
-      api.integrations.gmail.get(),
-      api.integrations.calendar.get(),
-      api.integrations.fastmail.get(),
-      api.integrations.fastmail.calendar.get().catch(() => ({ connected: false, enabled: false })),
-      api.integrations.taskInbox.get(),
-      api.ical.listSubscriptions(),
-    ]);
-
-    if (fastmail.connected) {
-      const jiraCfg = await api.integrations.jira.get().catch(() => ({ connected: false }));
-      jira = jiraCfg;
-    } else {
-      jira = await api.integrations.jira.get().catch(() => ({ connected: false }));
-    }
+    try {
+      [gmail, calendar, fastmail, fmCal, taskInbox, jira, icalSubs] = await Promise.all([
+        api.integrations.gmail.get().catch(() => ({ connected: false })),
+        api.integrations.calendar.get().catch(() => ({ connected: false })),
+        api.integrations.fastmail.get().catch(() => ({ connected: false })),
+        api.integrations.fastmail.calendar.get().catch(() => ({ connected: false, enabled: false })),
+        api.integrations.taskInbox.get().catch(() => ({ connected: false })),
+        api.integrations.jira.get().catch(() => ({ connected: false })),
+        api.ical.listSubscriptions().catch(() => []),
+      ]);
+    } catch { /* ignore — all individual calls already catch errors */ }
 
     // IntersectionObserver for sub-nav active state
     await tick();
