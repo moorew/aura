@@ -279,7 +279,7 @@
   <!-- FAB for task creation on task-list pages; hidden when keyboard is open -->
   {#if isTaskListPage && !keyboardOpen}
     <button
-      onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=1`); }}
+      onclick={() => { hapticTick(); goto(`/day/${todayDate}?new=${Date.now()}`); }}
       aria-label="New task"
       style="position: fixed; bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 12px); right: 20px; width: 52px; height: 52px;
              border-radius: 16px; background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);

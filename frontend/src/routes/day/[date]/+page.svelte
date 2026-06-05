@@ -84,18 +84,17 @@
     } catch { /* ignore */ }
   }
 
-  onMount(() => {
-    loadTasks(); loadRollover();
-    // Handle FAB deep link
-    if ($page.url.searchParams.get('new') === '1') {
-      openCreate(date);
-      // Clean URL
-      const url = new URL($page.url);
-      url.searchParams.delete('new');
-      history.replaceState({}, '', url.pathname);
-    }
-  });
+  onMount(() => { loadTasks(); loadRollover(); });
   $effect(() => { ws; loadTasks(); });
+
+  // Handle FAB deep link — runs on mount AND whenever search params change
+  // (same-page goto('/day/today?new=1') doesn't re-trigger onMount)
+  $effect(() => {
+    const newParam = $page.url.searchParams.get('new');
+    if (!newParam) return;
+    openCreate(date);
+    history.replaceState({}, '', $page.url.pathname);
+  });
 
   async function rolloverAll() {
     await Promise.all(rolloverTasks.map(t =>

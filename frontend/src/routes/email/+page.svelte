@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import type { FastmailEmail } from '$lib/types';
+  import { mobile } from '$lib/stores/mobile.svelte';
 
   let emails    = $state<FastmailEmail[]>([]);
   let loading   = $state(true);
@@ -170,8 +171,9 @@
               {/if}
             </div>
 
-            <!-- Actions — visible on hover -->
-            <div class="flex shrink-0 items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <!-- Actions — always visible on mobile, hover-reveal on desktop -->
+            <div class="flex shrink-0 items-center gap-1.5 transition-opacity
+                        {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
               <button onclick={() => toTask(email)}
                       disabled={converting[email.id] || done[email.id]}
                       title="Add to today's tasks and archive"

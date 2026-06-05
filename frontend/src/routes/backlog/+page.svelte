@@ -6,6 +6,7 @@
   import { tagStore } from '$lib/stores/tags.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import { Plus } from 'lucide-svelte';
+  import { mobile } from '$lib/stores/mobile.svelte';
 
   let tasks   = $state<Task[]>([]);
   let loading = $state(true);
@@ -154,7 +155,8 @@
           </div>
 
           <!-- Actions (always visible on hover, "Plan today" is primary) -->
-          <div class="flex shrink-0 items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="flex shrink-0 items-center gap-1.5 transition-opacity
+                      {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
             <button onclick={() => scheduleToday(task.id)}
                     class="rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors"
                     style="background: var(--sempa-accent-bg); color: var(--sempa-accent);"

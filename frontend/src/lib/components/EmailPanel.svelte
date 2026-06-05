@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import type { FastmailEmail } from '$lib/types';
+  import { mobile } from '$lib/stores/mobile.svelte';
 
   let {
     onTaskCreated,
@@ -191,9 +192,9 @@
               </div>
             </div>
 
-            <!-- Hover actions -->
+            <!-- Actions — always visible on mobile, hover-reveal on desktop -->
             <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1
-                        opacity-0 group-hover:opacity-100 transition-opacity">
+                        transition-opacity {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
               {#if tab === 'inbox'}
                 <button onclick={() => toTask(email)}
                         disabled={!!converting[email.id] || !!done[email.id]}
