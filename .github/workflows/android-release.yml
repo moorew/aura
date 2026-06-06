@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -70,8 +71,19 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           generate_release_notes: true
           files: |
             frontend/android/app/build/outputs/apk/release/app-release.apk
             frontend/android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload artifacts (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sempa-android
+          path: |
+            frontend/android/app/build/outputs/apk/release/app-release.apk
+            frontend/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14

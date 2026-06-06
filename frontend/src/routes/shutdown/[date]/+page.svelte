@@ -6,6 +6,7 @@
   import type { Task } from '$lib/types';
   import { formatDate, formatMinutes, isToday } from '$lib/utils';
   import { Moon, Star, MessageSquare } from 'lucide-svelte';
+  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
 
   let date = $derived($page.params.date ?? new Date().toISOString().split('T')[0]);
 
@@ -18,6 +19,7 @@
   let error      = $state<string | null>(null);
 
   let winInputs: (HTMLInputElement | undefined)[] = $state([]);
+  let pendingOpen = $state(false);
 
   onMount(async () => {
     try {
@@ -94,8 +96,8 @@
       <div class="flex items-center gap-2">
         <div class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
              style={i + 1 <= step
-               ? 'background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);'
-               : 'background: var(--sempa-accent-bg); color: var(--sempa-text-dim);'}>
+               ? 'background: var(--sempa-accent); color: var(--sempa-btn-fg);'
+               : 'background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border); color: var(--sempa-text-dim);'}>
           {#if i + 1 < step}
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
@@ -117,9 +119,13 @@
     <!-- ── Step 1: Review ───────────────────────────────────────────────── -->
     {#if step === 1}
       {#key step}
-      <div class="animate-fade-in"
+      <div class="animate-fade-in relative overflow-hidden"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
+        <div class="absolute bottom-0 left-0 w-48 h-48 pointer-events-none z-0">
+          <SempaPattern motif="garden" class="w-full h-full" opacity={0.8} />
+        </div>
+        <div class="relative z-10">
         <Moon size={28} style="color:var(--sempa-accent);margin-bottom:8px"/>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">
           {doneTasks.length > 0 ? 'Great work today!' : 'Wrapping up…'}
@@ -133,8 +139,8 @@
           <div class="mb-4 flex flex-col gap-1.5">
             {#each doneTasks as t (t.id)}
               <div style="display:flex; align-items:center; gap:10px; border-radius:9px;
-                          background: rgba(34,197,94,0.08); padding:9px 12px; margin-bottom:6px;">
-                <svg class="h-3.5 w-3.5 shrink-0 text-green-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                          background: var(--sempa-accent-bg); padding:9px 12px; margin-bottom:6px;">
+                <svg class="h-3.5 w-3.5 shrink-0" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                 </svg>
                 <span class="text-sm" style="color: var(--sempa-text);">{t.title}</span>
@@ -144,16 +150,26 @@
         {/if}
 
         {#if pendingTasks.length > 0}
-          <details class="mb-4">
-            <summary class="cursor-pointer" style="color: var(--sempa-text-dim); font-size:12px;">
+          <div class="mb-4">
+            <button type="button" onclick={() => pendingOpen = !pendingOpen}
+                    class="flex items-center gap-1.5 transition-colors"
+                    style="color: var(--sempa-text-dim); font-size:12px;"
+                    onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-soft)'}
+                    onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}>
+              <svg class="h-3.5 w-3.5 transition-transform" style="transform: rotate({pendingOpen ? 90 : 0}deg);"
+                   fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
               {pendingTasks.length} task{pendingTasks.length !== 1 ? 's' : ''} not completed
-            </summary>
-            <div class="mt-2 flex flex-col gap-1">
-              {#each pendingTasks as t (t.id)}
-                <p class="pl-2" style="color: var(--sempa-text-dim); font-size:12px;">· {t.title}</p>
-              {/each}
-            </div>
-          </details>
+            </button>
+            {#if pendingOpen}
+              <div class="mt-2 flex flex-col gap-1 pl-5">
+                {#each pendingTasks as t (t.id)}
+                  <p style="color: var(--sempa-text-dim); font-size:12px;">· {t.title}</p>
+                {/each}
+              </div>
+            {/if}
+          </div>
         {/if}
 
         <div class="flex justify-end">
@@ -171,15 +187,20 @@
             </svg>
           </button>
         </div>
+        </div><!-- end z-10 -->
       </div>
       {/key}
 
     <!-- ── Step 2: Wins ──────────────────────────────────────────────────── -->
     {:else if step === 2}
       {#key step}
-      <div class="animate-fade-in"
+      <div class="animate-fade-in relative overflow-hidden"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
+        <div class="absolute bottom-0 left-0 w-48 h-48 pointer-events-none z-0">
+          <SempaPattern motif="garden" class="w-full h-full" opacity={0.8} />
+        </div>
+        <div class="relative z-10">
         <Star size={28} style="color:var(--sempa-amber);margin-bottom:8px"/>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">What went well?</h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">Write down your wins — big or small.</p>
@@ -227,15 +248,20 @@
             </svg>
           </button>
         </div>
+        </div><!-- end z-10 -->
       </div>
       {/key}
 
     <!-- ── Step 3: Reflect ───────────────────────────────────────────────── -->
     {:else}
       {#key step}
-      <div class="animate-fade-in"
+      <div class="animate-fade-in relative overflow-hidden"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
+        <div class="absolute bottom-0 left-0 w-48 h-48 pointer-events-none z-0">
+          <SempaPattern motif="garden" class="w-full h-full" opacity={0.8} />
+        </div>
+        <div class="relative z-10">
         <MessageSquare size={28} style="color:var(--sempa-text-soft);margin-bottom:8px"/>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">Any reflections?</h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">Blockers, learnings, or things to improve tomorrow.</p>
@@ -273,6 +299,7 @@
             </svg>
           </button>
         </div>
+        </div><!-- end z-10 -->
       </div>
       {/key}
     {/if}

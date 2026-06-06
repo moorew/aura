@@ -5,6 +5,7 @@
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
   import { formatDate, formatMinutes, isToday, offsetDate, weekStart } from '$lib/utils';
+  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
 
   let date       = $derived($page.params.date ?? new Date().toISOString().split('T')[0]);
   let yesterday  = $derived(offsetDate(date, -1));
@@ -105,8 +106,8 @@
       <div class="flex items-center gap-2">
         <div class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
              style={i + 1 <= step
-               ? 'background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);'
-               : 'background: var(--sempa-accent-bg); color: var(--sempa-text-dim);'}>
+               ? 'background: var(--sempa-accent); color: var(--sempa-btn-fg);'
+               : 'background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border); color: var(--sempa-text-dim);'}>
           {#if i + 1 < step}
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
@@ -128,9 +129,13 @@
     <!-- ── Step 1: Intention ───────────────────────────────────────────── -->
     {#if step === 1}
       {#key step}
-      <div class="animate-fade-in"
+      <div class="animate-fade-in relative overflow-hidden"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
+        <div class="absolute top-0 right-0 w-52 h-52 pointer-events-none z-0" style="transform: rotate(180deg);">
+          <SempaPattern motif="aurora" class="w-full h-full" opacity={0.7} />
+        </div>
+        <div class="relative z-10">
         <p class="mb-1 text-2xl">🌅</p>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">
           {isToday(date) ? 'Good morning!' : formatDate(date)}
@@ -172,15 +177,20 @@
             </svg>
           </button>
         </div>
+        </div><!-- end z-10 -->
       </div>
       {/key}
 
     <!-- ── Step 2: Carryover ───────────────────────────────────────────── -->
     {:else if step === 2}
       {#key step}
-      <div class="animate-fade-in"
+      <div class="animate-fade-in relative overflow-hidden"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
+        <div class="absolute top-0 right-0 w-52 h-52 pointer-events-none z-0" style="transform: rotate(180deg);">
+          <SempaPattern motif="aurora" class="w-full h-full" opacity={0.7} />
+        </div>
+        <div class="relative z-10">
         <p class="mb-1 text-2xl">↩️</p>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">From yesterday</h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">
@@ -192,19 +202,27 @@
         {#if carryover.length > 0}
           <div class="flex flex-col mb-6">
             {#each carryover as task (task.id)}
-              <label class="flex cursor-pointer items-start gap-3 transition-colors"
-                     style="display:flex; align-items:center; gap:12px; padding:10px 14px;
-                            border-radius:10px; margin-bottom:6px;
-                            {selected.has(task.id)
-                              ? 'border: 1px solid var(--sempa-accent); background: var(--sempa-accent-bg);'
-                              : 'border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);'}">
-                <input
-                  type="checkbox"
-                  checked={selected.has(task.id)}
-                  onchange={() => toggleSelect(task.id)}
-                  class="mt-0.5 h-4 w-4 shrink-0"
-                  style="accent-color: var(--sempa-accent);"
-                />
+              {@const isSel = selected.has(task.id)}
+              <div class="flex items-center gap-3 transition-colors"
+                   style="display:flex; align-items:center; gap:12px; padding:10px 14px;
+                          border-radius:10px; margin-bottom:6px;
+                          {isSel
+                            ? 'border: 1px solid color-mix(in srgb, var(--sempa-accent) 40%, transparent); background: color-mix(in srgb, var(--sempa-accent) 8%, transparent);'
+                            : 'border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);'}">
+                <button type="button" role="checkbox" aria-checked={isSel}
+                        onclick={() => toggleSelect(task.id)}
+                        class="mt-0.5 h-5 w-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors"
+                        style={isSel
+                          ? 'border-color: var(--sempa-accent); background: var(--sempa-accent);'
+                          : 'border-color: var(--sempa-text-dim);'}
+                        onmouseenter={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-accent)'; }}
+                        onmouseleave={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-text-dim)'; }}>
+                  {#if isSel}
+                    <svg class="h-3 w-3" style="color: var(--sempa-btn-fg);" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  {/if}
+                </button>
                 <div>
                   <p class="text-sm" style="color: var(--sempa-text);">{task.title}</p>
                   {#if task.time_estimate_minutes}
@@ -215,7 +233,7 @@
                     </span>
                   {/if}
                 </div>
-              </label>
+              </div>
             {/each}
           </div>
         {/if}
@@ -242,15 +260,20 @@
             </svg>
           </button>
         </div>
+        </div><!-- end z-10 -->
       </div>
       {/key}
 
     <!-- ── Step 3: Ready ───────────────────────────────────────────────── -->
     {:else}
       {#key step}
-      <div class="animate-fade-in"
+      <div class="animate-fade-in relative overflow-hidden"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
+        <div class="absolute top-0 right-0 w-52 h-52 pointer-events-none z-0" style="transform: rotate(180deg);">
+          <SempaPattern motif="aurora" class="w-full h-full" opacity={0.7} />
+        </div>
+        <div class="relative z-10">
         <p class="mb-1 text-2xl">✅</p>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">You're set for today!</h1>
 
@@ -288,6 +311,7 @@
             </svg>
           </button>
         </div>
+        </div><!-- end z-10 -->
       </div>
       {/key}
     {/if}

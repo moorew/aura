@@ -50,11 +50,13 @@ func (s *TaskStore) GenerateForDate(ctx context.Context, date string) error {
 				return err
 			}
 		} else {
+			ws := weekStartOf(t)
 			if _, err := s.Create(ctx, CreateTaskParams{
 				ID:                 uuid.New().String(),
 				Title:              tmpl.Title,
 				Description:        tmpl.Description,
 				PlannedDate:        &date,
+				WeekStart:          &ws,
 				Status:             "planned",
 				Position:           float64(t.UnixMilli()),
 				Tags:               tmpl.Tags,
@@ -82,6 +84,15 @@ func (s *TaskStore) GenerateForWeek(ctx context.Context, weekStart string) error
 		return fmt.Errorf("invalid weekStart %q: %w", weekStart, err)
 	}
 	weekEnd := ws.AddDate(0, 0, 6).Format("2006-01-02")
+
+	// Backfill: repair any tasks that have a planned_date but a missing
+	// week_start (e.g. recurring instances created before week_start was set on
+	// generation). Without this they'd never surface in ListByWeek. Computes the
+	// Monday-based week start to match the frontend convention.
+	s.db.ExecContext(ctx, `
+		UPDATE tasks
+		SET week_start = date(planned_date, '-' || ((CAST(strftime('%w', planned_date) AS INTEGER) + 6) % 7) || ' days')
+		WHERE planned_date IS NOT NULL AND (week_start IS NULL OR week_start = '')`)
 
 	switch {
 	case today > weekEnd:
@@ -137,11 +148,13 @@ func (s *TaskStore) seedWeekInstances(ctx context.Context, ws time.Time, afterDa
 				continue
 			}
 			planDate := date
+			ws := weekStartOf(d)
 			if _, err := s.Create(ctx, CreateTaskParams{
 				ID:                 uuid.New().String(),
 				Title:              tmpl.Title,
 				Description:        tmpl.Description,
 				PlannedDate:        &planDate,
+				WeekStart:          &ws,
 				Status:             "planned",
 				Position:           float64(d.UnixMilli()),
 				Tags:               tmpl.Tags,
@@ -185,6 +198,17 @@ func (s *TaskStore) recurringInstanceExistsForDate(ctx context.Context, originID
 		 WHERE recurrence_origin_id = ? AND planned_date = ? AND status != 'cancelled'`,
 		originID, date).Scan(&count)
 	return count > 0
+}
+
+// weekStartOf returns the Monday-based week-start date (YYYY-MM-DD) for t,
+// matching the frontend's weekStart() convention so recurring instances are
+// found by ListByWeek (which filters on week_start).
+func weekStartOf(t time.Time) string {
+	offset := int(t.Weekday()) - int(time.Monday) // Sun=0 → -1, Mon=1 → 0, …
+	if offset < 0 {
+		offset += 7
+	}
+	return t.AddDate(0, 0, -offset).Format("2006-01-02")
 }
 
 // isDueOn reports whether the recurrence rule fires on date t.

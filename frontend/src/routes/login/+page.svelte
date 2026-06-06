@@ -4,6 +4,22 @@
   import { page } from '$app/stores';
   import { api, setServerUrl, getServerUrl, setTauriToken, clearTauriToken, setNativeToken, clearNativeToken, resetApiResolver } from '$lib/api';
   import { isTauri } from '$lib/tauri/bridge';
+  import { theme } from '$lib/stores/theme.svelte';
+  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
+
+  // Tiled dot-grid background (Scatter motif), encoded as a data URL. Colour
+  // tracks light/dark mode; currentColor can't reach a background-image SVG.
+  const dotGridUrl = $derived.by(() => {
+    const dot = theme.dark ? '#cc6e3a' : '#b3592e';
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'>`
+      + `<g fill='${dot}' fill-opacity='0.08'>`
+      + `<circle cx='0' cy='16' r='1.5'/><circle cx='32' cy='16' r='1.5'/><circle cx='64' cy='16' r='1.5'/>`
+      + `<circle cx='16' cy='44' r='1.5'/><circle cx='48' cy='44' r='2.5'/><circle cx='80' cy='44' r='1.5'/>`
+      + `<circle cx='0' cy='72' r='1.5'/><circle cx='32' cy='72' r='1.5'/><circle cx='64' cy='72' r='1.5'/>`
+      + `</g></svg>`;
+    const enc = svg.replace(/</g, '%3C').replace(/>/g, '%3E').replace(/#/g, '%23');
+    return `url("data:image/svg+xml,${enc}")`;
+  });
 
   let isNative = $state(false);
   let needsServerUrl = $derived(isNative || isTauri());
@@ -220,8 +236,18 @@
 
 <svelte:head><title>Sign in — Sempa</title></svelte:head>
 
-<div class="flex min-h-screen items-center justify-center px-4" style="background: var(--sempa-bg-main);">
-  <div class="w-full max-w-sm">
+<div class="relative overflow-hidden flex min-h-screen items-center justify-center px-4" style="background: var(--sempa-bg-main);">
+
+  <!-- Decorative dot-grid background -->
+  <div class="absolute inset-0 pointer-events-none z-0"
+       style="background-image: {dotGridUrl}; background-size: 96px 96px;"></div>
+
+  <!-- Aurora illustration, bottom-left -->
+  <div class="absolute bottom-0 left-0 w-[600px] h-[600px] pointer-events-none z-0">
+    <SempaPattern motif="aurora" class="w-full h-full" />
+  </div>
+
+  <div class="relative z-10 w-full max-w-sm">
 
     <!-- Logo -->
     <div class="mb-8 flex flex-col items-center gap-3">

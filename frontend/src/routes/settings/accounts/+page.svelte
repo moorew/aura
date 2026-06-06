@@ -6,6 +6,7 @@
   import { mobile } from '$lib/stores/mobile.svelte';
   import { goto } from '$app/navigation';
   import type { ICalSubscription } from '$lib/types';
+  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
 
   type AccountStatus = { connected: boolean; email?: string; last_synced_at?: string | null; enabled?: boolean };
 
@@ -381,7 +382,11 @@
     </nav>
 
     <!-- ── Scrollable content ────────────────────────────────────────────── -->
-    <div bind:this={scrollContainer} class="flex-1 overflow-y-auto">
+    <div bind:this={scrollContainer} class="relative flex-1 overflow-y-auto">
+      <div class="pointer-events-none sticky top-0 float-right w-64 h-64 z-0 opacity-60 -mr-8 -mt-8"
+           style="shape-outside: circle(50%);">
+        <SempaPattern motif="garden" class="w-full h-full" style="transform: scaleX(-1);" />
+      </div>
       <div class="mx-auto max-w-xl px-6 py-8 pb-16">
         {@render integrationsContent()}
         {@render tasksContent()}
@@ -675,7 +680,7 @@
           <div class="border-b px-5 py-4 space-y-3" style="border-color: var(--sempa-border);">
             <div>
               <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-email">Fastmail email</label>
-              <input id="ti-email" type="email" bind:value={tiEmail} placeholder="you@fastmail.com"
+              <input id="ti-email" type="email" inputmode="email" autocapitalize="none" spellcheck="false" bind:value={tiEmail} placeholder="you@fastmail.com"
                      class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
                      style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
             </div>
@@ -688,7 +693,7 @@
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ti-addr">Forwarding address</label>
-              <input id="ti-addr" type="email" bind:value={tiAddress} placeholder="tasks@sempa.ca"
+              <input id="ti-addr" type="email" inputmode="email" autocapitalize="none" spellcheck="false" bind:value={tiAddress} placeholder="tasks@sempa.ca"
                      class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
                      style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
             </div>
@@ -720,7 +725,7 @@
         <div class="px-5 py-4 space-y-3">
           <div>
             <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="fm-email">Email</label>
-            <input id="fm-email" type="email" bind:value={fmEmail} placeholder="you@fastmail.com"
+            <input id="fm-email" type="email" inputmode="email" autocapitalize="none" spellcheck="false" bind:value={fmEmail} placeholder="you@fastmail.com"
                    class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
                    style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
           </div>
@@ -814,7 +819,8 @@
             <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-url">
               ICS / Webcal URL <span class="text-red-400">*</span>
             </label>
-            <input id="ical-url" type="url" bind:value={icalUrl}
+            <input id="ical-url" type="url" inputmode="url" bind:value={icalUrl}
+                   autocomplete="off" autocapitalize="none" spellcheck="false"
                    placeholder="https://example.com/calendar.ics  or  webcal://..."
                    class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
                    style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
@@ -829,12 +835,18 @@
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-color">Colour</label>
-              <div class="flex items-center gap-2">
-                <input id="ical-color" type="color" bind:value={icalColor}
-                       class="h-9 w-14 cursor-pointer rounded-lg border p-1"
-                       style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);" />
-                <span class="text-xs font-mono" style="color: var(--sempa-text-dim);">{icalColor}</span>
+              <div class="flex flex-wrap items-center gap-2" id="ical-color">
+                {#each ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#cc6e3a','#b3592e','#6b7280','#f0ece4'] as swatch}
+                  {@const isSel = icalColor.toLowerCase() === swatch.toLowerCase()}
+                  <button type="button" onclick={() => icalColor = swatch}
+                          aria-label="Select colour {swatch}"
+                          class="h-7 w-7 rounded-full border-2 transition-transform hover:scale-110"
+                          style="background: {swatch}; border-color: {isSel ? 'var(--sempa-accent)' : 'transparent'};
+                                 {isSel ? 'outline: 2px solid var(--sempa-accent); outline-offset: 1px;' : ''}">
+                  </button>
+                {/each}
               </div>
+              <span class="mt-1.5 block text-xs font-mono" style="color: var(--sempa-text-dim);">{icalColor}</span>
             </div>
           </div>
           {#if icalError}<p class="text-sm text-red-600 dark:text-red-400">{icalError}</p>{/if}

@@ -24,11 +24,13 @@
     options,
     placeholder = 'Select…',
     id,
+    onchange,
   }: {
     value: OptionValue;
     options: Option[];
     placeholder?: string;
     id?: string;
+    onchange?: (value: OptionValue) => void;
   } = $props();
 
   let open = $state(false);
@@ -39,6 +41,7 @@
 
   function choose(opt: Option) {
     value = opt.value;
+    onchange?.(opt.value);
     open = false;
   }
 

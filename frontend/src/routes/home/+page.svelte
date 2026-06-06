@@ -6,6 +6,7 @@
   import { today, weekStart } from '$lib/utils';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
+  import { tagStore } from '$lib/stores/tags.svelte';
 
   const todayDate = today();
   const thisWeek  = weekStart(todayDate);
@@ -14,8 +15,11 @@
   let objectives  = $state<Objective[]>([]);
   let loading     = $state(true);
 
-  const doneTasks    = $derived(todayTasks.filter(t => t.status === 'done'));
-  const activeTasks  = $derived(todayTasks.filter(t => t.status !== 'cancelled'));
+  // Only count top-level tasks — sub-tasks inherit their parent's planned_date
+  // but render nested inside the parent, so they shouldn't inflate the ring.
+  const topLevel     = $derived(todayTasks.filter(t => !t.parent_task_id));
+  const doneTasks    = $derived(topLevel.filter(t => t.status === 'done'));
+  const activeTasks  = $derived(topLevel.filter(t => t.status !== 'cancelled'));
   const doneFraction = $derived(activeTasks.length > 0 ? doneTasks.length / activeTasks.length : 0);
 
   const weekTasks       = $derived(objectives.flatMap(() => [])); // placeholder; objectives drive progress
@@ -25,6 +29,24 @@
   const timeEstimate = $derived(
     activeTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0)
   );
+
+  // Open tasks for today, scheduled ones first, then by position.
+  const openToday = $derived(
+    topLevel
+      .filter(t => t.status !== 'done' && t.status !== 'cancelled')
+      .sort((a, b) => {
+        if (a.scheduled_start && b.scheduled_start) return a.scheduled_start < b.scheduled_start ? -1 : 1;
+        if (a.scheduled_start) return -1;
+        if (b.scheduled_start) return 1;
+        return a.position - b.position;
+      })
+  );
+
+  function schedTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
 
   const circumference = 2 * Math.PI * 30;
   const ringOffset    = $derived(circumference * (1 - doneFraction));
@@ -147,6 +169,42 @@
         <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
       </svg>
     </a>
+
+    <!-- Today's tasks -->
+    {#if openToday.length > 0}
+      <div>
+        <p class="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest"
+           style="font-family:monospace; color: var(--sempa-text-dim);">Up Next</p>
+        <div class="flex flex-col gap-2">
+          {#each openToday.slice(0, 5) as task (task.id)}
+            <a href="/day/{todayDate}"
+               class="flex items-center gap-3 rounded-xl px-4 py-3 transition-opacity active:opacity-70"
+               style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);">
+              <!-- Status dot -->
+              <span class="h-2 w-2 shrink-0 rounded-full"
+                    style="background: {task.status === 'in_progress' ? 'var(--sempa-accent)' : 'var(--sempa-text-dim)'};"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium truncate" style="color: var(--sempa-text);">{task.title}</p>
+                {#if task.scheduled_start || task.time_estimate_minutes || task.tags.length}
+                  <div class="mt-0.5 flex items-center gap-2 text-[11px]" style="color: var(--sempa-text-dim);">
+                    {#if task.scheduled_start}<span>{schedTime(task.scheduled_start)}</span>{/if}
+                    {#if task.time_estimate_minutes}<span>~{formatMins(task.time_estimate_minutes)}</span>{/if}
+                    {#each task.tags.slice(0, 3) as tag}
+                      <span class="h-2 w-2 rounded-full" style="background: {tagStore.colorFor(tag)};"></span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </a>
+          {/each}
+          {#if openToday.length > 5}
+            <a href="/day/{todayDate}" class="px-1 py-1 text-xs font-medium" style="color: var(--sempa-accent);">
+              +{openToday.length - 5} more →
+            </a>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <!-- Week card -->
     <a href="/week/{thisWeek}"

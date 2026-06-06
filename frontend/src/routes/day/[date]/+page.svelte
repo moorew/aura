@@ -135,15 +135,22 @@
   // ── Tasks per day ──────────────────────────────────────────────────────────
   function dayTasks(d: string): Task[] {
     return tasks
-      .filter(t => t.planned_date === d && t.status !== 'cancelled')
+      .filter(t => t.planned_date === d && t.status !== 'cancelled' && !t.parent_task_id)
       .sort((a, b) => a.position - b.position);
   }
 
-  // Day stats for header
-  const totalTasks   = $derived(tasks.filter(t => t.status !== 'cancelled'));
+  // Day stats for header — exclude sub-tasks (they nest inside their parent)
+  const totalTasks   = $derived(tasks.filter(t => t.status !== 'cancelled' && !t.parent_task_id));
   const doneTasks    = $derived(totalTasks.filter(t => t.status === 'done').length);
   const estimateMins = $derived(totalTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
   const actualMins   = $derived(totalTasks.reduce((s, t) => s + (t.time_actual_minutes ?? 0), 0));
+
+  // Today-specific glance stats (desktop header)
+  const todayBoard       = $derived(totalTasks.filter(t => t.planned_date === todayDate));
+  const todayRemaining   = $derived(todayBoard.filter(t => t.status !== 'done').length);
+  const todayRemainMins  = $derived(
+    todayBoard.filter(t => t.status !== 'done').reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0)
+  );
 
   // Sync task data to Android widgets whenever tasks change
   $effect(() => {
@@ -542,6 +549,20 @@
     <!-- Stats -->
     {#if !loading && totalTasks.length > 0}
       <div class="hidden md:flex items-center gap-4 text-xs" style="color: var(--sempa-text-dim);">
+        {#if isToday(date)}
+          <span class="flex items-center gap-1.5" style="color: var(--sempa-text-soft);">
+            <span class="inline-flex h-1.5 w-1.5 rounded-full" style="background: var(--sempa-accent);"></span>
+            {#if todayRemaining > 0}
+              <strong style="color: var(--sempa-text);">{todayRemaining}</strong> left today
+              {#if todayRemainMins > 0}· ~{formatMinutes(todayRemainMins)}{/if}
+            {:else if todayBoard.length > 0}
+              All done today 🎉
+            {:else}
+              Nothing scheduled today
+            {/if}
+          </span>
+          <span style="opacity:0.4;">|</span>
+        {/if}
         <span>{doneTasks}/{totalTasks.length} done this week</span>
         {#if estimateMins > 0}<span>~{formatMinutes(estimateMins)} planned</span>{/if}
         {#if actualMins > 0}<span style="color: var(--sempa-accent);">{formatMinutes(actualMins)} logged</span>{/if}

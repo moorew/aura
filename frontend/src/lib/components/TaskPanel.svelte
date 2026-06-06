@@ -4,8 +4,23 @@
   import { api } from '$lib/api';
   import { weekStart as calcWeekStart } from '$lib/utils';
   import SubTaskList from './SubTaskList.svelte';
+  import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
+  import SempaDatePicker from '$lib/components/ui/SempaDatePicker.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { onMount } from 'svelte';
+
+  // Time slots for scheduled start/end (FIX 02) — every 30 min, plus "No time".
+  const TIME_SLOTS: { value: string; label: string }[] = [
+    { value: '', label: 'No time' },
+    ...Array.from({ length: 48 }, (_, i) => {
+      const h = Math.floor(i / 2);
+      const m = i % 2 === 0 ? '00' : '30';
+      const hh = h < 10 ? `0${h}` : String(h);
+      const labelH = ((h % 12) || 12);
+      const ampm = h < 12 ? 'AM' : 'PM';
+      return { value: `${hh}:${m}`, label: `${labelH}:${m} ${ampm}` };
+    }),
+  ];
 
   const TIME_OPTIONS = [
     { label: 'No estimate',  value: null  },
@@ -99,6 +114,10 @@
   let saving = $state(false);
   let error = $state('');
   let titleInput: HTMLInputElement | undefined = $state();
+
+  // Inline delete confirmation (FIX 06)
+  let deleteConfirm = $state(false);
+  $effect(() => { if (!open) deleteConfirm = false; });
 
   let sessions = $state<PomodoroSession[]>([]);
 
@@ -330,26 +349,15 @@
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-date">
             Due date
           </label>
-          <input id="task-date" type="date" bind:value={plannedDate}
-                 disabled={!!recurrenceRule}
-                 class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                        text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                        disabled:opacity-40 disabled:cursor-not-allowed
-                        dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                        [color-scheme:light] dark:[color-scheme:dark]" />
+          <SempaDatePicker id="task-date" bind:value={plannedDate}
+                           disabled={!!recurrenceRule} placeholder="No date" />
         </div>
         <div>
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-estimate">
             Time estimate
           </label>
-          <select id="task-estimate" bind:value={estimateMinutes}
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                         text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-            {#each TIME_OPTIONS as opt}
-              <option value={opt.value}>{opt.label}</option>
-            {/each}
-          </select>
+          <SempaSelect id="task-estimate" bind:value={estimateMinutes}
+                       options={TIME_OPTIONS} placeholder="No estimate" />
         </div>
       </div>
 
@@ -359,15 +367,9 @@
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-objective">
             Weekly objective
           </label>
-          <select id="task-objective" bind:value={selectedObjectiveId}
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                         text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-            <option value={null}>No objective</option>
-            {#each weekObjectives as obj}
-              <option value={obj.id}>🎯 {obj.title}</option>
-            {/each}
-          </select>
+          <SempaSelect id="task-objective" bind:value={selectedObjectiveId}
+                       placeholder="No objective"
+                       options={[{ value: null, label: 'No objective' }, ...weekObjectives.map(o => ({ value: o.id, label: o.title, icon: '🎯' }))]} />
         </div>
       {/if}
 
@@ -392,6 +394,7 @@
                  onblur={() => setTimeout(() => tagDropdownOpen = false, 300)}
                  onkeydown={handleTagKeydown}
                  type="text"
+                 autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
                  placeholder={selectedTags.length ? '' : 'Search or add tags…'}
                  class="flex-1 min-w-[80px] bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none
                         dark:text-gray-200 dark:placeholder-gray-600" />
@@ -433,33 +436,19 @@
           </label>
           <div class="grid grid-cols-2 gap-2">
             <div class="space-y-1.5">
-              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-start-date">Start date</label>
-              <input id="sched-start-date" type="date" bind:value={scheduledStartDate}
-                     class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
-                            text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                            dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                            [color-scheme:light] dark:[color-scheme:dark]" />
+              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-start">Start</label>
+              <SempaDatePicker id="sched-start" bind:value={scheduledStartDate} placeholder="No date" />
               {#if scheduledStartDate}
-                <input id="sched-start-time" type="time" bind:value={scheduledStartTime}
-                       class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
-                              text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                              dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                              [color-scheme:light] dark:[color-scheme:dark]" />
+                <SempaSelect value={scheduledStartTime} options={TIME_SLOTS} placeholder="No time"
+                             onchange={(v) => scheduledStartTime = (v as string) ?? ''} />
               {/if}
             </div>
             <div class="space-y-1.5">
-              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-end-date">End date</label>
-              <input id="sched-end-date" type="date" bind:value={scheduledEndDate}
-                     class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
-                            text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                            dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                            [color-scheme:light] dark:[color-scheme:dark]" />
+              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-end">End</label>
+              <SempaDatePicker id="sched-end" bind:value={scheduledEndDate} placeholder="No date" />
               {#if scheduledEndDate}
-                <input id="sched-end-time" type="time" bind:value={scheduledEndTime}
-                       class="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs
-                              text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                              dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100
-                              [color-scheme:light] dark:[color-scheme:dark]" />
+                <SempaSelect value={scheduledEndTime} options={TIME_SLOTS} placeholder="No time"
+                             onchange={(v) => scheduledEndTime = (v as string) ?? ''} />
               {/if}
             </div>
           </div>
@@ -479,7 +468,7 @@
             Actual time logged
           </label>
           <div class="flex items-center gap-2">
-            <input id="task-actual" type="number" min="0" bind:value={actualMinutesInput}
+            <input id="task-actual" type="text" inputmode="numeric" pattern="[0-9]*" bind:value={actualMinutesInput}
                    placeholder="minutes"
                    class="w-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm
                           text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
@@ -537,14 +526,8 @@
           <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-recurrence">
             Repeat
           </label>
-          <select id="task-recurrence" bind:value={recurrenceRule}
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm
-                         text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100
-                         dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-            {#each recurrenceOptions as opt}
-              <option value={opt.value}>{opt.label}</option>
-            {/each}
-          </select>
+          <SempaSelect id="task-recurrence" bind:value={recurrenceRule}
+                       options={recurrenceOptions.map(o => ({ value: o.value, label: o.label }))} />
           {#if recurrenceRule}
             <p class="mt-1.5 text-xs text-violet-600 dark:text-violet-400">↺ Creates a recurring template</p>
           {/if}
@@ -561,14 +544,28 @@
     <div class="flex items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800"
          style={mobile.value && !inline ? 'padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));' : ''}>
       {#if isEdit && task}
-        <button onclick={async () => {
-                  if (!confirm('Delete this task?')) return;
-                  await api.tasks.delete(task!.id);
-                  onSave({ ...task!, status: 'cancelled' } as Task);
-                }}
-                class="text-sm text-red-500 hover:text-red-700 transition-colors dark:text-red-400 dark:hover:text-red-300">
-          Delete
-        </button>
+        {#if deleteConfirm}
+          <div class="flex items-center gap-2">
+            <span class="text-sm" style="color: var(--sempa-text-soft);">Delete this task?</span>
+            <button onclick={async () => {
+                      await api.tasks.delete(task!.id);
+                      onSave({ ...task!, status: 'cancelled' } as Task);
+                    }}
+                    class="rounded-lg px-3 py-1.5 text-sm font-medium text-red-500 transition-colors"
+                    style="background: color-mix(in srgb, #ef4444 10%, transparent);">
+              Yes, delete
+            </button>
+            <button onclick={() => deleteConfirm = false}
+                    class="text-sm transition-colors" style="color: var(--sempa-text-dim);">
+              Cancel
+            </button>
+          </div>
+        {:else}
+          <button onclick={() => deleteConfirm = true}
+                  class="text-sm transition-colors hover:text-red-500" style="color: var(--sempa-text-soft);">
+            Delete
+          </button>
+        {/if}
       {:else}
         <span></span>
       {/if}

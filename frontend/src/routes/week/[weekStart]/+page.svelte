@@ -6,6 +6,8 @@
   import type { Objective, Task } from '$lib/types';
   import { appendPosition, formatWeekRange, offsetDate, today, weekStart as calcWeekStart } from '$lib/utils';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
+  import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
 
   let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(new Date().toISOString().split('T')[0]));
 
@@ -432,17 +434,15 @@
                 </div>
                 {#if taskDrafts[obj.id]?.trim()}
                   <div class="flex items-center gap-2 pl-1">
-                    <select bind:value={taskDays[obj.id]}
-                            class="rounded-md px-2 py-1 text-xs outline-none"
-                            style="border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);
-                                   color: var(--sempa-text-soft);">
-                      {#each Array.from({length:7},(_,i)=>offsetDate(weekStartDate,i)) as d}
-                        <option value={d}>{new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</option>
-                      {/each}
-                    </select>
+                    <div class="min-w-[150px]">
+                      <SempaSelect
+                        value={taskDays[obj.id] ?? offsetDate(weekStartDate, 0)}
+                        onchange={(v) => taskDays = { ...taskDays, [obj.id]: v as string }}
+                        options={Array.from({length:7},(_,i)=>{ const d=offsetDate(weekStartDate,i); return { value: d, label: new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) }; })} />
+                    </div>
                     <button onclick={() => addTask(obj.id)} disabled={addingTask[obj.id]}
-                            class="rounded-md bg-[var(--a500)] px-3 py-1 text-xs font-medium text-white
-                                   hover:bg-[var(--a600)] disabled:opacity-40 transition-colors">
+                            class="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-40 transition-colors"
+                            style="background: var(--sempa-accent); color: var(--sempa-btn-fg);">
                       Add
                     </button>
                   </div>
@@ -455,13 +455,23 @@
 
       <!-- Empty state -->
       {#if objectives.length === 0 && !showAddForm}
-        <div style="border: 2px dashed var(--sempa-border); border-radius:12px; padding:40px; text-align:center;">
-          <p class="text-sm" style="color: var(--sempa-text-dim);">No objectives yet.</p>
-          <a href="/week/{weekStartDate}/plan"
-             class="mt-2 inline-block hover:underline"
-             style="color: var(--sempa-accent); font-size:14px;">
-            Start the weekly planning ritual →
-          </a>
+        <div class="relative overflow-hidden rounded-2xl py-20 text-center"
+             style="border: 1px solid var(--sempa-border);">
+
+          <div class="absolute inset-0 pointer-events-none z-0">
+            <SempaPattern motif="rings" class="w-full h-full" opacity={0.9} />
+          </div>
+
+          <div class="relative z-10 flex flex-col items-center gap-3">
+            <p class="text-sm font-medium" style="color: var(--sempa-text-soft);">
+              No objectives set for this week.
+            </p>
+            <a href="/week/{weekStartDate}/plan"
+               class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium"
+               style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+              Start weekly planning →
+            </a>
+          </div>
         </div>
       {/if}
 
