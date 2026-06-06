@@ -33,7 +33,9 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 			return true
 		}
 		// Allow Tauri desktop app origins
-		if origin == "tauri://localhost" || origin == "http://tauri.localhost" {
+		// Tauri 2 on Windows uses https://tauri.localhost (WebView2 custom scheme)
+		// Tauri 2 on macOS/Linux uses tauri://localhost
+		if origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" {
 			return true
 		}
 		return origin == cfg.FrontendURL
