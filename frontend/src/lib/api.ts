@@ -56,19 +56,31 @@ export function clearTauriToken() {
   localStorage.removeItem(TAURI_TOKEN_KEY);
 }
 
+// Native mobile token (Android Capacitor) — same Bearer auth pattern as Tauri
+const NATIVE_TOKEN_KEY = 'sempa_native_token';
+export function getNativeToken(): string {
+  return typeof localStorage !== 'undefined' ? localStorage.getItem(NATIVE_TOKEN_KEY) ?? '' : '';
+}
+export function setNativeToken(token: string) {
+  localStorage.setItem(NATIVE_TOKEN_KEY, token);
+}
+export function clearNativeToken() {
+  localStorage.removeItem(NATIVE_TOKEN_KEY);
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getBaseUrl();
   const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
 
-  if (isTauri()) {
-    const token = getTauriToken();
-    if (token) extraHeaders['Authorization'] = `Bearer ${token}`;
-  }
+  // Use Bearer token for Tauri desktop and Android native (avoids cross-origin cookie issues)
+  const bearerToken = isTauri() ? getTauriToken() : getNativeToken();
+  if (bearerToken) extraHeaders['Authorization'] = `Bearer ${bearerToken}`;
 
   const res = await fetch(`${base}${path}`, {
     ...init,
     headers: { ...extraHeaders, ...(init?.headers as Record<string, string> ?? {}) },
-    credentials: isTauri() ? 'omit' : 'include',
+    // Omit credentials when using Bearer auth; web browser sessions still use cookies
+    credentials: bearerToken ? 'omit' : 'include',
   });
   if (!res.ok) {
     const body = await res.text();

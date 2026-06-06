@@ -80,10 +80,9 @@ func (s *sessionStore) reap() {
 // ── OAuth state store (anti-CSRF) ─────────────────────────────────────────────
 
 type stateEntry struct {
-	Redirect    string
-	Native      bool
-	TauriOrigin string // non-empty for Tauri desktop OAuth flow
-	Expires     time.Time
+	Redirect        string
+	AppReturnPrefix string // e.g. "com.clevercode.sempa://login" or "https://tauri.localhost/login"
+	Expires         time.Time
 }
 
 type stateStore struct {
@@ -97,12 +96,12 @@ func newStateStore() *stateStore {
 	return s
 }
 
-func (s *stateStore) create(redirect string, native bool, tauriOrigin string) string {
+func (s *stateStore) create(redirect string, appReturnPrefix string) string {
 	b := make([]byte, 24)
 	_, _ = rand.Read(b)
 	id := hex.EncodeToString(b)
 	s.mu.Lock()
-	s.entries[id] = stateEntry{Redirect: redirect, Native: native, TauriOrigin: tauriOrigin, Expires: time.Now().Add(15 * time.Minute)}
+	s.entries[id] = stateEntry{Redirect: redirect, AppReturnPrefix: appReturnPrefix, Expires: time.Now().Add(15 * time.Minute)}
 	s.mu.Unlock()
 	return id
 }
@@ -361,22 +360,37 @@ func (h *authHandler) googleAuth(w http.ResponseWriter, r *http.Request) {
 	if redirect == "" || !strings.HasPrefix(redirect, "/") || strings.HasPrefix(redirect, "//") {
 		redirect = "/"
 	}
-	native := r.URL.Query().Get("native") == "true"
 
-	// Tauri desktop: the WebView passes its own origin so we can redirect back after OAuth.
-	// Validate against the known Tauri schemes to prevent open redirect.
-	tauriOrigin := ""
-	if r.URL.Query().Get("tauri") == "true" {
-		raw := r.URL.Query().Get("tauri_origin")
+	// Determine where to redirect after OAuth. Each native client passes its expected
+	// return scheme so the callback can redirect back into the correct app origin.
+	// Origins are validated against known-safe values to prevent open redirect.
+	appReturnPrefix := ""
+	qs := r.URL.Query()
+	switch {
+	case qs.Get("native") == "true":
+		// Android Chrome Custom Tab: return via custom URL scheme deep link
+		appReturnPrefix = "com.clevercode.sempa://login"
+	case qs.Get("tauri") == "true":
+		// Tauri desktop WebView: return to the Tauri localhost origin
+		raw := qs.Get("tauri_origin")
 		switch raw {
 		case "https://tauri.localhost", "tauri://localhost", "http://tauri.localhost":
-			tauriOrigin = raw
+			appReturnPrefix = raw + "/login"
 		default:
-			tauriOrigin = "https://tauri.localhost"
+			appReturnPrefix = "https://tauri.localhost/login"
+		}
+	case qs.Get("capacitor_origin") != "":
+		// Android Capacitor WebView navigation (fallback when Browser plugin unavailable)
+		raw := qs.Get("capacitor_origin")
+		switch raw {
+		case "https://localhost", "http://localhost", "capacitor://localhost":
+			appReturnPrefix = raw + "/login"
+		default:
+			appReturnPrefix = "https://localhost/login"
 		}
 	}
 
-	state := h.states.create(redirect, native, tauriOrigin)
+	state := h.states.create(redirect, appReturnPrefix)
 
 	q := url.Values{
 		"client_id":     {h.cfg.GmailClientID},
@@ -429,20 +443,13 @@ func (h *authHandler) googleCallback(w http.ResponseWriter, r *http.Request) {
 
 	id := h.sessions.create(30*24*time.Hour, email)
 
-	if stateVal.TauriOrigin != "" {
-		// Tauri desktop: redirect back into the WebView so the app can exchange the
-		// link token for a Bearer token via /auth/native/finalize.
+	if stateVal.AppReturnPrefix != "" {
+		// Native client (Android custom scheme, Tauri WebView, or Capacitor WebView):
+		// issue a short-lived link token and redirect back into the app.
+		// The app's login page exchanges the token for a session via /auth/native/finalize.
 		lt := h.linkTokens.create(id)
-		q := url.Values{"link_token": {lt}, "redirect": {redirect}}
-		http.Redirect(w, r, stateVal.TauriOrigin+"/login?"+q.Encode(), http.StatusFound)
-		return
-	}
-
-	if stateVal.Native {
-		// Capacitor: redirect to the custom URL scheme; the app calls /auth/native/finalize.
-		lt := h.linkTokens.create(id)
-		q := url.Values{"link_token": {lt}, "redirect": {redirect}}
-		http.Redirect(w, r, "com.clevercode.sempa://login?"+q.Encode(), http.StatusFound)
+		retq := url.Values{"link_token": {lt}, "redirect": {redirect}}
+		http.Redirect(w, r, stateVal.AppReturnPrefix+"?"+retq.Encode(), http.StatusFound)
 		return
 	}
 

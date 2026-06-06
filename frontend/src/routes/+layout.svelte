@@ -12,7 +12,7 @@
   import { initPushNotifications } from '$lib/push';
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
-  import { api, getServerUrl, getTauriToken, clearTauriToken, resetApiResolver } from '$lib/api';
+  import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
   import { isTauri } from '$lib/tauri/bridge';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
@@ -252,7 +252,7 @@
         {#if userEmail}
           <div class="mt-1 rounded-lg px-3 py-2" style="border-top: 1px solid var(--sempa-border);">
             <p class="truncate text-[11px]" style="color: var(--sempa-text-dim);" title={userEmail}>{userEmail}</p>
-            <button onclick={async () => { if (isTauri()) { clearTauriToken(); resetApiResolver(); goto('/login'); return; } await api.auth.logout(); goto('/login'); }}
+            <button onclick={async () => { if (isTauri()) { clearTauriToken(); resetApiResolver(); goto('/login'); return; } clearNativeToken(); await api.auth.logout(); goto('/login'); }}
                     class="mt-0.5 text-[11px] transition-colors"
                     style="color: var(--sempa-text-dim);"
                     onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'}

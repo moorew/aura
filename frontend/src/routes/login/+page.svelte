@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { api, setServerUrl, getServerUrl, setTauriToken, clearTauriToken, resetApiResolver } from '$lib/api';
+  import { api, setServerUrl, getServerUrl, setTauriToken, clearTauriToken, setNativeToken, clearNativeToken, resetApiResolver } from '$lib/api';
   import { isTauri } from '$lib/tauri/bridge';
 
   let isNative = $state(false);
@@ -38,7 +38,9 @@
       const redirect  = u.searchParams.get('redirect') ?? '/';
       if (!linkToken) return;
       await Browser?.close().catch(() => {});
-      await api.auth.nativeFinalize(linkToken);
+      const result = await api.auth.nativeFinalize(linkToken);
+      // Store session as Bearer token (cookie-based auth is unreliable cross-origin on Android)
+      if (result.token) setNativeToken(result.token);
       goto(redirect, { replaceState: true });
     } catch {
       error = 'Google sign-in failed. Please try again.';
@@ -73,6 +75,24 @@
             setTauriToken(result.token);
             resetApiResolver();
           }
+          goto(redirectTarget, { replaceState: true });
+          return;
+        } catch {
+          error = 'Google sign-in failed. Please try again.';
+          loading = false;
+        }
+      }
+    }
+
+    // Android Capacitor WebView-navigation OAuth callback (fallback when Browser plugin unavailable).
+    // Backend redirects to https://localhost/login?link_token=X, which loads this page.
+    if (isNative && !isTauri()) {
+      const linkToken = $page.url.searchParams.get('link_token');
+      if (linkToken) {
+        loading = true;
+        try {
+          const result = await api.auth.nativeFinalize(linkToken);
+          if (result.token) setNativeToken(result.token);
           goto(redirectTarget, { replaceState: true });
           return;
         } catch {
@@ -134,11 +154,16 @@
   function googleSignIn() {
     const base = getBase();
     const params = new URLSearchParams({ redirect: redirectTarget });
-    if (isNative) {
-      // Capacitor: open in Chrome Custom Tab; callback redirects to custom URL scheme.
-      Browser?.open({ url: `${base}/api/v1/auth/google?${params}&native=true` });
+    if (isNative && Browser) {
+      // Android primary path: Chrome Custom Tab — deep link fires appUrlOpen on return.
+      Browser.open({ url: `${base}/api/v1/auth/google?${params}&native=true` });
+    } else if (isNative) {
+      // Android fallback: Browser plugin unavailable — navigate the WebView directly.
+      // Backend will redirect back to this origin's /login?link_token=X.
+      const origin = window.location.origin;
+      window.location.href = `${base}/api/v1/auth/google?${params}&capacitor_origin=${encodeURIComponent(origin)}`;
     } else if (isTauri()) {
-      // Tauri desktop: tell the backend our origin so it can redirect back into the WebView.
+      // Tauri desktop: navigate the WebView; backend redirects back to the Tauri origin.
       const tauriOrigin = window.location.origin;
       window.location.href = `${base}/api/v1/auth/google?${params}&tauri=true&tauri_origin=${encodeURIComponent(tauriOrigin)}`;
     } else {
@@ -337,7 +362,7 @@
     </div>
 
     {#if needsServerUrl && getServerUrl()}
-      <button onclick={() => { showServerUrl = true; localStorage.removeItem('sempa_server_url'); clearTauriToken(); resetApiResolver(); serverUrl = ''; authInfo = null; error = ''; }}
+      <button onclick={() => { showServerUrl = true; localStorage.removeItem('sempa_server_url'); clearTauriToken(); clearNativeToken(); resetApiResolver(); serverUrl = ''; authInfo = null; error = ''; }}
               class="mt-4 w-full text-center text-xs transition-colors"
               style="color: var(--sempa-text-dim);">
         Change server ({getServerUrl().replace(/^https?:\/\//, '')})
