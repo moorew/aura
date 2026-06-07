@@ -153,6 +153,23 @@ func (s *TaskStore) ListBacklog(ctx context.Context) ([]Task, error) {
 	return collectTasks(rows)
 }
 
+// ListScheduled returns all non-archived tasks with a concrete time block
+// (scheduled_start and scheduled_end set). Used to push focus blocks to an
+// external calendar.
+func (s *TaskStore) ListScheduled(ctx context.Context) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+taskCols+` FROM tasks
+		 WHERE scheduled_start IS NOT NULL AND scheduled_start != ''
+		   AND scheduled_end   IS NOT NULL AND scheduled_end   != ''
+		   AND archived_at IS NULL
+		 ORDER BY scheduled_start`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectTasks(rows)
+}
+
 // ListRecurringTemplates returns all tasks that are recurring templates.
 func (s *TaskStore) ListRecurringTemplates(ctx context.Context) ([]Task, error) {
 	rows, err := s.db.QueryContext(ctx,

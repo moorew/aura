@@ -261,6 +261,13 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 						r.Post("/sync", integrations.fastmailCalendarSync)
 					})
 				})
+				r.Route("/caldav", func(r chi.Router) {
+					r.Get("/", integrations.caldavGet)
+					r.Get("/calendars", integrations.caldavListCalendars)
+					r.Put("/", integrations.caldavSelect)
+					r.Patch("/", integrations.caldavToggle)
+					r.Post("/sync", integrations.caldavSync)
+				})
 				r.Get("/email-forward", integrations.emailForwardGet)
 				r.Route("/task-inbox", func(r chi.Router) {
 					r.Get("/", integrations.taskInboxGet)

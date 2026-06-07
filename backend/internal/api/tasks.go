@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/clevercode/sempa/internal/db"
+	"github.com/clevercode/sempa/internal/integrations/caldav"
 	"github.com/clevercode/sempa/internal/integrations/gmail"
 	"github.com/clevercode/sempa/internal/integrations/jira"
 )
@@ -189,6 +190,11 @@ func (h *taskHandler) create(w http.ResponseWriter, r *http.Request) {
 	if task.WeekStart != nil {
 		meta["week_start"] = *task.WeekStart
 	}
+	// Mirror to CalDAV if the task was created already scheduled.
+	if task.ScheduledStart != nil && *task.ScheduledStart != "" && h.configs != nil {
+		go h.writeCalDAVBlock(task)
+	}
+
 	h.hub.Broadcast("task:change", meta)
 	respond(w, http.StatusCreated, task)
 }
@@ -303,6 +309,12 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 		go h.writeFocusBlock(updated)
 	}
 
+	// Mirror the time block to CalDAV whenever scheduling changed in either
+	// direction (set, edited, or cleared). PushTask PUTs or DELETEs as needed.
+	if (req.ScheduledStart != nil || req.ScheduledEnd != nil) && h.configs != nil {
+		go h.writeCalDAVBlock(updated)
+	}
+
 	// Jira writeback: close the linked ticket when task is marked done
 	if req.Status != nil && *req.Status == "done" &&
 		updated.Source != nil && *updated.Source == "jira" &&
@@ -356,6 +368,9 @@ func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
 	if h.attach != nil {
 		h.attach.removeForOwner(r, "task", id)
 	}
+	if h.configs != nil {
+		go h.deleteCalDAVBlock(id)
+	}
 	h.hub.Broadcast("task:change", map[string]string{"entity": "task"})
 	respond(w, http.StatusNoContent, nil)
 }
@@ -373,6 +388,64 @@ func (h *taskHandler) writeJiraTransition(task db.Task) {
 	}
 	client := jira.NewClient(jiraCfg)
 	_ = client.TransitionToDone(context.Background(), *task.SourceID)
+}
+
+// caldavClientForTasks builds a CalDAV client + chosen calendar from the stored
+// config, or returns ok=false when CalDAV sync isn't enabled/configured.
+func (h *taskHandler) caldavClientForTasks(ctx context.Context) (*caldav.Client, string, bool) {
+	if h.configs == nil {
+		return nil, "", false
+	}
+	cdRow, err := h.configs.Get(ctx, "caldav")
+	if err != nil || !cdRow.Enabled {
+		return nil, "", false
+	}
+	var cc caldavConfig
+	if err := json.Unmarshal([]byte(cdRow.Config), &cc); err != nil || cc.CalendarHref == "" {
+		return nil, "", false
+	}
+	fmRow, err := h.configs.Get(ctx, "fastmail")
+	if err != nil {
+		return nil, "", false
+	}
+	var fm struct {
+		Email       string `json:"email"`
+		AppPassword string `json:"app_password"`
+	}
+	if err := json.Unmarshal([]byte(fmRow.Config), &fm); err != nil {
+		return nil, "", false
+	}
+	client, err := caldav.NewClient(caldav.Config{
+		BaseURL:  caldav.FastmailBaseURL,
+		Username: fm.Email,
+		Password: fm.AppPassword,
+	})
+	if err != nil {
+		return nil, "", false
+	}
+	return client, cc.CalendarHref, true
+}
+
+// writeCalDAVBlock mirrors a task's time block to the configured CalDAV
+// calendar: PUTs the event when the task is schedulable, DELETEs it otherwise.
+// Runs in a goroutine; errors are silently ignored (graceful degradation).
+func (h *taskHandler) writeCalDAVBlock(task db.Task) {
+	ctx := context.Background()
+	client, calHref, ok := h.caldavClientForTasks(ctx)
+	if !ok {
+		return
+	}
+	_ = caldav.PushTask(ctx, client, calHref, task, h.appURL)
+}
+
+// deleteCalDAVBlock removes a deleted task's event from the CalDAV calendar.
+func (h *taskHandler) deleteCalDAVBlock(taskID string) {
+	ctx := context.Background()
+	client, calHref, ok := h.caldavClientForTasks(ctx)
+	if !ok {
+		return
+	}
+	_ = caldav.DeleteTask(ctx, client, calHref, taskID)
 }
 
 // writeFocusBlock creates a Google Calendar event for a newly-scheduled task.
