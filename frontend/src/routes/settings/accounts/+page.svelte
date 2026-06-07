@@ -14,6 +14,12 @@
   let calendar = $state<{ connected: boolean; email?: string; last_synced_at?: string }>({ connected: false });
   let fastmail = $state<AccountStatus>({ connected: false });
   let fmCal    = $state<{ connected: boolean; enabled: boolean; last_synced_at?: string | null }>({ connected: false, enabled: false });
+  // CalDAV — push scheduled tasks to a calendar (reuses Fastmail credentials)
+  let caldav = $state<{ connected: boolean; enabled?: boolean; calendar_href?: string; calendar_name?: string; last_synced_at?: string | null }>({ connected: false });
+  let caldavCalendars = $state<{ href: string; name: string; color?: string }[]>([]);
+  let caldavPickerOpen = $state(false);
+  let caldavLoading = $state(false);
+  let caldavError = $state('');
   let jira     = $state<{ connected: boolean; last_synced_at?: string | null }>({ connected: false });
   let taskInbox = $state<{
     connected: boolean; email?: string; inbox_address?: string;
@@ -90,6 +96,7 @@
       api.integrations.taskInbox.get(),
       api.ical.listSubscriptions(),
       api.integrations.jira.get(),
+      api.integrations.caldav.get(),
     ]);
     const val = <T,>(i: number, fallback: T): T =>
       results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<T>).value : fallback;
@@ -101,6 +108,7 @@
     taskInbox = val(4, { connected: false });
     icalSubs  = val(5, []);
     jira      = val(6, { connected: false });
+    caldav    = val(7, { connected: false });
 
     serverUnreachable = results.every((r) => r.status === 'rejected');
 
@@ -186,6 +194,7 @@
       await api.integrations.fastmail.save(fmEmail.trim(), fmPassword.trim());
       fastmail = await api.integrations.fastmail.get();
       fmCal = await api.integrations.fastmail.calendar.get().catch(() => ({ connected: false, enabled: false }));
+      caldav = await api.integrations.caldav.get().catch(() => ({ connected: false }));
       fmShowForm = false; fmEmail = ''; fmPassword = '';
     } catch (e) { fmError = (e as Error).message; }
     finally { fmSaving = false; }
@@ -247,6 +256,48 @@
     } finally { syncing['fmcal'] = false; }
   }
 
+  // ── CalDAV: push scheduled tasks to a calendar ──────────────────────────────
+  async function openCaldavPicker() {
+    caldavPickerOpen = true; caldavError = ''; caldavLoading = true;
+    try {
+      caldavCalendars = await api.integrations.caldav.calendars();
+    } catch (e) {
+      caldavError = (e as Error).message;
+    } finally { caldavLoading = false; }
+  }
+
+  async function selectCaldavCalendar(href: string, name: string) {
+    caldavLoading = true; caldavError = '';
+    try {
+      await api.integrations.caldav.select(href, name);
+      caldav = await api.integrations.caldav.get();
+      caldavPickerOpen = false;
+    } catch (e) {
+      caldavError = (e as Error).message;
+    } finally { caldavLoading = false; }
+  }
+
+  async function toggleCaldav(enabled: boolean) {
+    syncing['caldav-toggle'] = true;
+    try {
+      await api.integrations.caldav.toggle(enabled);
+      caldav = { ...caldav, enabled };
+    } catch (e) {
+      syncResults['caldav'] = 'Error: ' + (e as Error).message;
+    } finally { syncing['caldav-toggle'] = false; }
+  }
+
+  async function syncCaldav() {
+    syncing['caldav'] = true; syncResults['caldav'] = '';
+    try {
+      const r = await api.integrations.caldav.sync();
+      syncResults['caldav'] = `Pushed ${r.synced} tasks`;
+      caldav = await api.integrations.caldav.get();
+    } catch (e) {
+      syncResults['caldav'] = 'Error: ' + (e as Error).message;
+    } finally { syncing['caldav'] = false; }
+  }
+
   async function disconnectGmail() {
     if (!confirm('Disconnect Gmail? Imported tasks will be kept.')) return;
     await api.integrations.gmail.delete();
@@ -257,6 +308,7 @@
     if (!confirm('Disconnect Fastmail? Imported tasks will be kept.')) return;
     await api.integrations.fastmail.delete();
     fastmail = { connected: false }; fmCal = { connected: false, enabled: false };
+    caldav = { connected: false }; caldavPickerOpen = false;
     taskInbox = { connected: false };
   }
 
@@ -619,6 +671,86 @@
                       style="transform: translateX({fmCal.enabled ? '18px' : '3px'});"></span>
               </button>
             </div>
+          </div>
+        {/if}
+
+        <!-- CalDAV — push scheduled tasks to a calendar -->
+        {#if caldav.connected}
+          <div class="border-b px-5 py-2.5 text-xs" style="border-color: var(--sempa-border);">
+            <div class="flex min-h-7 items-center justify-between">
+              <span style="color: var(--sempa-text-soft);">
+                Push tasks to calendar
+                {#if caldav.calendar_name}
+                  <span style="color: var(--sempa-text-dim);"> &middot; {caldav.calendar_name}</span>
+                {/if}
+                {#if caldav.enabled && caldav.last_synced_at}
+                  <span style="color: var(--sempa-text-dim);"> &middot; {formatTime(caldav.last_synced_at)}</span>
+                {/if}
+              </span>
+              <div class="flex items-center gap-3">
+                {#if syncResults['caldav']}
+                  <span style="color: var(--sempa-accent);">{syncResults['caldav']}</span>
+                {/if}
+                {#if caldav.calendar_href}
+                  {#if caldav.enabled}
+                    <button onclick={syncCaldav} disabled={syncing['caldav']}
+                            class="transition-colors disabled:opacity-50"
+                            style="color: var(--sempa-text-dim);">
+                      {syncing['caldav'] ? 'Pushing...' : 'Sync now'}
+                    </button>
+                  {/if}
+                  <button onclick={openCaldavPicker} disabled={caldavLoading}
+                          class="transition-colors disabled:opacity-50"
+                          style="color: var(--sempa-text-dim);">Change</button>
+                  <button onclick={() => toggleCaldav(!caldav.enabled)}
+                          disabled={syncing['caldav-toggle']}
+                          aria-label="Toggle CalDAV task push"
+                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50"
+                          style="background: {caldav.enabled ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
+                    <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                          style="transform: translateX({caldav.enabled ? '18px' : '3px'});"></span>
+                  </button>
+                {:else}
+                  <button onclick={openCaldavPicker} disabled={caldavLoading}
+                          class="rounded-lg border px-3 py-1 font-medium transition-colors disabled:opacity-50"
+                          style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                    {caldavLoading ? 'Loading...' : 'Set up'}
+                  </button>
+                {/if}
+              </div>
+            </div>
+
+            {#if caldavPickerOpen}
+              <div class="mt-2.5 space-y-1.5">
+                {#if caldavError}
+                  <p class="text-red-600 dark:text-red-400">{caldavError}</p>
+                {/if}
+                {#if caldavLoading}
+                  <p style="color: var(--sempa-text-dim);">Loading calendars…</p>
+                {:else if caldavCalendars.length === 0 && !caldavError}
+                  <p style="color: var(--sempa-text-dim);">No writable calendars found.</p>
+                {:else}
+                  <p class="mb-1" style="color: var(--sempa-text-dim);">Choose a calendar to write task time-blocks into:</p>
+                  {#each caldavCalendars as cal (cal.href)}
+                    {@const selected = caldav.calendar_href === cal.href}
+                    <button onclick={() => selectCaldavCalendar(cal.href, cal.name)}
+                            disabled={caldavLoading}
+                            class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50"
+                            style="border-color: {selected ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
+                                   background: {selected ? 'var(--sempa-accent-bg)' : 'transparent'};">
+                      <span class="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style="background: {cal.color || '#6b7280'};"></span>
+                      <span class="flex-1 min-w-0 truncate" style="color: var(--sempa-text-soft);">{cal.name}</span>
+                      {#if selected}
+                        <span style="color: var(--sempa-accent);">Selected</span>
+                      {/if}
+                    </button>
+                  {/each}
+                {/if}
+                <button onclick={() => { caldavPickerOpen = false; caldavError = ''; }}
+                        class="transition-colors" style="color: var(--sempa-text-dim);">Cancel</button>
+              </div>
+            {/if}
           </div>
         {/if}
 

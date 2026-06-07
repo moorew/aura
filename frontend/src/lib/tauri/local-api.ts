@@ -383,6 +383,13 @@ export const localApi = {
                 sync: async () => ({ synced: 0, from: '', to: '' }),
             },
         },
+        caldav: {
+            get: async () => ({ connected: false }),
+            calendars: async () => [] as { href: string; name: string; color?: string }[],
+            select: async () => ({ enabled: false, calendar_href: '', calendar_name: '' }),
+            toggle: async () => ({ enabled: false }),
+            sync: async () => ({ synced: 0 }),
+        },
         taskInbox: {
             get: async () => ({ connected: false }),
             save: async () => ({ connected: false, email: '', inbox_address: '', allowed_senders: [] as string[] }),

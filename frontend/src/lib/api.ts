@@ -368,6 +368,21 @@ const httpApi = {
       },
     },
 
+    caldav: {
+      get: () => req<{
+        connected: boolean; enabled?: boolean;
+        calendar_href?: string; calendar_name?: string; last_synced_at?: string | null;
+      }>('/api/v1/integrations/caldav'),
+      calendars: () =>
+        req<{ href: string; name: string; color?: string }[]>('/api/v1/integrations/caldav/calendars'),
+      select: (calendar_href: string, calendar_name: string) =>
+        req<{ enabled: boolean; calendar_href: string; calendar_name: string }>(
+          '/api/v1/integrations/caldav', { method: 'PUT', body: body({ calendar_href, calendar_name }) }),
+      toggle: (enabled: boolean) =>
+        req<{ enabled: boolean }>('/api/v1/integrations/caldav', { method: 'PATCH', body: body({ enabled }) }),
+      sync: () => req<{ synced: number }>('/api/v1/integrations/caldav/sync', { method: 'POST' }),
+    },
+
     taskInbox: {
       get: () => req<{
         connected: boolean; email?: string; inbox_address?: string;
