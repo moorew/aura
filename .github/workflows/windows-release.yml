@@ -48,6 +48,15 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Clean stale installer bundles
+        shell: pwsh
+        run: |
+          # The cached target dir retains bundles from previous version builds.
+          # Remove them so the release upload globs only match the current build.
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle, `
+            frontend/src-tauri/target/aarch64-pc-windows-msvc/release/bundle
+
       - name: Build Tauri app — x64
         working-directory: frontend
         run: npx tauri build --target x86_64-pc-windows-msvc
