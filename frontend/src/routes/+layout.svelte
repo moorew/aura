@@ -20,7 +20,6 @@
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
-  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
   import type { Snippet } from 'svelte';
 
   // Lucide icons
@@ -180,15 +179,8 @@
 
   <!-- ── Sidebar (hidden on mobile) ───────────────────────────────────── -->
   {#if !mobile.value}
-  <aside class="relative overflow-hidden flex w-48 shrink-0 flex-col"
+  <aside class="flex w-48 shrink-0 flex-col"
          style="background: var(--sempa-bg-nav); border-right: 1px solid var(--sempa-border);">
-
-    <!-- Meridian texture, lower half of the sidebar -->
-    <div class="absolute bottom-0 left-0 right-0 h-[60%] pointer-events-none z-0">
-      <SempaPattern motif="meridian" class="w-full h-full" opacity={0.85} />
-    </div>
-
-    <div class="relative z-10 flex flex-col h-full">
 
     <!-- Logo (Cradle mark) -->
     <div class="flex items-center gap-2 px-4 py-5" style="color: var(--sempa-accent);">
@@ -276,7 +268,6 @@
         {/if}
       </div>
     </nav>
-    </div><!-- end z-10 wrapper -->
   </aside>
   {/if}
 

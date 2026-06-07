@@ -5,7 +5,6 @@
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
   import { formatDate, formatMinutes, isToday, offsetDate, weekStart } from '$lib/utils';
-  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
 
   let date       = $derived($page.params.date ?? new Date().toISOString().split('T')[0]);
   let yesterday  = $derived(offsetDate(date, -1));
@@ -129,13 +128,10 @@
     <!-- ── Step 1: Intention ───────────────────────────────────────────── -->
     {#if step === 1}
       {#key step}
-      <div class="animate-fade-in relative overflow-hidden"
+      <div class="animate-fade-in"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
-        <div class="absolute top-0 right-0 w-52 h-52 pointer-events-none z-0" style="transform: rotate(180deg);">
-          <SempaPattern motif="aurora" class="w-full h-full" opacity={0.7} />
-        </div>
-        <div class="relative z-10">
+        <div>
         <p class="mb-1 text-2xl">🌅</p>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">
           {isToday(date) ? 'Good morning!' : formatDate(date)}
@@ -184,13 +180,10 @@
     <!-- ── Step 2: Carryover ───────────────────────────────────────────── -->
     {:else if step === 2}
       {#key step}
-      <div class="animate-fade-in relative overflow-hidden"
+      <div class="animate-fade-in"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
-        <div class="absolute top-0 right-0 w-52 h-52 pointer-events-none z-0" style="transform: rotate(180deg);">
-          <SempaPattern motif="aurora" class="w-full h-full" opacity={0.7} />
-        </div>
-        <div class="relative z-10">
+        <div>
         <p class="mb-1 text-2xl">↩️</p>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">From yesterday</h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">
@@ -267,13 +260,10 @@
     <!-- ── Step 3: Ready ───────────────────────────────────────────────── -->
     {:else}
       {#key step}
-      <div class="animate-fade-in relative overflow-hidden"
+      <div class="animate-fade-in"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
-        <div class="absolute top-0 right-0 w-52 h-52 pointer-events-none z-0" style="transform: rotate(180deg);">
-          <SempaPattern motif="aurora" class="w-full h-full" opacity={0.7} />
-        </div>
-        <div class="relative z-10">
+        <div>
         <p class="mb-1 text-2xl">✅</p>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">You're set for today!</h1>
 

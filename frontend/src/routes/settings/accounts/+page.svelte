@@ -7,7 +7,6 @@
   import { mobile } from '$lib/stores/mobile.svelte';
   import { goto } from '$app/navigation';
   import type { ICalSubscription } from '$lib/types';
-  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
 
   type AccountStatus = { connected: boolean; email?: string; last_synced_at?: string | null; enabled?: boolean };
 
@@ -402,11 +401,7 @@
     </nav>
 
     <!-- ── Scrollable content ────────────────────────────────────────────── -->
-    <div bind:this={scrollContainer} class="relative flex-1 overflow-y-auto">
-      <div class="pointer-events-none sticky top-0 float-right w-64 h-64 z-0 opacity-60 -mr-8 -mt-8"
-           style="shape-outside: circle(50%);">
-        <SempaPattern motif="garden" class="w-full h-full" style="transform: scaleX(-1);" />
-      </div>
+    <div bind:this={scrollContainer} class="flex-1 overflow-y-auto">
       <div class="mx-auto max-w-xl px-6 py-8 pb-16">
         {@render integrationsContent()}
         {@render tasksContent()}

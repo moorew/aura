@@ -6,7 +6,6 @@
   import type { Task } from '$lib/types';
   import { formatDate, formatMinutes, isToday } from '$lib/utils';
   import { Moon, Star, MessageSquare } from 'lucide-svelte';
-  import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
 
   let date = $derived($page.params.date ?? new Date().toISOString().split('T')[0]);
 
@@ -119,13 +118,10 @@
     <!-- ── Step 1: Review ───────────────────────────────────────────────── -->
     {#if step === 1}
       {#key step}
-      <div class="animate-fade-in relative overflow-hidden"
+      <div class="animate-fade-in"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
-        <div class="absolute bottom-0 left-0 w-48 h-48 pointer-events-none z-0">
-          <SempaPattern motif="garden" class="w-full h-full" opacity={0.8} />
-        </div>
-        <div class="relative z-10">
+        <div>
         <Moon size={28} style="color:var(--sempa-accent);margin-bottom:8px"/>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">
           {doneTasks.length > 0 ? 'Great work today!' : 'Wrapping up…'}
@@ -194,13 +190,10 @@
     <!-- ── Step 2: Wins ──────────────────────────────────────────────────── -->
     {:else if step === 2}
       {#key step}
-      <div class="animate-fade-in relative overflow-hidden"
+      <div class="animate-fade-in"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
-        <div class="absolute bottom-0 left-0 w-48 h-48 pointer-events-none z-0">
-          <SempaPattern motif="garden" class="w-full h-full" opacity={0.8} />
-        </div>
-        <div class="relative z-10">
+        <div>
         <Star size={28} style="color:var(--sempa-amber);margin-bottom:8px"/>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">What went well?</h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">Write down your wins — big or small.</p>
@@ -255,13 +248,10 @@
     <!-- ── Step 3: Reflect ───────────────────────────────────────────────── -->
     {:else}
       {#key step}
-      <div class="animate-fade-in relative overflow-hidden"
+      <div class="animate-fade-in"
            style="border-radius:16px; border: 1px solid var(--sempa-border);
                   background: var(--sempa-bg-panel); padding:28px 28px 24px;">
-        <div class="absolute bottom-0 left-0 w-48 h-48 pointer-events-none z-0">
-          <SempaPattern motif="garden" class="w-full h-full" opacity={0.8} />
-        </div>
-        <div class="relative z-10">
+        <div>
         <MessageSquare size={28} style="color:var(--sempa-text-soft);margin-bottom:8px"/>
         <h1 class="mb-1 text-xl font-semibold" style="color: var(--sempa-text);">Any reflections?</h1>
         <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">Blockers, learnings, or things to improve tomorrow.</p>
