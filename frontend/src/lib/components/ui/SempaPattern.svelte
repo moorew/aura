@@ -23,7 +23,12 @@
     style?: string;
   } = $props();
 
-  const o = (base: number) => (base * opacity).toFixed(4);
+  // The spec's base opacities (4–16%) are imperceptible as terracotta-on-dark on
+  // real devices, so the art read as "nothing there". VISIBILITY scales every
+  // element up uniformly — preserving the designed relative weighting — into a
+  // range that actually reads while staying calm and decorative. Clamped to 1.0.
+  const VISIBILITY = 2.8;
+  const o = (base: number) => Math.min(base * opacity * VISIBILITY, 1).toFixed(4);
 
   // Aurora — concentric quarter-circle arcs from the bottom-left corner.
   const AURORA = [

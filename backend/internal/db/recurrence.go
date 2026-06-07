@@ -45,7 +45,15 @@ func (s *TaskStore) GenerateForDate(ctx context.Context, date string) error {
 		}
 
 		if pending != nil {
+			// Roll the instance forward to `date` AND realign its week_start.
+			// Without updating week_start, an instance carried over from a prior
+			// week keeps its old week_start, so ListByWeek (which filters on
+			// week_start) can't find it — even though ListByDate can. That makes
+			// the task appear on the home/today screen but vanish in the day/week
+			// views.
+			ws := weekStartOf(t)
 			pending.PlannedDate = &date
+			pending.WeekStart = &ws
 			if _, err := s.Update(ctx, *pending); err != nil {
 				return err
 			}
@@ -85,14 +93,17 @@ func (s *TaskStore) GenerateForWeek(ctx context.Context, weekStart string) error
 	}
 	weekEnd := ws.AddDate(0, 0, 6).Format("2006-01-02")
 
-	// Backfill: repair any tasks that have a planned_date but a missing
-	// week_start (e.g. recurring instances created before week_start was set on
-	// generation). Without this they'd never surface in ListByWeek. Computes the
-	// Monday-based week start to match the frontend convention.
+	// Backfill: repair any task whose week_start is missing OR doesn't match its
+	// planned_date (e.g. a recurring instance rolled forward from a prior week
+	// before the rollover learned to realign week_start). Without this they'd
+	// never surface in ListByWeek. Computes the Monday-based week start to match
+	// the frontend convention.
 	s.db.ExecContext(ctx, `
 		UPDATE tasks
 		SET week_start = date(planned_date, '-' || ((CAST(strftime('%w', planned_date) AS INTEGER) + 6) % 7) || ' days')
-		WHERE planned_date IS NOT NULL AND (week_start IS NULL OR week_start = '')`)
+		WHERE planned_date IS NOT NULL
+		  AND (week_start IS NULL OR week_start = ''
+		       OR week_start != date(planned_date, '-' || ((CAST(strftime('%w', planned_date) AS INTEGER) + 6) % 7) || ' days'))`)
 
 	switch {
 	case today > weekEnd:
