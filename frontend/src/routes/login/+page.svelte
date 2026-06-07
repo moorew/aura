@@ -12,7 +12,7 @@
   const dotGridUrl = $derived.by(() => {
     const dot = theme.dark ? '#cc6e3a' : '#b3592e';
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'>`
-      + `<g fill='${dot}' fill-opacity='0.08'>`
+      + `<g fill='${dot}' fill-opacity='0.18'>`
       + `<circle cx='0' cy='16' r='1.5'/><circle cx='32' cy='16' r='1.5'/><circle cx='64' cy='16' r='1.5'/>`
       + `<circle cx='16' cy='44' r='1.5'/><circle cx='48' cy='44' r='2.5'/><circle cx='80' cy='44' r='1.5'/>`
       + `<circle cx='0' cy='72' r='1.5'/><circle cx='32' cy='72' r='1.5'/><circle cx='64' cy='72' r='1.5'/>`

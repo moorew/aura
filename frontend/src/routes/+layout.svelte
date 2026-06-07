@@ -181,7 +181,7 @@
 
     <!-- Meridian texture, lower half of the sidebar -->
     <div class="absolute bottom-0 left-0 right-0 h-[60%] pointer-events-none z-0">
-      <SempaPattern motif="meridian" class="w-full h-full" opacity={0.5} />
+      <SempaPattern motif="meridian" class="w-full h-full" opacity={0.85} />
     </div>
 
     <div class="relative z-10 flex flex-col h-full">
