@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -21,6 +22,23 @@ type upsertPlanRequest struct {
 	Reflection *string `json:"reflection"`
 	Wins       *string `json:"wins"`
 	ShutdownAt *string `json:"shutdown_at"`
+}
+
+// list returns recent daily plans that have an intention or reflection, for the
+// Journal timeline. Optional ?limit=N.
+func (h *planHandler) list(w http.ResponseWriter, r *http.Request) {
+	limit := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	plans, err := h.store.List(r.Context(), limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list plans")
+		return
+	}
+	respond(w, http.StatusOK, plans)
 }
 
 func (h *planHandler) get(w http.ResponseWriter, r *http.Request) {

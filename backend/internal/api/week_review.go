@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,6 +19,23 @@ type upsertWeekReviewRequest struct {
 	Wins       *string `json:"wins"`
 	Challenges *string `json:"challenges"`
 	NextFocus  *string `json:"next_focus"`
+}
+
+// list returns all week reviews newest-first, for the Journal timeline.
+// Optional ?limit=N.
+func (h *weekReviewHandler) list(w http.ResponseWriter, r *http.Request) {
+	limit := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	reviews, err := h.store.List(r.Context(), limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list reviews")
+		return
+	}
+	respond(w, http.StatusOK, reviews)
 }
 
 func (h *weekReviewHandler) get(w http.ResponseWriter, r *http.Request) {

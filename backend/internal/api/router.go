@@ -143,11 +143,13 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 			})
 
 			r.Route("/plans", func(r chi.Router) {
+				r.Get("/", plans.list)
 				r.Get("/{date}", plans.get)
 				r.Put("/{date}", plans.upsert)
 			})
 
 			r.Route("/weeks", func(r chi.Router) {
+				r.Get("/reviews", weekReviews.list)
 				r.Get("/{weekStart}/review", weekReviews.get)
 				r.Put("/{weekStart}/review", weekReviews.upsert)
 			})

@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { theme, ACCENT_PRESETS, type AccentName } from '$lib/stores/theme.svelte';
+  import { prefs } from '$lib/stores/prefs.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { goto } from '$app/navigation';
   import type { ICalSubscription } from '$lib/types';
@@ -69,21 +70,19 @@
     const connected = $page.url.searchParams.get('connected');
     if (connected === '1') window.history.replaceState({}, '', '/settings/accounts');
 
-    [gmail, calendar, fastmail, fmCal, taskInbox, icalSubs] = await Promise.all([
-      api.integrations.gmail.get(),
-      api.integrations.calendar.get(),
-      api.integrations.fastmail.get(),
+    // Each call catches independently. A single failing endpoint (common on
+    // Android, where base URL + Bearer auth differ from web) must NOT reject the
+    // whole Promise.all — otherwise none of the integration state is assigned
+    // and the entire Integrations section renders blank.
+    [gmail, calendar, fastmail, fmCal, taskInbox, icalSubs, jira] = await Promise.all([
+      api.integrations.gmail.get().catch(() => ({ connected: false })),
+      api.integrations.calendar.get().catch(() => ({ connected: false })),
+      api.integrations.fastmail.get().catch(() => ({ connected: false })),
       api.integrations.fastmail.calendar.get().catch(() => ({ connected: false, enabled: false })),
-      api.integrations.taskInbox.get(),
-      api.ical.listSubscriptions(),
+      api.integrations.taskInbox.get().catch(() => ({ connected: false })),
+      api.ical.listSubscriptions().catch(() => []),
+      api.integrations.jira.get().catch(() => ({ connected: false })),
     ]);
-
-    if (fastmail.connected) {
-      const jiraCfg = await api.integrations.jira.get().catch(() => ({ connected: false }));
-      jira = jiraCfg;
-    } else {
-      jira = await api.integrations.jira.get().catch(() => ({ connected: false }));
-    }
 
     // IntersectionObserver for sub-nav active state
     await tick();
@@ -1016,6 +1015,28 @@
                              ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent); font-weight:600;'
                              : 'background: transparent; color: var(--sempa-text-soft);'}">
               Dark
+            </button>
+          </div>
+        </div>
+
+        <!-- Contextual reflections toggle -->
+        <div style="border-top: 1px solid var(--sempa-border); padding-top: 20px;">
+          <div class="flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <p class="text-xs font-medium" style="color: var(--sempa-text-soft);">Show reflections in context</p>
+              <p class="mt-1 text-[11px] leading-relaxed" style="color: var(--sempa-text-dim);">
+                Surface your daily intention &amp; reflection on the day view, and the week-review
+                summary on the week view. Turn off to keep them only in the Journal.
+              </p>
+            </div>
+            <button onclick={prefs.toggleContextualReflections}
+                    role="switch" aria-checked={prefs.contextualReflections}
+                    aria-label="Show reflections in context"
+                    class="relative shrink-0 rounded-full transition-colors"
+                    style="width:44px; height:24px; border:none; cursor:pointer;
+                           background: {prefs.contextualReflections ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
+              <span class="absolute top-1/2 -translate-y-1/2 rounded-full bg-white transition-transform"
+                    style="width:16px; height:16px; transform: translateX({prefs.contextualReflections ? '24px' : '4px'});"></span>
             </button>
           </div>
         </div>

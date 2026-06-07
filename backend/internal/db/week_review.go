@@ -31,6 +31,31 @@ func (s *WeekReviewStore) Get(ctx context.Context, weekStart string) (WeekReview
 	return scanWeekReview(row)
 }
 
+// List returns all week reviews, newest first. limit <= 0 means no limit.
+func (s *WeekReviewStore) List(ctx context.Context, limit int) ([]WeekReview, error) {
+	q := `SELECT id, week_start, wins, challenges, next_focus, created_at, updated_at
+		 FROM week_reviews ORDER BY week_start DESC`
+	args := []any{}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	reviews := []WeekReview{}
+	for rows.Next() {
+		r, err := scanWeekReview(rows)
+		if err != nil {
+			return nil, err
+		}
+		reviews = append(reviews, r)
+	}
+	return reviews, rows.Err()
+}
+
 func (s *WeekReviewStore) Upsert(ctx context.Context, id, weekStart string, wins, challenges, nextFocus *string) (WeekReview, error) {
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO week_reviews (id, week_start, wins, challenges, next_focus)

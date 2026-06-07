@@ -6,6 +6,7 @@
   import { today, weekStart, offsetDate } from '$lib/utils';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { theme } from '$lib/stores/theme.svelte';
+  import { prefs } from '$lib/stores/prefs.svelte';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { hapticTick } from '$lib/haptics';
@@ -25,7 +26,7 @@
   import {
     Sun, Calendar, ClipboardCheck, Inbox, Moon, Settings,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
-    Target, Timer, LayoutDashboard, Palette, Menu, Layers,
+    Target, Timer, LayoutDashboard, Palette, Menu, Layers, BookOpen,
   } from 'lucide-svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -80,6 +81,7 @@
 
   onMount(async () => {
     theme.init();
+    prefs.init();
     mobile.init();
     if (!isLoginPage && !isSetupPage) {
       tagStore.load();
@@ -159,7 +161,7 @@
   const tabs = $derived([
     { href: '/home', label: 'Today', prefix: '/home', icon: 'today' },
     { href: `/week/${thisWeek}`, label: 'Week',  prefix: '/week/', icon: 'week' },
-    { href: '/email',            label: 'Inbox', prefix: '/email', icon: 'inbox' },
+    { href: '/journal',          label: 'Journal', prefix: '/journal', icon: 'journal' },
     { href: '#more',             label: 'More',  prefix: '__more', icon: 'more' },
   ]);
 </script>
@@ -224,6 +226,7 @@
       {@render navItem('/email', 'Email', Inbox)}
       {@render navItem('/backlog', 'Backlog', Layers)}
       {@render navItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
+      {@render navItem('/journal', 'Journal', BookOpen)}
 
       <!-- Pomodoro in-progress -->
       {#if pomodoro.taskId}
@@ -306,6 +309,8 @@
           <Calendar size={22} strokeWidth={active ? 2.25 : 1.75} />
         {:else if tab.icon === 'inbox'}
           <Inbox size={22} strokeWidth={active ? 2.25 : 1.75} />
+        {:else if tab.icon === 'journal'}
+          <BookOpen size={22} strokeWidth={active ? 2.25 : 1.75} />
         {:else}
           <Menu size={22} strokeWidth={active ? 2.25 : 1.75} />
         {/if}
@@ -346,6 +351,8 @@
 
       {@render moreItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
       {@render moreItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
+      {@render moreItem('/email', 'Inbox', Inbox)}
+      {@render moreItem('/backlog', 'Backlog', Layers)}
       {@render moreItem('/settings/accounts', 'Settings', Settings)}
 
       <!-- Theme toggle -->

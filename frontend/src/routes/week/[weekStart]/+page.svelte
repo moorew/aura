@@ -3,9 +3,10 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
-  import type { Objective, Task } from '$lib/types';
+  import type { Objective, Task, WeekReview } from '$lib/types';
   import { appendPosition, formatWeekRange, offsetDate, today, weekStart as calcWeekStart } from '$lib/utils';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { prefs } from '$lib/stores/prefs.svelte';
   import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
 
@@ -31,17 +32,31 @@
   let addingTask   = $state<Record<string, boolean>>({});
   let taskDays     = $state<Record<string, string>>({});
 
+  let review = $state<WeekReview | null>(null);
+
   async function load() {
     loading = true; error = null;
     try {
-      [objectives, tasks] = await Promise.all([
+      [objectives, tasks, review] = await Promise.all([
         api.objectives.listByWeek(weekStartDate),
         api.tasks.listByWeek(weekStartDate),
+        api.weeks.getReview(weekStartDate).catch(() => null),
       ]);
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load';
     } finally { loading = false; }
   }
+
+  function parseList(json: string | null | undefined): string[] {
+    if (!json) return [];
+    try { const v = JSON.parse(json); return Array.isArray(v) ? v.filter((s) => typeof s === 'string' && s.trim()) : []; }
+    catch { return []; }
+  }
+
+  const reviewWins      = $derived(parseList(review?.wins));
+  const reviewChallenges = $derived(parseList(review?.challenges));
+  const reviewNextFocus = $derived(review?.next_focus?.trim() ?? '');
+  const reviewDone      = $derived(reviewWins.length > 0 || reviewChallenges.length > 0 || reviewNextFocus.length > 0);
 
   import { realtime } from '$lib/stores/realtime.svelte';
 
@@ -223,13 +238,20 @@
           {/if}
         </button>
         <a href="/week/{weekStartDate}/review"
-           title="Review week"
+           title={reviewDone ? 'Reviewed — edit' : 'Review week'}
            class="flex items-center justify-center rounded-lg transition-colors"
-           style="width:34px; height:34px; border: 1px solid var(--sempa-border);
-                  color: var(--sempa-text-soft); background: transparent;">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
-          </svg>
+           style="width:34px; height:34px; border: 1px solid {reviewDone ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
+                  color: {reviewDone ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};
+                  background: {reviewDone ? 'var(--sempa-accent-bg)' : 'transparent'};">
+          {#if reviewDone}
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+          {:else}
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
+            </svg>
+          {/if}
         </a>
         <a href="/week/{weekStartDate}/plan"
            class="flex items-center gap-1 shadow-sm"
@@ -264,13 +286,21 @@
 
         <a href="/week/{weekStartDate}/review"
            class="flex items-center gap-1.5 font-medium transition-colors"
-           style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);
-                  background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 12px;">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
-        </svg>
-        Review week
-      </a>
+           style="border: 1px solid {reviewDone ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
+                  color: {reviewDone ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};
+                  background: {reviewDone ? 'var(--sempa-accent-bg)' : 'transparent'}; border-radius: 9px; padding: 7px 14px; font-size: 12px;">
+          {#if reviewDone}
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            Reviewed
+          {:else}
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
+            </svg>
+            Review week
+          {/if}
+        </a>
 
       <a href="/week/{weekStartDate}/plan"
          class="flex items-center gap-1.5 shadow-sm"
@@ -311,6 +341,30 @@
                       background: var(--sempa-accent); transition: width 500ms ease-out;"></div>
         </div>
       </div>
+    {/if}
+
+    <!-- Contextual week-review summary -->
+    {#if prefs.contextualReflections && reviewDone}
+      <a href="/week/{weekStartDate}/review"
+         class="mb-6 block rounded-2xl px-5 py-4 transition-opacity active:opacity-70"
+         style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);">
+        <div class="mb-2 flex items-center gap-2">
+          <svg class="h-3.5 w-3.5 shrink-0" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-accent);">Week reviewed</p>
+        </div>
+        {#if reviewWins.length}
+          <p class="text-sm leading-relaxed" style="color: var(--sempa-text);">
+            <span style="color: var(--sempa-text-soft);">Wins:</span> {reviewWins.join(' · ')}
+          </p>
+        {/if}
+        {#if reviewNextFocus}
+          <p class="mt-1 text-sm leading-relaxed" style="color: var(--sempa-text);">
+            <span style="color: var(--sempa-text-soft);">Next focus:</span> {reviewNextFocus}
+          </p>
+        {/if}
+      </a>
     {/if}
 
     <!-- Objectives list -->

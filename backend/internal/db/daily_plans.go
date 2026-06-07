@@ -47,6 +47,34 @@ func (s *DailyPlanStore) Get(ctx context.Context, date string) (DailyPlan, error
 	return p, err
 }
 
+// List returns daily plans that hold something worth journalling (a non-empty
+// intention or reflection), newest first. limit <= 0 means no limit.
+func (s *DailyPlanStore) List(ctx context.Context, limit int) ([]DailyPlan, error) {
+	q := `SELECT ` + planCols + ` FROM daily_plans
+		 WHERE (intention IS NOT NULL AND intention != '')
+		    OR (reflection IS NOT NULL AND reflection != '')
+		 ORDER BY plan_date DESC`
+	args := []any{}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	plans := []DailyPlan{}
+	for rows.Next() {
+		p, err := scanPlan(rows)
+		if err != nil {
+			return nil, err
+		}
+		plans = append(plans, p)
+	}
+	return plans, rows.Err()
+}
+
 type UpsertPlanParams struct {
 	ID         string
 	PlanDate   string

@@ -20,6 +20,9 @@
   import MobileTaskView from '$lib/components/MobileTaskView.svelte';
   import { syncWidgetData } from '$lib/widget-bridge';
   import { realtime } from '$lib/stores/realtime.svelte';
+  import { prefs } from '$lib/stores/prefs.svelte';
+  import ReflectionCard from '$lib/components/ReflectionCard.svelte';
+  import type { DailyPlan } from '$lib/types';
 
   // "date" is used to anchor the week and mark today
   let date      = $derived($page.params.date ?? today());
@@ -81,6 +84,17 @@
     const upd = pomodoro.lastTimeUpdate;
     if (upd) tasks = tasks.map(t => t.id === upd.taskId ? { ...t, time_actual_minutes: upd.newActual } : t);
   });
+
+  // ── Contextual day plan (intention / reflection) ───────────────────────────
+  let dayPlan = $state<DailyPlan | null>(null);
+  $effect(() => {
+    const d = date;
+    dayPlan = null;
+    if (!prefs.contextualReflections) return;
+    api.plans.get(d).then((p) => { if (d === date) dayPlan = p; }).catch(() => {});
+  });
+  const dayIntention = $derived(dayPlan?.plan_date === date ? dayPlan?.intention : null);
+  const dayReflection = $derived(dayPlan?.plan_date === date ? dayPlan?.reflection : null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   async function loadTasks() {
@@ -422,6 +436,13 @@
     {/if}
   </header>
 
+  <!-- Contextual intention (mobile) -->
+  {#if prefs.contextualReflections}
+    <div class="px-4 mb-3">
+      <ReflectionCard date={date} intention={dayIntention} show="intention" promptWhenEmpty={isToday(date)} />
+    </div>
+  {/if}
+
   <!-- Rollover banner (mobile) -->
   {#if rolloverTasks.length > 0 && !rolloverDismissed && isToday(date)}
     <div class="mx-4 mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5 animate-slide-down"
@@ -497,6 +518,13 @@
           </div>
         </div>
       {/if}
+    {/if}
+
+    <!-- Contextual reflection (mobile) -->
+    {#if prefs.contextualReflections && !loading}
+      <div class="mt-4">
+        <ReflectionCard date={date} reflection={dayReflection} show="reflection" promptWhenEmpty={isToday(date)} />
+      </div>
     {/if}
   </main>
 
@@ -692,6 +720,13 @@
   <!-- ── Right panel ─────────────────────────────────────────────────────── -->
   <aside class="w-72 shrink-0 flex flex-col overflow-hidden"
          style="background: var(--sempa-bg-panel); border-left: 1px solid var(--sempa-border);">
+
+    <!-- Contextual intention / reflection for the anchored day -->
+    {#if prefs.contextualReflections && (dayIntention?.trim() || dayReflection?.trim() || isToday(date))}
+      <div class="shrink-0 p-3" style="border-bottom: 1px solid var(--sempa-border);">
+        <ReflectionCard date={date} intention={dayIntention} reflection={dayReflection} show="both" promptWhenEmpty={isToday(date)} />
+      </div>
+    {/if}
 
     <!-- Always-visible: mini calendar + objectives -->
     <div class="shrink-0" style="border-bottom: 1px solid var(--sempa-border);">

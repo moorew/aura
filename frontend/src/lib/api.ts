@@ -143,6 +143,8 @@ const httpApi = {
 
   plans: {
     get: (date: string) => req<DailyPlan>(`/api/v1/plans/${date}`),
+    list: (limit?: number) =>
+      req<DailyPlan[]>(`/api/v1/plans${limit ? `?limit=${limit}` : ''}`),
     upsert: (date: string, input: UpsertPlanInput) =>
       req<DailyPlan>(`/api/v1/plans/${date}`, { method: 'PUT', body: body(input) }),
   },
@@ -174,6 +176,8 @@ const httpApi = {
 
   weeks: {
     getReview:    (weekStart: string) => req<WeekReview>(`/api/v1/weeks/${weekStart}/review`),
+    listReviews:  (limit?: number) =>
+      req<WeekReview[]>(`/api/v1/weeks/reviews${limit ? `?limit=${limit}` : ''}`),
     upsertReview: (weekStart: string, data: { wins: string | null; challenges: string | null; next_focus: string | null }) =>
       req<WeekReview>(`/api/v1/weeks/${weekStart}/review`, { method: 'PUT', body: body(data) }),
   },

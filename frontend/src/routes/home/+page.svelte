@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
-  import type { Objective, Task } from '$lib/types';
+  import type { Objective, Task, WeekReview } from '$lib/types';
   import { today, weekStart } from '$lib/utils';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
@@ -70,10 +70,20 @@
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
 
+  let weekReview = $state<WeekReview | null>(null);
+  const reviewDone = $derived(
+    !!weekReview && (
+      !!weekReview.next_focus?.trim() ||
+      (!!weekReview.wins && weekReview.wins !== '[]' && weekReview.wins !== '[""]') ||
+      (!!weekReview.challenges && weekReview.challenges !== '[]' && weekReview.challenges !== '[""]')
+    )
+  );
+
   async function loadData() {
-    [todayTasks, objectives] = await Promise.all([
+    [todayTasks, objectives, weekReview] = await Promise.all([
       api.tasks.listByDate(todayDate),
       api.objectives.listByWeek(thisWeek),
+      api.weeks.getReview(thisWeek).catch(() => null),
     ]);
     loading = false;
   }
@@ -251,11 +261,20 @@
       </a>
       <a href="/week/{thisWeek}/review"
          class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm transition-opacity active:opacity-70"
-         style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
-        </svg>
-        Review
+         style="background: {reviewDone ? 'var(--sempa-accent-bg)' : 'var(--sempa-bg-panel)'};
+                border: 1px solid {reviewDone ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
+                color: {reviewDone ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};">
+        {#if reviewDone}
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          Reviewed
+        {:else}
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
+          </svg>
+          Review
+        {/if}
       </a>
       <a href="/email"
          class="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm transition-opacity active:opacity-70"
