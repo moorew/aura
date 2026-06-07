@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import type { BackupDestination, BackupRun, BackupSettings, BackupDestinationType } from '$lib/types';
@@ -34,12 +34,50 @@
   let runningNow = $state(false);
   let testResults = $state<Record<string, string>>({});
 
+  // Capacitor (native) bits — loaded dynamically, only present on Android.
+  let Capacitor: any = null;
+  let CapBrowser: any = null;
+  let isNative = $state(false);
+  let browserListener: { remove: () => void } | null = null;
+  let messageListener: ((e: MessageEvent) => void) | null = null;
+
   onMount(() => {
     void load();
-    if ($page.url.searchParams.get('drive') === 'connected') {
-      notice = 'Google Drive connected.';
-    }
+    void initNative();
+
+    // Full-redirect fallback (e.g. popup blocked) lands back here with a flag.
+    const driveParam = $page.url.searchParams.get('drive');
+    if (driveParam === 'connected') notice = 'Google Drive connected.';
+    else if (driveParam === 'error') error = 'Google Drive connection failed. Please try again.';
+
+    // Web popup notifies us via postMessage when the OAuth window finishes.
+    messageListener = (e: MessageEvent) => {
+      if (e.data === 'sempa-drive-connected') { notice = 'Google Drive connected.'; void refreshDriveStatus(); }
+      else if (e.data === 'sempa-drive-error') { error = 'Google Drive connection failed.'; }
+    };
+    window.addEventListener('message', messageListener);
   });
+
+  onDestroy(() => {
+    if (messageListener) window.removeEventListener('message', messageListener);
+    browserListener?.remove();
+  });
+
+  async function initNative() {
+    try {
+      const cap = await import('@capacitor/core');
+      Capacitor = cap.Capacitor;
+      isNative = Capacitor.isNativePlatform();
+      if (isNative) {
+        const b = await import('@capacitor/browser');
+        CapBrowser = b.Browser;
+      }
+    } catch { /* not on a Capacitor platform */ }
+  }
+
+  async function refreshDriveStatus() {
+    try { driveConnected = (await api.backup.driveStatus()).connected; } catch { /* ignore */ }
+  }
 
   async function load() {
     loading = true; error = '';
@@ -140,8 +178,25 @@
     window.open(api.backup.downloadUrl(), '_blank');
   }
 
-  function connectDrive() {
-    window.location.href = api.backup.driveAuthUrl();
+  async function connectDrive() {
+    const url = api.backup.driveAuthUrl();
+    error = ''; notice = '';
+    if (isNative && CapBrowser) {
+      // Android: open in a Chrome Custom Tab (keeps the app's WebView intact).
+      // The token is stored server-side; when the tab closes we re-check status.
+      browserListener?.remove();
+      browserListener = await CapBrowser.addListener('browserFinished', () => {
+        void refreshDriveStatus();
+      });
+      await CapBrowser.open({ url });
+      return;
+    }
+    // Web/desktop: open a popup so we never navigate away from this page.
+    const popup = window.open(url, 'sempa-drive', 'popup,width=520,height=680');
+    if (!popup) {
+      // Popup blocked — fall back to a full-page redirect (lands back here).
+      window.location.href = url;
+    }
   }
   async function disconnectDrive() {
     await api.backup.driveDisconnect();
@@ -196,13 +251,6 @@
   <p class="mb-6 text-sm" style="color: var(--sempa-text-soft);">
     Bundle everything — tasks, objectives, plans, and attached files — into one file you can restore anywhere.
   </p>
-
-  {#if notice}
-    <p class="mb-4 rounded-lg px-3 py-2 text-sm" style="background: color-mix(in srgb, #22c55e 12%, transparent); color: #16a34a;">{notice}</p>
-  {/if}
-  {#if error}
-    <p class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">{error}</p>
-  {/if}
 
   {#if loading}
     <p class="text-sm" style="color: var(--sempa-text-dim);">Loading…</p>
@@ -363,7 +411,7 @@
                 {:else}
                   <p class="text-xs text-amber-600">Google OAuth isn’t configured on this server (set GMAIL_CLIENT_ID/SECRET).</p>
                 {/if}
-                <input bind:value={dest.folder_id} placeholder="Drive folder ID (optional — blank = Drive root)"
+                <input bind:value={dest.folder_id} placeholder="Advanced: specific Drive folder ID (blank = auto “Sempa Backups” folder)"
                        class="w-full rounded-md border px-2 py-1.5 text-sm" style="border-color: var(--sempa-border); background: var(--sempa-bg);" />
               </div>
             {/if}
@@ -386,14 +434,6 @@
         {/each}
       </div>
     </section>
-
-    <div class="mb-8 flex justify-end">
-      <button onclick={save} disabled={saving}
-              class="rounded-lg px-5 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
-              style="background: var(--sempa-accent);">
-        {saving ? 'Saving…' : 'Save settings'}
-      </button>
-    </div>
 
     <!-- Restore -->
     <section class="mb-6 rounded-xl border px-5 py-4" style="border-color: #f59e0b55; background: color-mix(in srgb, #f59e0b 6%, var(--sempa-bg-panel));">
@@ -449,5 +489,20 @@
         </div>
       </section>
     {/if}
+
+    <!-- Sticky save bar — feedback shows right next to the button -->
+    <div class="sticky bottom-0 -mx-4 mt-6 flex items-center justify-end gap-3 border-t px-4 py-3"
+         style="border-color: var(--sempa-border); background: color-mix(in srgb, var(--sempa-bg) 92%, transparent); backdrop-filter: blur(6px);">
+      {#if notice}
+        <span class="mr-auto text-sm" style="color: #16a34a;">{notice}</span>
+      {:else if error}
+        <span class="mr-auto text-sm" style="color: #dc2626;">{error}</span>
+      {/if}
+      <button onclick={save} disabled={saving}
+              class="rounded-lg px-5 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50"
+              style="background: var(--sempa-accent);">
+        {saving ? 'Saving…' : 'Save settings'}
+      </button>
+    </div>
   {/if}
 </div>
