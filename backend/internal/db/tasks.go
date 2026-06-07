@@ -9,25 +9,25 @@ import (
 )
 
 type Task struct {
-	ID                  string   `json:"id"`
-	Title               string   `json:"title"`
-	Description         *string  `json:"description"`
-	PlannedDate         *string  `json:"planned_date"`
-	WeekStart           *string  `json:"week_start"`
-	Status              string   `json:"status"`
-	Position            float64  `json:"position"`
-	TimeEstimateMinutes *int64   `json:"time_estimate_minutes"`
-	TimeActualMinutes   *int64   `json:"time_actual_minutes"`
-	ParentTaskID        *string  `json:"parent_task_id"`
-	WeeklyObjectiveID   *string  `json:"weekly_objective_id"`
-	Source              *string  `json:"source"`
-	SourceID            *string  `json:"source_id"`
-	SourceURL           *string  `json:"source_url"`
-	SourceMetadata      *string  `json:"source_metadata"`
-	CompletedAt         *string  `json:"completed_at"`
-	ArchivedAt          *string  `json:"archived_at"`
-	CreatedAt           string   `json:"created_at"`
-	UpdatedAt           string   `json:"updated_at"`
+	ID                  string  `json:"id"`
+	Title               string  `json:"title"`
+	Description         *string `json:"description"`
+	PlannedDate         *string `json:"planned_date"`
+	WeekStart           *string `json:"week_start"`
+	Status              string  `json:"status"`
+	Position            float64 `json:"position"`
+	TimeEstimateMinutes *int64  `json:"time_estimate_minutes"`
+	TimeActualMinutes   *int64  `json:"time_actual_minutes"`
+	ParentTaskID        *string `json:"parent_task_id"`
+	WeeklyObjectiveID   *string `json:"weekly_objective_id"`
+	Source              *string `json:"source"`
+	SourceID            *string `json:"source_id"`
+	SourceURL           *string `json:"source_url"`
+	SourceMetadata      *string `json:"source_metadata"`
+	CompletedAt         *string `json:"completed_at"`
+	ArchivedAt          *string `json:"archived_at"`
+	CreatedAt           string  `json:"created_at"`
+	UpdatedAt           string  `json:"updated_at"`
 	// Tags & recurrence (added in migration 002)
 	Tags               []string `json:"tags"`
 	RecurrenceRule     *string  `json:"recurrence_rule"`
@@ -211,12 +211,12 @@ type CreateTaskParams struct {
 	SourceID            *string
 	SourceURL           *string
 	SourceMetadata      *string
-	Tags               []string
-	RecurrenceRule     *string
-	RecurrenceOriginID *string
-	ScheduledStart     *string
-	ScheduledEnd       *string
-	RoughlyAt          *string
+	Tags                []string
+	RecurrenceRule      *string
+	RecurrenceOriginID  *string
+	ScheduledStart      *string
+	ScheduledEnd        *string
+	RoughlyAt           *string
 }
 
 func (s *TaskStore) Create(ctx context.Context, p CreateTaskParams) (Task, error) {

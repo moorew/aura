@@ -19,8 +19,9 @@ type taskHandler struct {
 	store   *db.TaskStore
 	tags    *db.TagStore
 	configs *db.IntegrationConfigStore // for calendar write-back
-	appURL  string                      // base URL for task links
+	appURL  string                     // base URL for task links
 	hub     *EventHub
+	attach  *attachmentHandler // for cascading attachment cleanup on delete
 }
 
 type createTaskRequest struct {
@@ -73,9 +74,9 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 		_ = h.store.GenerateForDate(r.Context(), date)
 	}
 
-	parentID          := q.Get("parent_id")
-	source            := q.Get("source")
-	recurrenceOrigin  := q.Get("recurrence_origin")
+	parentID := q.Get("parent_id")
+	source := q.Get("source")
+	recurrenceOrigin := q.Get("recurrence_origin")
 
 	var (
 		tasks []db.Task
@@ -342,7 +343,8 @@ func (h *taskHandler) listTemplates(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
-	err := h.store.Delete(r.Context(), chi.URLParam(r, "id"))
+	id := chi.URLParam(r, "id")
+	err := h.store.Delete(r.Context(), id)
 	if errors.Is(err, db.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "task not found")
 		return
@@ -350,6 +352,9 @@ func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete task")
 		return
+	}
+	if h.attach != nil {
+		h.attach.removeForOwner(r, "task", id)
 	}
 	h.hub.Broadcast("task:change", map[string]string{"entity": "task"})
 	respond(w, http.StatusNoContent, nil)

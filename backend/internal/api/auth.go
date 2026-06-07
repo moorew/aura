@@ -203,7 +203,9 @@ func newAuthHandler(cfg config.Config) *authHandler {
 }
 
 func (h *authHandler) passwordEnabled() bool { return h.cfg.AuthPassword != "" }
-func (h *authHandler) googleEnabled() bool   { return h.cfg.GmailClientID != "" && h.cfg.GmailClientSecret != "" }
+func (h *authHandler) googleEnabled() bool {
+	return h.cfg.GmailClientID != "" && h.cfg.GmailClientSecret != ""
+}
 
 // authEnabled returns true when any auth mechanism is configured.
 func (h *authHandler) authEnabled() bool { return h.passwordEnabled() || h.googleEnabled() }
@@ -312,8 +314,8 @@ func (h *authHandler) logout(w http.ResponseWriter, r *http.Request) {
 func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 	if !h.authEnabled() {
 		respond(w, http.StatusOK, map[string]any{
-			"authenticated": true,
-			"auth_enabled":  false,
+			"authenticated":  true,
+			"auth_enabled":   false,
 			"google_enabled": h.googleEnabled(),
 		})
 		return

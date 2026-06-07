@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/clevercode/sempa/internal/api"
+	"github.com/clevercode/sempa/internal/backup"
+	"github.com/clevercode/sempa/internal/blob"
 	"github.com/clevercode/sempa/internal/config"
 	"github.com/clevercode/sempa/internal/db"
 	"github.com/clevercode/sempa/internal/integrations/emailrecv"
@@ -34,11 +36,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	blobs, err := blob.New(cfg.AttachmentsDir)
+	if err != nil {
+		slog.Error("open attachments dir", "err", err)
+		os.Exit(1)
+	}
+
 	// Cancellable context for background workers.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	handler := api.NewRouter(database, cfg)
+	handler := api.NewRouter(database, cfg, blobs)
 
 	// Inbound SMTP server.
 	if cfg.SMTPPort != "" {
@@ -66,12 +74,20 @@ func main() {
 	notifySvc := notify.New(db.NewDeviceTokenStore(database), cfg.FCMKeyPath)
 	go notify.StartReminders(ctx, db.NewTaskStore(database), notifySvc)
 
+	// Daily backup scheduler.
+	backupSvc := backup.NewService(database, cfg.DBPath, blobs.Dir())
+	driveToken := backup.DriveTokenResolver(db.NewIntegrationConfigStore(database), cfg.GmailClientID, cfg.GmailClientSecret)
+	poller.StartBackupScheduler(ctx, backupSvc, db.NewBackupStore(database), driveToken)
+	slog.Info("backup scheduler started")
+
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:    ":" + cfg.Port,
+		Handler: handler,
+		// ReadTimeout/WriteTimeout are left at 0 (unlimited) so large attachment
+		// uploads and backup downloads (up to 500 MB) aren't cut off. Slowloris is
+		// still guarded by ReadHeaderTimeout.
+		ReadHeaderTimeout: 15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

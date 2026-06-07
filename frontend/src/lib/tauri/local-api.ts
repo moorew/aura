@@ -144,6 +144,31 @@ export const localApi = {
         unregister: async () => {},
     },
 
+    // Attachments require server-side blob storage; in offline desktop mode they
+    // are unavailable. Stubs keep the UI from crashing.
+    attachments: {
+        listForTask: async () => [],
+        listForObjective: async () => [],
+        uploadToTask: async () => { throw new Error('Attachments need a server connection'); },
+        uploadToObjective: async () => { throw new Error('Attachments need a server connection'); },
+        delete: async () => {},
+        downloadUrl: () => '',
+    },
+
+    // Backups are a server-side feature; unavailable in offline desktop mode.
+    backup: {
+        getSettings: async () => { throw new Error('Backups need a server connection'); },
+        updateSettings: async () => { throw new Error('Backups need a server connection'); },
+        runs: async () => [],
+        run: async () => { throw new Error('Backups need a server connection'); },
+        test: async () => ({ ok: false, error: 'Backups need a server connection' }),
+        downloadUrl: () => '',
+        restore: async () => { throw new Error('Backups need a server connection'); },
+        driveAuthUrl: () => '',
+        driveStatus: async () => ({ connected: false }),
+        driveDisconnect: async () => {},
+    },
+
     objectives: {
         listByWeek: async (ws: string): Promise<Objective[]> => {
             return query<Objective[]>(

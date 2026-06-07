@@ -11,11 +11,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/clevercode/sempa/internal/backup"
+	"github.com/clevercode/sempa/internal/blob"
 	"github.com/clevercode/sempa/internal/config"
 	"github.com/clevercode/sempa/internal/db"
 )
 
-func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
+func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -48,32 +50,51 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 		MaxAge:           300,
 	}))
 
-	tagStore    := db.NewTagStore(database)
+	tagStore := db.NewTagStore(database)
 	configStore := db.NewIntegrationConfigStore(database)
-	setup       := &setupHandler{configs: configStore}
-	fmCalStore  := db.NewFastmailCalStore(database)
+	setup := &setupHandler{configs: configStore}
+	fmCalStore := db.NewFastmailCalStore(database)
 	auth := newAuthHandler(cfg)
 
 	hub := NewEventHub()
 
-	tasks        := &taskHandler{
+	objectiveStore := db.NewObjectiveStore(database)
+	attachments := &attachmentHandler{
+		store:      db.NewAttachmentStore(database),
+		blobs:      blobs,
+		tasks:      db.NewTaskStore(database),
+		objectives: objectiveStore,
+		hub:        hub,
+	}
+
+	tasks := &taskHandler{
 		store:   db.NewTaskStore(database),
 		tags:    tagStore,
 		configs: configStore,
 		appURL:  cfg.AppURL,
 		hub:     hub,
+		attach:  attachments,
 	}
-	objectives   := &objectiveHandler{store: db.NewObjectiveStore(database), hub: hub}
-	plans        := &planHandler{store: db.NewDailyPlanStore(database), hub: hub}
-	sessions     := &sessionHandler{store: db.NewSessionStore(database)}
-	tags         := &tagHandler{store: tagStore, hub: hub}
-	weekReviews  := &weekReviewHandler{store: db.NewWeekReviewStore(database)}
-	icals        := &icalHandler{
+	objectives := &objectiveHandler{store: objectiveStore, hub: hub, attach: attachments}
+
+	backupSvc := backup.NewService(database, cfg.DBPath, blobs.Dir())
+	backups := &backupHandler{
+		svc:     backupSvc,
+		store:   db.NewBackupStore(database),
+		configs: configStore,
+		hub:     hub,
+		cfg:     cfg,
+	}
+	plans := &planHandler{store: db.NewDailyPlanStore(database), hub: hub}
+	sessions := &sessionHandler{store: db.NewSessionStore(database)}
+	tags := &tagHandler{store: tagStore, hub: hub}
+	weekReviews := &weekReviewHandler{store: db.NewWeekReviewStore(database)}
+	icals := &icalHandler{
 		store:      db.NewICalStore(database),
 		fmCalStore: fmCalStore,
 		configs:    configStore,
 	}
-	devices      := &deviceHandler{store: db.NewDeviceTokenStore(database)}
+	devices := &deviceHandler{store: db.NewDeviceTokenStore(database)}
 	integrations := &integrationHandler{
 		configs:    configStore,
 		tasks:      db.NewTaskStore(database),
@@ -112,6 +133,9 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 		// Gmail OAuth callback must be accessible during the redirect flow
 		r.Get("/integrations/gmail/callback", integrations.gmailCallback)
 
+		// Backup Drive OAuth callback (drive.file scope) — same redirect-flow rules
+		r.Get("/backup/drive/callback", backups.driveCallback)
+
 		// All remaining API routes require session auth (if auth is configured)
 		r.Group(func(r chi.Router) {
 			r.Use(auth.requireAuth)
@@ -125,6 +149,27 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 				r.Get("/{id}", tasks.get)
 				r.Patch("/{id}", tasks.update)
 				r.Delete("/{id}", tasks.delete)
+				r.Get("/{id}/attachments", attachments.list("task"))
+				r.Post("/{id}/attachments", attachments.upload("task"))
+			})
+
+			r.Route("/attachments", func(r chi.Router) {
+				r.Get("/{id}/download", attachments.download)
+				r.Delete("/{id}", attachments.delete)
+			})
+
+			r.Route("/backup", func(r chi.Router) {
+				r.Get("/settings", backups.getSettings)
+				r.Put("/settings", backups.updateSettings)
+				r.Get("/runs", backups.listRuns)
+				r.Get("/download", backups.download)
+				r.Post("/restore", backups.restore)
+				r.Post("/run", backups.runNow)
+				r.Post("/test", backups.testDestination)
+				// Google Drive OAuth for backups (drive.file scope).
+				r.Get("/drive/auth", backups.driveAuth)
+				r.Get("/drive", backups.driveStatus)
+				r.Delete("/drive", backups.driveDisconnect)
 			})
 
 			r.Route("/tags", func(r chi.Router) {
@@ -140,6 +185,8 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 				r.Get("/{id}", objectives.get)
 				r.Patch("/{id}", objectives.update)
 				r.Delete("/{id}", objectives.delete)
+				r.Get("/{id}/attachments", attachments.list("objective"))
+				r.Post("/{id}/attachments", attachments.upload("objective"))
 			})
 
 			r.Route("/plans", func(r chi.Router) {
@@ -215,13 +262,13 @@ func NewRouter(database *sql.DB, cfg config.Config) http.Handler {
 					})
 				})
 				r.Get("/email-forward", integrations.emailForwardGet)
-			r.Route("/task-inbox", func(r chi.Router) {
-				r.Get("/", integrations.taskInboxGet)
-				r.Put("/", integrations.taskInboxPut)
-				r.Patch("/senders", integrations.taskInboxPatchSenders)
-				r.Post("/sync", integrations.taskInboxSync)
-				r.Delete("/", integrations.taskInboxDelete)
-			})
+				r.Route("/task-inbox", func(r chi.Router) {
+					r.Get("/", integrations.taskInboxGet)
+					r.Put("/", integrations.taskInboxPut)
+					r.Patch("/senders", integrations.taskInboxPatchSenders)
+					r.Post("/sync", integrations.taskInboxSync)
+					r.Delete("/", integrations.taskInboxDelete)
+				})
 			})
 		})
 	})

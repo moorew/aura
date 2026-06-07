@@ -9,6 +9,7 @@
   import { prefs } from '$lib/stores/prefs.svelte';
   import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
+  import AttachmentList from '$lib/components/AttachmentList.svelte';
 
   let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(new Date().toISOString().split('T')[0]));
 
@@ -501,6 +502,11 @@
                     </button>
                   </div>
                 {/if}
+              </div>
+
+              <!-- Attachments for this objective -->
+              <div class="mt-3 pt-3" style="border-top: 1px solid var(--sempa-border);">
+                <AttachmentList ownerType="objective" ownerId={obj.id} />
               </div>
             </div>
           {/if}

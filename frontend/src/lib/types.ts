@@ -33,6 +33,16 @@ export interface Task {
   roughly_at: string | null;
 }
 
+export interface Attachment {
+  id: string;
+  owner_type: 'task' | 'objective';
+  owner_id: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface TagDefinition {
   id: string;
   name: string;
@@ -183,6 +193,63 @@ export interface JiraIntegrationConfig extends IntegrationConfig {
 export interface GmailIntegrationConfig extends IntegrationConfig {
   email?: string;
   labels?: string[];
+}
+
+export type BackupSecurityMode = 'none' | 'encrypt' | 'exclude_secrets';
+export type BackupDestinationType = 'local' | 'webdav' | 's3' | 'drive';
+
+export interface BackupDestination {
+  id: string;
+  type: BackupDestinationType;
+  name: string;
+  enabled: boolean;
+  // local
+  path?: string;
+  // webdav
+  url?: string;
+  username?: string;
+  password?: string;
+  // s3
+  bucket?: string;
+  region?: string;
+  prefix?: string;
+  endpoint?: string;
+  access_key_id?: string;
+  secret_access_key?: string;
+  // drive
+  folder_id?: string;
+}
+
+export interface BackupSettings {
+  enabled: boolean;
+  schedule_hour: number;
+  retention: number;
+  security_mode: BackupSecurityMode;
+  has_passphrase: boolean;
+  destinations: string; // raw JSON array of BackupDestination
+  last_run_at: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  updated_at: string;
+}
+
+export interface BackupRun {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  trigger: string;
+  status: 'success' | 'error';
+  size_bytes: number | null;
+  filename: string | null;
+  destinations: string | null; // JSON
+  error: string | null;
+}
+
+export interface BackupSettingsResponse {
+  settings: BackupSettings;
+  runs: BackupRun[];
+  drive_connected: boolean;
+  google_oauth: boolean;
 }
 
 export interface SyncResult {

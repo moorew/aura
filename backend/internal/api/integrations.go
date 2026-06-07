@@ -289,7 +289,7 @@ func (h *integrationHandler) gmailAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *integrationHandler) gmailCallback(w http.ResponseWriter, r *http.Request) {
-	code  := r.URL.Query().Get("code")
+	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
 	if !gmail.ConsumeState(state) {
@@ -430,10 +430,10 @@ func (h *integrationHandler) calendarGet(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	respond(w, http.StatusOK, map[string]any{
-		"connected":       stored.CalendarEnabled,
-		"email":           stored.Email,
-		"calendar_ids":    stored.CalendarIDs,
-		"last_synced_at":  cfg.LastSyncedAt,
+		"connected":      stored.CalendarEnabled,
+		"email":          stored.Email,
+		"calendar_ids":   stored.CalendarIDs,
+		"last_synced_at": cfg.LastSyncedAt,
 	})
 }
 
@@ -861,12 +861,12 @@ func (h *integrationHandler) fastmailEmails(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	type emailRow struct {
-		ID         string                 `json:"id"`
-		Subject    string                 `json:"subject"`
+		ID         string                  `json:"id"`
+		Subject    string                  `json:"subject"`
 		From       []fastmail.EmailAddress `json:"from"`
-		ReceivedAt string                 `json:"received_at"`
-		Preview    string                 `json:"preview"`
-		IsUnread   bool                   `json:"is_unread"`
+		ReceivedAt string                  `json:"received_at"`
+		Preview    string                  `json:"preview"`
+		IsUnread   bool                    `json:"is_unread"`
 	}
 	rows := make([]emailRow, len(emails))
 	for i, e := range emails {
@@ -890,7 +890,9 @@ func (h *integrationHandler) fastmailEmailToTask(w http.ResponseWriter, r *http.
 		return
 	}
 
-	var req struct{ Subject string `json:"subject"` }
+	var req struct {
+		Subject string `json:"subject"`
+	}
 	_ = decode(r, &req)
 	subject := req.Subject
 	if subject == "" {
@@ -918,7 +920,7 @@ func (h *integrationHandler) fastmailEmailToTask(w http.ResponseWriter, r *http.
 		ID: newID(), Title: subject, Description: desc,
 		Status: "planned", PlannedDate: &today, WeekStart: &ws,
 		Position: float64(time.Now().UnixMilli()),
-		Source: &source, SourceID: &sourceID, SourceURL: &sourceURL,
+		Source:   &source, SourceID: &sourceID, SourceURL: &sourceURL,
 		Tags: []string{},
 	})
 	if createErr != nil {
@@ -959,11 +961,11 @@ func (h *integrationHandler) fastmailArchivedEmails(w http.ResponseWriter, r *ht
 		return
 	}
 	type emailRow struct {
-		ID         string                 `json:"id"`
-		Subject    string                 `json:"subject"`
+		ID         string                  `json:"id"`
+		Subject    string                  `json:"subject"`
 		From       []fastmail.EmailAddress `json:"from"`
-		ReceivedAt string                 `json:"received_at"`
-		IsUnread   bool                   `json:"is_unread"`
+		ReceivedAt string                  `json:"received_at"`
+		IsUnread   bool                    `json:"is_unread"`
 	}
 	rows := make([]emailRow, len(emails))
 	for i, e := range emails {

@@ -11,8 +11,9 @@ import (
 )
 
 type objectiveHandler struct {
-	store *db.ObjectiveStore
-	hub   *EventHub
+	store  *db.ObjectiveStore
+	hub    *EventHub
+	attach *attachmentHandler // for cascading attachment cleanup on delete
 }
 
 type createObjectiveRequest struct {
@@ -129,7 +130,8 @@ func (h *objectiveHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *objectiveHandler) delete(w http.ResponseWriter, r *http.Request) {
-	err := h.store.Delete(r.Context(), chi.URLParam(r, "id"))
+	id := chi.URLParam(r, "id")
+	err := h.store.Delete(r.Context(), id)
 	if errors.Is(err, db.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "objective not found")
 		return
@@ -137,6 +139,9 @@ func (h *objectiveHandler) delete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete objective")
 		return
+	}
+	if h.attach != nil {
+		h.attach.removeForOwner(r, "objective", id)
 	}
 	h.hub.Broadcast("objective:change", map[string]string{})
 	respond(w, http.StatusNoContent, nil)

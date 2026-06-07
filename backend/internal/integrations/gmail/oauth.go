@@ -17,13 +17,16 @@ const (
 	authURL  = "https://accounts.google.com/o/oauth2/v2/auth"
 	tokenURL = "https://oauth2.googleapis.com/token"
 
-	scopeGmail           = "https://www.googleapis.com/auth/gmail.readonly"
-	scopeCalendarRead    = "https://www.googleapis.com/auth/calendar.readonly"
-	scopeCalendarEvents  = "https://www.googleapis.com/auth/calendar.events"
+	scopeGmail            = "https://www.googleapis.com/auth/gmail.readonly"
+	scopeCalendarRead     = "https://www.googleapis.com/auth/calendar.readonly"
+	scopeCalendarEvents   = "https://www.googleapis.com/auth/calendar.events"
 	scopeCalendarFreeBusy = "https://www.googleapis.com/auth/calendar.events.freebusy"
 
 	// Full calendar scope set (read + write events + free/busy)
 	scopeCalendarFull = scopeCalendarRead + " " + scopeCalendarEvents + " " + scopeCalendarFreeBusy
+
+	// ScopeDriveFile lets the app manage only the files it creates (used for backups).
+	ScopeDriveFile = "https://www.googleapis.com/auth/drive.file"
 )
 
 type StoredToken struct {
@@ -57,7 +60,9 @@ func ConsumeState(state string) bool {
 	stateMu.Lock()
 	defer stateMu.Unlock()
 	exp, ok := stateMap[state]
-	if !ok { return false }
+	if !ok {
+		return false
+	}
 	delete(stateMap, state)
 	return time.Now().Before(exp)
 }
@@ -67,6 +72,11 @@ func AuthURL(clientID, redirectURI, state string, includeCalendar bool) string {
 	if includeCalendar {
 		scopes = scopeGmail + " " + scopeCalendarFull
 	}
+	return AuthURLForScopes(clientID, redirectURI, state, scopes)
+}
+
+// AuthURLForScopes builds a consent URL for an arbitrary scope set (e.g. Drive).
+func AuthURLForScopes(clientID, redirectURI, state, scopes string) string {
 	params := url.Values{}
 	params.Set("client_id", clientID)
 	params.Set("redirect_uri", redirectURI)
@@ -93,11 +103,15 @@ func ExchangeCode(ctx context.Context, clientID, clientSecret, redirectURI, code
 	data.Set("code", code)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
-	if err != nil { return StoredToken{}, err }
+	if err != nil {
+		return StoredToken{}, err
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil { return StoredToken{}, fmt.Errorf("token exchange: %w", err) }
+	if err != nil {
+		return StoredToken{}, fmt.Errorf("token exchange: %w", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return StoredToken{}, fmt.Errorf("token exchange returned HTTP %d", resp.StatusCode)
@@ -117,10 +131,14 @@ func ExchangeCode(ctx context.Context, clientID, clientSecret, redirectURI, code
 }
 
 func RefreshAccessToken(ctx context.Context, clientID, clientSecret string, stored *StoredToken) error {
-	if stored.RefreshToken == "" { return fmt.Errorf("no refresh token stored") }
+	if stored.RefreshToken == "" {
+		return fmt.Errorf("no refresh token stored")
+	}
 	if stored.Expiry != "" {
 		exp, err := time.Parse(time.RFC3339, stored.Expiry)
-		if err == nil && time.Now().Add(60*time.Second).Before(exp) { return nil }
+		if err == nil && time.Now().Add(60*time.Second).Before(exp) {
+			return nil
+		}
 	}
 	data := url.Values{}
 	data.Set("client_id", clientID)
@@ -129,17 +147,23 @@ func RefreshAccessToken(ctx context.Context, clientID, clientSecret string, stor
 	data.Set("grant_type", "refresh_token")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil { return fmt.Errorf("refresh token: %w", err) }
+	if err != nil {
+		return fmt.Errorf("refresh token: %w", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("refresh returned HTTP %d", resp.StatusCode)
 	}
 	var tr tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil { return err }
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+		return err
+	}
 	stored.AccessToken = tr.AccessToken
 	stored.Expiry = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second).UTC().Format(time.RFC3339)
 	return nil
@@ -148,12 +172,20 @@ func RefreshAccessToken(ctx context.Context, clientID, clientSecret string, stor
 func FetchEmail(ctx context.Context, accessToken string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		"https://gmail.googleapis.com/gmail/v1/users/me/profile", nil)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil { return "", fmt.Errorf("fetch profile: %w", err) }
+	if err != nil {
+		return "", fmt.Errorf("fetch profile: %w", err)
+	}
 	defer resp.Body.Close()
-	var profile struct { EmailAddress string `json:"emailAddress"` }
-	if err := json.NewDecoder(resp.Body).Decode(&profile); err != nil { return "", err }
+	var profile struct {
+		EmailAddress string `json:"emailAddress"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&profile); err != nil {
+		return "", err
+	}
 	return profile.EmailAddress, nil
 }

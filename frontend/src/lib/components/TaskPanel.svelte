@@ -4,6 +4,7 @@
   import { api } from '$lib/api';
   import { weekStart as calcWeekStart } from '$lib/utils';
   import SubTaskList from './SubTaskList.svelte';
+  import AttachmentList from './AttachmentList.svelte';
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import SempaDatePicker from '$lib/components/ui/SempaDatePicker.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
@@ -481,6 +482,11 @@
         <div>
           <SubTaskList parentId={task.id} parentDate={task.planned_date ?? undefined} />
         </div>
+      {/if}
+
+      <!-- Attachments (edit mode only — needs a persisted task id) -->
+      {#if isEdit && task}
+        <AttachmentList ownerType="task" ownerId={task.id} />
       {/if}
 
       <!-- Pomodoro session history (edit mode only) -->

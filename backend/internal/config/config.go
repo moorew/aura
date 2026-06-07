@@ -2,14 +2,16 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 type Config struct {
-	Port        string
-	DBPath      string
-	Env         string
-	FrontendDir string // path to built static frontend; empty = API-only mode
+	Port           string
+	DBPath         string
+	AttachmentsDir string // dir for attachment blobs; default <db-dir>/attachments
+	Env            string
+	FrontendDir    string // path to built static frontend; empty = API-only mode
 
 	// OAuth / integration
 	AppURL            string // e.g. https://blackbox.clevercode.ts.net
@@ -22,8 +24,8 @@ type Config struct {
 	SMTPAllowedSenders []string // email addresses or @domain; empty = accept all
 
 	// Auth — optional; if AuthPassword is empty, password auth is disabled
-	AuthUsername  string
-	AuthPassword  string
+	AuthUsername string
+	AuthPassword string
 	// Google Sign-In: comma-separated emails allowed to log in.
 	// If empty, any Google account is accepted (fine for self-hosted on Tailscale).
 	AllowedEmails []string
@@ -43,25 +45,27 @@ type Config struct {
 }
 
 func Load() Config {
+	dbPath := env("DB_PATH", "./data/sempa.db")
 	return Config{
-		Port:              env("PORT", "8080"),
-		DBPath:            env("DB_PATH", "./data/sempa.db"),
-		Env:               env("ENV", "development"),
-		FrontendDir:       env("FRONTEND_DIR", ""),
-		AppURL:            env("APP_URL", "http://localhost:8080"),
-		FrontendURL:       env("FRONTEND_URL", "http://localhost:5173"),
-		GmailClientID:     env("GMAIL_CLIENT_ID", ""),
-		GmailClientSecret: env("GMAIL_CLIENT_SECRET", ""),
-		SMTPPort:          env("SMTP_PORT", "2525"),
+		Port:               env("PORT", "8080"),
+		DBPath:             dbPath,
+		AttachmentsDir:     env("ATTACHMENTS_DIR", filepath.Join(filepath.Dir(dbPath), "attachments")),
+		Env:                env("ENV", "development"),
+		FrontendDir:        env("FRONTEND_DIR", ""),
+		AppURL:             env("APP_URL", "http://localhost:8080"),
+		FrontendURL:        env("FRONTEND_URL", "http://localhost:5173"),
+		GmailClientID:      env("GMAIL_CLIENT_ID", ""),
+		GmailClientSecret:  env("GMAIL_CLIENT_SECRET", ""),
+		SMTPPort:           env("SMTP_PORT", "2525"),
 		SMTPAllowedSenders: splitEmails(env("SMTP_ALLOWED_SENDERS", "")),
-		AuthUsername:      env("SEMPA_USERNAME", "admin"),
-		AuthPassword:      env("SEMPA_PASSWORD", ""),
-		AllowedEmails:     splitEmails(env("SEMPA_ALLOWED_EMAILS", "")),
-		EmailForwardToken: env("EMAIL_FORWARD_TOKEN", ""),
-		InboxPollInterval: env("INBOX_POLL_INTERVAL", "1m"),
-		OllamaBaseURL:     env("OLLAMA_BASE_URL", ""),
-		OllamaModel:       env("OLLAMA_MODEL", "qwen2.5:1.5b"),
-		FCMKeyPath:        env("FCM_KEY_PATH", ""),
+		AuthUsername:       env("SEMPA_USERNAME", "admin"),
+		AuthPassword:       env("SEMPA_PASSWORD", ""),
+		AllowedEmails:      splitEmails(env("SEMPA_ALLOWED_EMAILS", "")),
+		EmailForwardToken:  env("EMAIL_FORWARD_TOKEN", ""),
+		InboxPollInterval:  env("INBOX_POLL_INTERVAL", "1m"),
+		OllamaBaseURL:      env("OLLAMA_BASE_URL", ""),
+		OllamaModel:        env("OLLAMA_MODEL", "qwen2.5:1.5b"),
+		FCMKeyPath:         env("FCM_KEY_PATH", ""),
 	}
 }
 

@@ -1,6 +1,9 @@
 import { isTauri } from './tauri/bridge';
 
 import type {
+  Attachment,
+  BackupRun,
+  BackupSettingsResponse,
   CreateObjectiveInput,
   CreateTaskInput,
   DailyPlan,
@@ -99,6 +102,72 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 const body = (data: unknown) => JSON.stringify(data);
 
+/** Current Bearer token for native/desktop, or '' on web (cookie auth). */
+function currentBearer(): string {
+  return isTauri() ? getTauriToken() : getNativeToken();
+}
+
+/**
+ * Build a URL for direct browser consumption (<img>, <a>, downloads).
+ * On native/desktop the Authorization header can't be set on these, so the
+ * Bearer token is passed via ?token= (the backend accepts it for auth).
+ */
+export function authedFileUrl(path: string): string {
+  const url = `${getBaseUrl()}${path}`;
+  const token = currentBearer();
+  if (!token) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
+
+/** Upload a single file via multipart/form-data with optional progress callback. */
+function uploadFile<T>(path: string, file: File, onProgress?: (pct: number) => void): Promise<T> {
+  return uploadMultipart<T>(path, file, {}, onProgress);
+}
+
+/** Upload a file plus extra form fields via multipart/form-data. */
+function uploadMultipart<T>(
+  path: string,
+  file: File,
+  fields: Record<string, string>,
+  onProgress?: (pct: number) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('file', file);
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${getBaseUrl()}${path}`);
+
+    const token = currentBearer();
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    } else {
+      xhr.withCredentials = true; // send session cookie on web
+    }
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(xhr.responseText ? JSON.parse(xhr.responseText) : (undefined as T));
+        } catch {
+          resolve(undefined as T);
+        }
+      } else {
+        reject(new Error(`${xhr.status}: ${xhr.responseText || xhr.statusText}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload failed'));
+    xhr.send(form);
+  });
+}
+
 const httpApi = {
   setup: {
     status: () => req<{ done: boolean }>('/api/v1/setup/status'),
@@ -128,6 +197,42 @@ const httpApi = {
     update: (id: string, patch: UpdateTaskInput) =>
       req<Task>(`/api/v1/tasks/${id}`, { method: 'PATCH', body: body(patch) }),
     delete: (id: string) => req<void>(`/api/v1/tasks/${id}`, { method: 'DELETE' }),
+  },
+
+  attachments: {
+    listForTask:      (taskId: string) => req<Attachment[]>(`/api/v1/tasks/${taskId}/attachments`),
+    listForObjective: (objId: string)  => req<Attachment[]>(`/api/v1/objectives/${objId}/attachments`),
+    uploadToTask: (taskId: string, file: File, onProgress?: (pct: number) => void) =>
+      uploadFile<Attachment>(`/api/v1/tasks/${taskId}/attachments`, file, onProgress),
+    uploadToObjective: (objId: string, file: File, onProgress?: (pct: number) => void) =>
+      uploadFile<Attachment>(`/api/v1/objectives/${objId}/attachments`, file, onProgress),
+    delete:      (id: string) => req<void>(`/api/v1/attachments/${id}`, { method: 'DELETE' }),
+    downloadUrl: (id: string) => authedFileUrl(`/api/v1/attachments/${id}/download`),
+  },
+
+  backup: {
+    getSettings: () => req<BackupSettingsResponse>('/api/v1/backup/settings'),
+    updateSettings: (payload: {
+      enabled: boolean;
+      schedule_hour: number;
+      retention: number;
+      security_mode: string;
+      destinations: unknown;
+      passphrase?: string;
+    }) => req<BackupSettingsResponse>('/api/v1/backup/settings', { method: 'PUT', body: body(payload) }),
+    runs: (limit = 20) => req<BackupRun[]>(`/api/v1/backup/runs?limit=${limit}`),
+    run: () => req<{ run: BackupRun; error?: string }>('/api/v1/backup/run', { method: 'POST' }),
+    test: (id: string) =>
+      req<{ ok: boolean; existing_backups?: number; error?: string }>('/api/v1/backup/test', {
+        method: 'POST', body: body({ id }),
+      }),
+    downloadUrl: () => authedFileUrl('/api/v1/backup/download'),
+    restore: (file: File, passphrase?: string, onProgress?: (pct: number) => void) =>
+      uploadMultipart<{ status: string }>('/api/v1/backup/restore', file,
+        passphrase ? { passphrase } : {}, onProgress),
+    driveAuthUrl: () => authedFileUrl('/api/v1/backup/drive/auth'),
+    driveStatus: () => req<{ connected: boolean; email?: string }>('/api/v1/backup/drive'),
+    driveDisconnect: () => req<void>('/api/v1/backup/drive', { method: 'DELETE' }),
   },
 
   devices: {
