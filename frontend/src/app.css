@@ -140,6 +140,15 @@
   }
 }
 
+/* ── Hide scrollbars on touch-scrollable strips (date picker, chip rows) ── */
+.no-scrollbar {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* legacy Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;                /* Chrome/Safari/WebView */
+}
+
 /* ── JetBrains Mono for timestamps, shortcuts, numeric readouts ──────── */
 .font-mono, kbd, code, [data-mono] {
   font-family: 'JetBrains Mono', ui-monospace, monospace;

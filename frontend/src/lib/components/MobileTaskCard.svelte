@@ -26,37 +26,61 @@
 
   // Swipe state
   let startX = $state(0);
+  let startY = $state(0);
   let deltaX = $state(0);
   let swiping = $state(false);
+  let locked = $state<null | 'h' | 'v'>(null); // gesture direction, decided once
+  let suppressClick = $state(false);
   const SWIPE_THRESHOLD = 60;
   const MAX_SWIPE = 80;
+  const TRIGGER = SWIPE_THRESHOLD * 0.4;
 
   function handleTouchStart(e: TouchEvent) {
     startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
     deltaX = 0;
+    locked = null;
     swiping = true;
   }
 
   function handleTouchMove(e: TouchEvent) {
     if (!swiping) return;
     const dx = e.touches[0].clientX - startX;
-    if (dx > 0) {
-      const prev = deltaX;
-      deltaX = Math.min(dx * 0.4, MAX_SWIPE);
-      if (prev < SWIPE_THRESHOLD * 0.4 && deltaX >= SWIPE_THRESHOLD * 0.4) {
-        hapticTick();
-      }
+    const dy = e.touches[0].clientY - startY;
+
+    // Decide once whether this is a horizontal swipe or a vertical scroll, so
+    // list scrolling never fights the swipe-to-complete gesture.
+    if (locked === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      locked = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
     }
+    if (locked !== 'h' || dx <= 0) return;
+
+    const prev = deltaX;
+    deltaX = Math.min(dx * 0.4, MAX_SWIPE);
+    if (prev < TRIGGER && deltaX >= TRIGGER) hapticTick();
   }
 
   function handleTouchEnd() {
     if (!swiping) return;
     swiping = false;
-    if (deltaX > SWIPE_THRESHOLD * 0.4) {
+    if (deltaX > TRIGGER) {
       hapticClick();
       onComplete?.(task.id);
     }
+    // Suppress the synthetic click that follows any real horizontal swipe so a
+    // swipe-to-complete doesn't also open the task detail.
+    if (locked === 'h' && deltaX > 4) {
+      suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 350);
+    }
     deltaX = 0;
+    locked = null;
+  }
+
+  function handleClick() {
+    if (suppressClick) return;
+    onClick?.(task);
   }
 </script>
 
@@ -81,7 +105,7 @@
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}
     ontouchend={handleTouchEnd}
-    onclick={() => onClick?.(task)}
+    onclick={handleClick}
   >
     <!-- Complete circle -->
     <button

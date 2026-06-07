@@ -9,6 +9,7 @@
   import { prefs } from '$lib/stores/prefs.svelte';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { viewport } from '$lib/stores/viewport.svelte';
   import { hapticTick } from '$lib/haptics';
   import { initPushNotifications } from '$lib/push';
   import { SplashScreen } from '@capacitor/splash-screen';
@@ -83,6 +84,7 @@
     theme.init();
     prefs.init();
     mobile.init();
+    viewport.init();
     if (!isLoginPage && !isSetupPage) {
       tagStore.load();
 

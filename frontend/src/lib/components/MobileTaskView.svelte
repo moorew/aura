@@ -3,7 +3,9 @@
   import { formatMinutes } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
-  import { hapticClick } from '$lib/haptics';
+  import { hapticClick, hapticTick } from '$lib/haptics';
+  import { dismissibleSheet } from '$lib/actions/sheet';
+  import { viewport } from '$lib/stores/viewport.svelte';
   import SubTaskList from './SubTaskList.svelte';
 
   let {
@@ -31,25 +33,14 @@
     gmail: 'Gmail', fastmail: 'Mail', jira: 'Jira', google_calendar: 'Calendar',
   };
 
-  // Bottom sheet drag-to-dismiss
-  let sheetTouchStartY = $state(0);
-  let dragDeltaY = $state(0);
-  let dragging = $state(false);
+  // Sheet shrinks above the soft keyboard via the visual viewport.
+  const maxHeight = $derived(Math.round(viewport.height * 0.9));
 
-  function touchStart(e: TouchEvent) {
-    sheetTouchStartY = e.touches[0].clientY;
-    dragDeltaY = 0;
-    dragging = true;
-  }
-  function touchMove(e: TouchEvent) {
-    if (!dragging) return;
-    dragDeltaY = Math.max(0, e.touches[0].clientY - sheetTouchStartY);
-  }
-  function touchEnd() {
-    if (!dragging) return;
-    dragging = false;
-    if (dragDeltaY > 80) onClose();
-    dragDeltaY = 0;
+  // Keep a focused field (e.g. the add-subtask input) visible above keyboard.
+  function keepInView(e: FocusEvent) {
+    const el = e.target as HTMLElement | null;
+    if (!el || !el.matches('input, textarea, select')) return;
+    setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
   }
 
   function formatDate(d: string): string {
@@ -67,28 +58,28 @@
   <!-- Overlay -->
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="fixed inset-0 z-[89] bg-black/30 backdrop-blur-sm"
+       style="animation: sempa-fade-in 200ms ease both;"
        onclick={onClose}></div>
 
   <!-- Sheet -->
   <div role="dialog" aria-modal="true" aria-label="Task details" tabindex="-1"
        class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col shadow-2xl"
        style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
-              max-height: 88vh;
-              transform: translateY({dragDeltaY}px);
-              transition: {dragging ? 'none' : 'transform 300ms ease-out'};
-              animation: task-view-up 300ms ease-out both;"
-       ontouchstart={touchStart}
-       ontouchmove={touchMove}
-       ontouchend={touchEnd}>
+              max-height: {maxHeight}px;
+              animation: task-view-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
+       use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', threshold: 90, onDismissHaptic: hapticTick }}>
 
     <!-- Drag handle -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="flex justify-center pt-3 pb-1 cursor-grab shrink-0" onclick={onClose}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="flex justify-center pt-3 pb-1 cursor-grab shrink-0" data-sheet-handle onclick={onClose}>
       <div class="h-1 w-8 rounded-full" style="background: var(--sempa-border);"></div>
     </div>
 
     <!-- Scrollable content -->
-    <div class="flex-1 overflow-y-auto px-5 pb-4">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="flex-1 overflow-y-auto overscroll-contain px-5 pb-4" data-sheet-scroll
+         style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;"
+         onfocusin={keepInView}>
 
       <!-- Title + status -->
       <div class="flex items-start gap-3 pt-2 pb-4" style="border-bottom: 1px solid var(--sempa-border);">

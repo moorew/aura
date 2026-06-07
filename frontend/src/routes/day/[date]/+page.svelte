@@ -7,6 +7,7 @@
   import { appendPosition, compareTasksForDay, formatMinutes, insertPosition, isToday, offsetDate, today, weekStart } from '$lib/utils';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { hapticTick } from '$lib/haptics';
   import WeekDayColumn from '$lib/components/WeekDayColumn.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
@@ -78,6 +79,36 @@
 
   // Mobile: current selected day info
   const selectedDay = $derived(weekDays.find(d => d.date === date) ?? weekDays[0]);
+
+  // Mobile: a wide, horizontally-scrollable day strip centred on the selected
+  // date so you can swipe left/right and tap any day with your finger.
+  const STRIP_RANGE = 21; // days on each side of the selected date
+  const stripDays = $derived(
+    Array.from({ length: STRIP_RANGE * 2 + 1 }, (_, i) => {
+      const d = offsetDate(date, i - STRIP_RANGE);
+      const dt = new Date(d + 'T12:00:00');
+      return {
+        date: d,
+        dayName: dt.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNum: dt.toLocaleDateString('en-US', { day: 'numeric' }),
+        isToday: d === todayDate,
+        isWeekend: dt.getDay() === 0 || dt.getDay() === 6,
+        isFirstOfMonth: dt.getDate() === 1,
+      };
+    })
+  );
+
+  // Keep the selected day centred in the strip whenever the date changes.
+  let stripEl = $state<HTMLElement | undefined>();
+  let stripReady = false;
+  $effect(() => {
+    date; // re-run when the selected day changes
+    if (!stripEl) return;
+    const chip = stripEl.querySelector<HTMLElement>(`[data-strip-date="${date}"]`);
+    if (!chip) return;
+    chip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: stripReady ? 'smooth' : 'auto' });
+    stripReady = true;
+  });
 
   // ── Pomodoro update ───────────────────────────────────────────────────────
   $effect(() => {
@@ -406,19 +437,26 @@
       </button>
     </div>
 
-    <!-- Quick date strip -->
-    <div class="flex justify-between mt-2">
-      {#each weekDays as day (day.date)}
-        <button onclick={() => goto(`/day/${day.date}`)}
-                class="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors"
-                style={day.date === date
+    <!-- Quick date strip — horizontally scrollable; swipe to browse, tap to pick -->
+    <div bind:this={stripEl}
+         class="no-scrollbar -mx-5 mt-2 flex snap-x snap-proximity gap-1 overflow-x-auto scroll-px-5 px-5"
+         style="-webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;">
+      {#each stripDays as day (day.date)}
+        {@const isSel = day.date === date}
+        <button onclick={() => { hapticTick(); goto(`/day/${day.date}`); }}
+                data-strip-date={day.date}
+                aria-current={isSel ? 'date' : undefined}
+                class="flex shrink-0 snap-center flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 transition-colors"
+                style={isSel
                   ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
                   : day.isToday
                     ? 'color: var(--sempa-accent);'
-                    : 'color: var(--sempa-text-dim);'}>
+                    : day.isWeekend
+                      ? 'color: var(--sempa-text-dim); opacity: 0.7;'
+                      : 'color: var(--sempa-text-dim);'}>
           <span class="text-[10px] font-semibold uppercase">{day.dayName}</span>
-          <span class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
-                style={day.isToday && day.date !== date
+          <span class="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold"
+                style={day.isToday && !isSel
                   ? 'background: var(--sempa-today-bg); color: var(--sempa-today-fg);'
                   : ''}>
             {day.dayNum}

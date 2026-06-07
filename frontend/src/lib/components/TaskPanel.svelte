@@ -7,7 +7,9 @@
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import SempaDatePicker from '$lib/components/ui/SempaDatePicker.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
-  import { onMount } from 'svelte';
+  import { viewport } from '$lib/stores/viewport.svelte';
+  import { dismissibleSheet } from '$lib/actions/sheet';
+  import { hapticTick } from '$lib/haptics';
 
   // Time slots for scheduled start/end (FIX 02) — every 30 min, plus "No time".
   const TIME_SLOTS: { value: string; label: string }[] = [
@@ -75,36 +77,9 @@
   let scheduledEndDate   = $state('');
   let scheduledEndTime   = $state('');
 
-  // Mobile bottom sheet state (FIX 5)
-  let sheetMaxHeight  = $state(600);
-  let dragDeltaY      = $state(0);
-  let draggingSheet   = $state(false);
-  let sheetTouchStartY = $state(0);
-
-  onMount(() => {
-    function updateHeight() {
-      sheetMaxHeight = Math.round((window.visualViewport?.height ?? window.innerHeight) * 0.92);
-    }
-    window.visualViewport?.addEventListener('resize', updateHeight);
-    updateHeight();
-    return () => window.visualViewport?.removeEventListener('resize', updateHeight);
-  });
-
-  function sheetTouchStart(e: TouchEvent) {
-    sheetTouchStartY = e.touches[0].clientY;
-    dragDeltaY = 0;
-    draggingSheet = true;
-  }
-  function sheetTouchMove(e: TouchEvent) {
-    if (!draggingSheet) return;
-    dragDeltaY = Math.max(0, e.touches[0].clientY - sheetTouchStartY);
-  }
-  function sheetTouchEnd() {
-    if (!draggingSheet) return;
-    draggingSheet = false;
-    if (dragDeltaY > 80) onClose();
-    dragDeltaY = 0;
-  }
+  // Mobile bottom sheet: shrinks above the soft keyboard via the shared
+  // visual-viewport store, so the footer (Save/Cancel) stays reachable.
+  const sheetMaxHeight = $derived(Math.round(viewport.height * 0.94));
   let selectedObjectiveId = $state<string | null>(null);
   let weekObjectives = $state<Objective[]>([]);
   let recurrenceRule = $state('');
@@ -258,6 +233,18 @@
   const sourceLabel: Record<string, string> = {
     gmail: 'Gmail', fastmail: 'Fastmail', jira: 'Jira', google_calendar: 'Calendar'
   };
+
+  // When a field gains focus on mobile the soft keyboard reduces the visible
+  // area; scroll the focused control into view once the viewport has settled so
+  // the user can always see what they're typing.
+  function keepInView(e: FocusEvent) {
+    if (!mobile.value) return;
+    const el = e.target as HTMLElement | null;
+    if (!el || !(el.matches('input, textarea, select'))) return;
+    setTimeout(() => {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 250);
+  }
 </script>
 
 {#snippet panelContent()}
@@ -287,7 +274,11 @@
     </div>
 
     <!-- Body -->
-    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
+         data-sheet-scroll
+         style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;"
+         onfocusin={keepInView}>
 
       <!-- Title -->
       <div>
@@ -598,15 +589,11 @@
          class="fixed bottom-0 left-0 right-0 z-50 flex flex-col shadow-2xl"
          style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
                 max-height: {sheetMaxHeight}px;
-                transform: translateY({dragDeltaY}px);
-                transition: {draggingSheet ? 'none' : 'transform 300ms ease-out'};
-                animation: sempa-sheet-up 300ms ease-out both;"
-         ontouchstart={sheetTouchStart}
-         ontouchmove={sheetTouchMove}
-         ontouchend={sheetTouchEnd}>
+                animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
+         use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
       <!-- Drag handle -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="flex justify-center pt-3 pb-1 cursor-grab shrink-0" onclick={onClose}>
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="flex justify-center pt-3 pb-1 cursor-grab shrink-0" data-sheet-handle onclick={onClose}>
         <div class="h-1 w-8 rounded-full" style="background: var(--sempa-border);"></div>
       </div>
       <div class="flex flex-1 flex-col overflow-hidden">

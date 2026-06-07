@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { dismissibleSheet } from '$lib/actions/sheet';
+  import { viewport } from '$lib/stores/viewport.svelte';
+  import { hapticTick } from '$lib/haptics';
 
   let {
     open,
@@ -11,62 +14,34 @@
     children: Snippet;
   } = $props();
 
-  let sheetEl = $state<HTMLElement | undefined>();
-  let dragStartY = $state(0);
-  let dragDeltaY = $state(0);
-  let dragging = $state(false);
-
-  function handleTouchStart(e: TouchEvent) {
-    dragStartY = e.touches[0].clientY;
-    dragDeltaY = 0;
-    dragging = true;
-  }
-
-  function handleTouchMove(e: TouchEvent) {
-    if (!dragging) return;
-    const dy = e.touches[0].clientY - dragStartY;
-    dragDeltaY = Math.max(0, dy); // only allow dragging down
-  }
-
-  function handleTouchEnd() {
-    if (!dragging) return;
-    dragging = false;
-    if (dragDeltaY > 120) {
-      onClose();
-    }
-    dragDeltaY = 0;
-  }
+  // Track the visual viewport so the sheet shrinks above the soft keyboard.
+  const maxHeight = $derived(Math.round(viewport.height * 0.92));
 </script>
 
 {#if open}
   <!-- Overlay -->
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="fixed inset-0 z-[89] bg-black/40 transition-opacity"
+  <div class="fixed inset-0 z-[89] bg-black/40"
        style="animation: sempa-fade-in 200ms ease both;"
        onclick={onClose}></div>
 
   <!-- Sheet -->
-  <div bind:this={sheetEl}
-       class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col overflow-hidden"
-       style="max-height: 92vh; border-radius: 20px 20px 0 0;
+  <div class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col overflow-hidden"
+       style="max-height: {maxHeight}px; border-radius: 20px 20px 0 0;
               background: var(--sempa-bg-panel);
               padding-bottom: env(safe-area-inset-bottom);
-              transform: translateY({dragging ? dragDeltaY : 0}px);
-              transition: {dragging ? 'none' : 'transform 300ms ease-out'};
-              animation: {dragging ? 'none' : 'sempa-sheet-up 300ms ease-out both'};"
-       role="dialog" aria-modal="true">
+              animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
+       role="dialog" aria-modal="true"
+       use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
 
     <!-- Drag handle -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="flex justify-center pt-3 pb-2 cursor-grab"
-         ontouchstart={handleTouchStart}
-         ontouchmove={handleTouchMove}
-         ontouchend={handleTouchEnd}>
+    <div class="flex justify-center pt-3 pb-2 cursor-grab shrink-0" data-sheet-handle>
       <div class="h-1 w-9 rounded-full" style="background: var(--sempa-border);"></div>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto overscroll-contain" data-sheet-scroll
+         style="-webkit-overflow-scrolling: touch;">
       {@render children()}
     </div>
   </div>
