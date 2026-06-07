@@ -52,9 +52,20 @@ type jmapResponse struct {
 func NewClient(cfg Config) *Client {
 	return &Client{
 		cfg:  cfg,
-		auth: "Bearer " + cfg.AppPassword,
+		auth: "Bearer " + sanitizeToken(cfg.AppPassword),
 		http: &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// sanitizeToken strips all whitespace from a Fastmail app password.
+// Fastmail displays app passwords in space-separated groups (e.g.
+// "abcd efgh ijkl mnop") and accepts them with spaces for IMAP/SMTP login,
+// but the JMAP API requires a Bearer token with no whitespace — otherwise it
+// rejects the request with "401 invalid authorization bearer parameters, not
+// valid format". App passwords and API tokens never contain internal
+// whitespace, so removing it is always safe.
+func sanitizeToken(s string) string {
+	return strings.Join(strings.Fields(s), "")
 }
 
 // Username returns the account email discovered from the JMAP session.
@@ -94,9 +105,9 @@ func (c *Client) Discover(ctx context.Context) error {
 	if c.apiURL == "" {
 		c.apiURL = "https://api.fastmail.com/jmap/api/"
 	}
-	c.account    = session.PrimaryAccounts["urn:ietf:params:jmap:mail"]
+	c.account = session.PrimaryAccounts["urn:ietf:params:jmap:mail"]
 	c.calAccount = session.PrimaryAccounts["urn:ietf:params:jmap:calendars"]
-	c.username   = session.Username
+	c.username = session.Username
 	return nil
 }
 
@@ -105,12 +116,12 @@ func (c *Client) TestConnection(ctx context.Context) error {
 }
 
 type Email struct {
-	ID          string                `json:"id"`
-	Subject     string                `json:"subject"`
-	From        []EmailAddress        `json:"from"`
-	ReceivedAt  string                `json:"receivedAt"`
-	TextBody    []BodyPart            `json:"textBody"`
-	BodyValues  map[string]BodyValue  `json:"bodyValues"`
+	ID         string               `json:"id"`
+	Subject    string               `json:"subject"`
+	From       []EmailAddress       `json:"from"`
+	ReceivedAt string               `json:"receivedAt"`
+	TextBody   []BodyPart           `json:"textBody"`
+	BodyValues map[string]BodyValue `json:"bodyValues"`
 }
 
 type EmailAddress struct {
@@ -177,9 +188,13 @@ func (c *Client) GetFlaggedEmails(ctx context.Context) ([]Email, error) {
 
 	// Extract emails from Email/get response (second method call result)
 	for _, mc := range jr.MethodResponses {
-		if len(mc) < 2 { continue }
+		if len(mc) < 2 {
+			continue
+		}
 		name, ok := mc[0].(string)
-		if !ok || name != "Email/get" { continue }
+		if !ok || name != "Email/get" {
+			continue
+		}
 
 		data, _ := json.Marshal(mc[1])
 		var result struct {
@@ -280,7 +295,7 @@ func (c *Client) GetEmailsTo(ctx context.Context, toAddress string) ([]Email, er
 					},
 				},
 				"limit": 50,
-				"sort": []map[string]interface{}{{"property": "receivedAt", "isAscending": true}},
+				"sort":  []map[string]interface{}{{"property": "receivedAt", "isAscending": true}},
 			}, "0"},
 			{"Email/get", map[string]interface{}{
 				"accountId": c.account,
@@ -289,9 +304,9 @@ func (c *Client) GetEmailsTo(ctx context.Context, toAddress string) ([]Email, er
 					"name":     "Email/query",
 					"path":     "/ids/*",
 				},
-				"properties":           []string{"id", "subject", "from", "receivedAt", "textBody", "bodyValues"},
-				"fetchTextBodyValues":   true,
-				"maxBodyValueBytes":     10240,
+				"properties":          []string{"id", "subject", "from", "receivedAt", "textBody", "bodyValues"},
+				"fetchTextBodyValues": true,
+				"maxBodyValueBytes":   10240,
 			}, "1"},
 		},
 	})
@@ -473,12 +488,12 @@ func mondayOf(date string) string {
 
 // InboxConfig holds credentials and settings for the standalone email inbox feature.
 type InboxConfig struct {
-	Email            string   `json:"email"`
-	AppPassword      string   `json:"app_password"`
-	InboxAddress     string   `json:"inbox_address"`
-	AllowedSenders   []string `json:"allowed_senders,omitempty"`
-	OllamaBaseURL    string   `json:"ollama_base_url,omitempty"`  // injected at runtime, not stored
-	OllamaModel      string   `json:"ollama_model,omitempty"`     // injected at runtime, not stored
+	Email          string   `json:"email"`
+	AppPassword    string   `json:"app_password"`
+	InboxAddress   string   `json:"inbox_address"`
+	AllowedSenders []string `json:"allowed_senders,omitempty"`
+	OllamaBaseURL  string   `json:"ollama_base_url,omitempty"` // injected at runtime, not stored
+	OllamaModel    string   `json:"ollama_model,omitempty"`    // injected at runtime, not stored
 }
 
 // SyncTaskInbox fetches unread emails to InboxAddress, filters by AllowedSenders,
@@ -592,11 +607,11 @@ type Mailbox struct {
 }
 
 type PanelEmail struct {
-	ID         string         `json:"id"`
-	Subject    string         `json:"subject"`
-	From       []EmailAddress `json:"from"`
-	ReceivedAt string         `json:"receivedAt"`
-	Preview    string         `json:"preview"`
+	ID         string          `json:"id"`
+	Subject    string          `json:"subject"`
+	From       []EmailAddress  `json:"from"`
+	ReceivedAt string          `json:"receivedAt"`
+	Preview    string          `json:"preview"`
 	Keywords   map[string]bool `json:"keywords"`
 }
 
@@ -636,7 +651,9 @@ func (c *Client) GetMailboxRoles(ctx context.Context) (inboxID, archiveID string
 			continue
 		}
 		data, _ := json.Marshal(mc[1])
-		var result struct{ List []Mailbox `json:"list"` }
+		var result struct {
+			List []Mailbox `json:"list"`
+		}
 		if err = json.Unmarshal(data, &result); err != nil {
 			return
 		}
@@ -698,7 +715,9 @@ func (c *Client) GetInboxEmails(ctx context.Context, inboxID string, limit int) 
 			continue
 		}
 		data, _ := json.Marshal(mc[1])
-		var result struct{ List []PanelEmail `json:"list"` }
+		var result struct {
+			List []PanelEmail `json:"list"`
+		}
 		if err := json.Unmarshal(data, &result); err != nil {
 			return nil, err
 		}
