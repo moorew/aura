@@ -61,11 +61,13 @@
        style="animation: sempa-fade-in 200ms ease both;"
        onclick={onClose}></div>
 
-  <!-- Sheet -->
+  <!-- Sheet — lifted above the soft keyboard so its content/inputs stay reachable -->
   <div role="dialog" aria-modal="true" aria-label="Task details" tabindex="-1"
-       class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col shadow-2xl"
+       class="fixed left-0 right-0 z-[90] flex flex-col shadow-2xl"
        style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
+              bottom: {viewport.keyboardHeight}px;
               max-height: {maxHeight}px;
+              transition: bottom 180ms ease-out;
               animation: task-view-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
        use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', threshold: 90, onDismissHaptic: hapticTick }}>
 

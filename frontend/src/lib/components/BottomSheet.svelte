@@ -25,11 +25,13 @@
        style="animation: sempa-fade-in 200ms ease both;"
        onclick={onClose}></div>
 
-  <!-- Sheet -->
-  <div class="fixed bottom-0 left-0 right-0 z-[90] flex flex-col overflow-hidden"
-       style="max-height: {maxHeight}px; border-radius: 20px 20px 0 0;
+  <!-- Sheet — lifted above the soft keyboard so any inputs/footer stay reachable -->
+  <div class="fixed left-0 right-0 z-[90] flex flex-col overflow-hidden"
+       style="bottom: {viewport.keyboardHeight}px; max-height: {maxHeight}px;
+              border-radius: 20px 20px 0 0;
               background: var(--sempa-bg-panel);
-              padding-bottom: env(safe-area-inset-bottom);
+              padding-bottom: {viewport.keyboardHeight > 0 ? '0px' : 'env(safe-area-inset-bottom)'};
+              transition: bottom 180ms ease-out;
               animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
        role="dialog" aria-modal="true"
        use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>

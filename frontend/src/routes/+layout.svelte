@@ -15,7 +15,7 @@
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
-  import { isTauri, hasLocalDb } from '$lib/tauri/bridge';
+  import { isTauri, hasLocalDb, onSyncTrigger } from '$lib/tauri/bridge';
   import { startSync, sync as runSync } from '$lib/sync';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
@@ -89,7 +89,6 @@
 
     // Tray "Sync Now" → run a sync cycle. Listener lives for the app's lifetime.
     if (isTauri()) {
-      const { onSyncTrigger } = await import('$lib/tauri/bridge');
       void onSyncTrigger(() => { void runSync(); });
     }
 
