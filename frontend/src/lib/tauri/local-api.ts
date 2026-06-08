@@ -1,9 +1,13 @@
 /**
- * Local SQLite-backed API for Tauri desktop mode.
- * Mirrors the HTTP api surface from $lib/api but reads/writes local SQLite.
+ * Local SQLite-backed API — the offline-first data layer for Tauri desktop and
+ * Capacitor Android. Mirrors the HTTP api surface from $lib/api but reads/writes
+ * local SQLite. Every write also appends to the sync_log outbox (logMutation)
+ * and nudges the sync engine (flushSoon) so changes reach the server when it's
+ * reachable. See $lib/sync.ts.
  */
 
 import { query, execute, logMutation } from './db';
+import { flushSoon } from '$lib/sync';
 import type {
     Task, CreateTaskInput, UpdateTaskInput,
     Objective, CreateObjectiveInput, UpdateObjectiveInput,
@@ -109,8 +113,12 @@ export const localApi = {
                     input.scheduled_end ?? null, ts, ts,
                 ],
             );
-            await logMutation('tasks', id, 'create', input as unknown as Record<string, unknown>);
-            return localApi.tasks.get(id);
+            // Log the full created row (not just input) so server-side computed
+            // fields like week_start/status propagate verbatim on replay.
+            const created = await localApi.tasks.get(id);
+            await logMutation('tasks', id, 'create', created as unknown as Record<string, unknown>);
+            flushSoon();
+            return created;
         },
         update: async (id: string, patch: UpdateTaskInput): Promise<Task> => {
             const sets: string[] = [];
@@ -131,11 +139,13 @@ export const localApi = {
             vals.push(id);
             await execute(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
             await logMutation('tasks', id, 'update', patch as unknown as Record<string, unknown>);
+            flushSoon();
             return localApi.tasks.get(id);
         },
         delete: async (id: string): Promise<void> => {
             await execute(`DELETE FROM tasks WHERE id = ?`, [id]);
             await logMutation('tasks', id, 'delete', {});
+            flushSoon();
         },
     },
 
@@ -184,11 +194,14 @@ export const localApi = {
             const id = uuid();
             const ts = now();
             await execute(
-                `INSERT INTO weekly_objectives (id, week_start, title, description, position, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [id, input.week_start, input.title, input.description ?? null, input.position ?? 0, ts, ts],
+                `INSERT INTO weekly_objectives (id, week_start, title, description, status, position, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, input.week_start, input.title, input.description ?? null, 'active', input.position ?? 0, ts, ts],
             );
-            return localApi.objectives.get(id);
+            const created = await localApi.objectives.get(id);
+            await logMutation('objectives', id, 'create', created as unknown as Record<string, unknown>);
+            flushSoon();
+            return created;
         },
         update: async (id: string, patch: UpdateObjectiveInput): Promise<Objective> => {
             const sets: string[] = [];
@@ -202,10 +215,14 @@ export const localApi = {
             vals.push(now());
             vals.push(id);
             await execute(`UPDATE weekly_objectives SET ${sets.join(', ')} WHERE id = ?`, vals);
+            await logMutation('objectives', id, 'update', patch as unknown as Record<string, unknown>);
+            flushSoon();
             return localApi.objectives.get(id);
         },
         delete: async (id: string): Promise<void> => {
             await execute(`DELETE FROM weekly_objectives WHERE id = ?`, [id]);
+            await logMutation('objectives', id, 'delete', {});
+            flushSoon();
         },
     },
 
@@ -244,7 +261,13 @@ export const localApi = {
                 vals.push(date);
                 await execute(`UPDATE daily_plans SET ${sets.join(', ')} WHERE plan_date = ?`, vals);
             }
-            return localApi.plans.get(date);
+            const plan = await localApi.plans.get(date);
+            // Plans upsert by date server-side (PUT /plans/{date}); entity_id is
+            // the date and the payload carries plan_date for the replay.
+            await logMutation('plans', date, 'update',
+                { ...input, plan_date: date } as unknown as Record<string, unknown>);
+            flushSoon();
+            return plan;
         },
     },
 
@@ -283,15 +306,23 @@ export const localApi = {
                 [id, name, color ?? '#6366f1', ts, ts],
             );
             const rows = await query<TagDefinition[]>(`SELECT * FROM tag_definitions WHERE id = ?`, [id]);
+            // Carry name/color in the payload; the replay sends id too so the
+            // server row shares this id (avoids a duplicate-name conflict on pull).
+            await logMutation('tags', id, 'create', { name, color: rows[0].color });
+            flushSoon();
             return rows[0];
         },
         update: async (id: string, color: string): Promise<TagDefinition> => {
             await execute(`UPDATE tag_definitions SET color = ?, updated_at = ? WHERE id = ?`, [color, now(), id]);
             const rows = await query<TagDefinition[]>(`SELECT * FROM tag_definitions WHERE id = ?`, [id]);
+            await logMutation('tags', id, 'update', { color });
+            flushSoon();
             return rows[0];
         },
         delete: async (id: string): Promise<void> => {
             await execute(`DELETE FROM tag_definitions WHERE id = ?`, [id]);
+            await logMutation('tags', id, 'delete', {});
+            flushSoon();
         },
     },
 
@@ -304,6 +335,8 @@ export const localApi = {
         },
         delete: async (id: string): Promise<void> => {
             await execute(`DELETE FROM tasks WHERE id = ?`, [id]);
+            await logMutation('tasks', id, 'delete', {});
+            flushSoon();
         },
     },
 
@@ -331,6 +364,11 @@ export const localApi = {
                     [data.wins, data.challenges, data.next_focus, ts, ws],
                 );
             }
+            // Week reviews upsert by week_start server-side (PUT /weeks/{ws}/review);
+            // entity_id is the week_start and the payload carries it for the replay.
+            await logMutation('week_reviews', ws, 'update',
+                { ...data, week_start: ws } as unknown as Record<string, unknown>);
+            flushSoon();
             return localApi.weeks.getReview(ws);
         },
     },

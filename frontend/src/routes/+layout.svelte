@@ -15,10 +15,12 @@
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
-  import { isTauri } from '$lib/tauri/bridge';
+  import { isTauri, hasLocalDb } from '$lib/tauri/bridge';
+  import { startSync, sync as runSync } from '$lib/sync';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';
+  import SyncIndicator from '$lib/components/SyncIndicator.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
   import type { Snippet } from 'svelte';
 
@@ -84,6 +86,13 @@
     prefs.init();
     mobile.init();
     viewport.init();
+
+    // Tray "Sync Now" → run a sync cycle. Listener lives for the app's lifetime.
+    if (isTauri()) {
+      const { onSyncTrigger } = await import('$lib/tauri/bridge');
+      void onSyncTrigger(() => { void runSync(); });
+    }
+
     if (!isLoginPage && !isSetupPage) {
       tagStore.load();
 
@@ -97,7 +106,12 @@
           goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
           return;
         }
-        // Server URL and token present — verify token is still valid
+        // Server URL and token present. Verify the token *if* the server is
+        // reachable, but never bounce to login just because we're offline — the
+        // app is local-first, so a stored token means "stay signed in" and we
+        // run on local data until the tailnet comes back. Only a definitive
+        // "not authenticated" response (server reachable, token rejected)
+        // clears the session.
         try {
           const me = await api.auth.me();
           if (!me.authenticated) {
@@ -107,10 +121,10 @@
           }
           userEmail = me.email ?? 'desktop';
         } catch {
-          clearTauriToken();
-          goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
-          return;
+          // Network error → offline. Proceed on local data; sync reconciles later.
+          userEmail = 'desktop';
         }
+        startSync();
         realtime.connect();
         showIntroAnimation = true;
         setTimeout(() => { introFadingOut = true; }, 1600);
@@ -132,10 +146,19 @@
         if (!setup.done) {
           goto('/setup', { replaceState: true });
         }
+        if (hasLocalDb()) startSync();
         realtime.connect();
       } catch {
-        goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
-        realtime.disconnect();
+        // On Android (local-first) an unreachable server means offline, not
+        // signed-out: stay in the app on local data and let sync reconcile.
+        // On plain web there's no local store, so fall back to the login page.
+        if (hasLocalDb()) {
+          userEmail = 'mobile';
+          startSync();
+        } else {
+          goto('/login?redirect=' + encodeURIComponent($page.url.pathname), { replaceState: true });
+          realtime.disconnect();
+        }
       } finally {
         if (Capacitor.isNativePlatform()) {
           await SplashScreen.hide({ fadeOutDuration: 400 });
@@ -162,6 +185,9 @@
     const ev = realtime.lastEvent;
     if (!ev) return;
     if (ev.type === 'tag:change') tagStore.reload();
+    // On local-first clients a server-side change (from another device) should
+    // pull into the local DB so the UI reflects it. runSync is coalesced/cheap.
+    if (hasLocalDb()) void runSync();
   });
 
   function isActive(prefix: string): boolean {
@@ -262,6 +288,9 @@
           </span>
           {theme.dark ? 'Light mode' : 'Dark mode'}
         </button>
+
+        <!-- Sync status (local-first platforms only) -->
+        <SyncIndicator />
 
         <!-- Signed-in user + sign out -->
         {#if userEmail}
@@ -378,6 +407,9 @@
           <p class="font-mono text-xl font-bold">{pomodoro.display}</p>
         </div>
       {/if}
+
+      <!-- Sync status (local-first platforms only) -->
+      <div class="mt-2 px-1"><SyncIndicator /></div>
 
       <!-- Sign out -->
       {#if userEmail}

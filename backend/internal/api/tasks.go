@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/clevercode/sempa/internal/db"
 	"github.com/clevercode/sempa/internal/integrations/caldav"
@@ -23,9 +22,11 @@ type taskHandler struct {
 	appURL  string                     // base URL for task links
 	hub     *EventHub
 	attach  *attachmentHandler // for cascading attachment cleanup on delete
+	sync    *db.SyncStore      // records tombstones so deletes propagate offline
 }
 
 type createTaskRequest struct {
+	ID                  string   `json:"id"`
 	Title               string   `json:"title"`
 	Description         *string  `json:"description"`
 	PlannedDate         *string  `json:"planned_date"`
@@ -148,7 +149,7 @@ func (h *taskHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task, err := h.store.Create(r.Context(), db.CreateTaskParams{
-		ID:                  uuid.New().String(),
+		ID:                  clientOrNewID(req.ID),
 		Title:               req.Title,
 		Description:         req.Description,
 		PlannedDate:         req.PlannedDate,
@@ -169,6 +170,12 @@ func (h *taskHandler) create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create task")
 		return
+	}
+
+	// Clear any stale tombstone in case this id was previously deleted, so the
+	// deletion doesn't later wipe the freshly re-created row on another client.
+	if h.sync != nil {
+		_ = h.sync.ClearTombstone(r.Context(), "task", task.ID)
 	}
 
 	// Adding a sub-task to a recurring instance counts as a modification, so the
@@ -367,6 +374,9 @@ func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.attach != nil {
 		h.attach.removeForOwner(r, "task", id)
+	}
+	if h.sync != nil {
+		_ = h.sync.RecordTombstone(r.Context(), "task", id)
 	}
 	if h.configs != nil {
 		go h.deleteCalDAVBlock(id)

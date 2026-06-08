@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/clevercode/sempa/internal/db"
 )
@@ -24,6 +23,7 @@ var defaultPalette = []string{
 type tagHandler struct {
 	store *db.TagStore
 	hub   *EventHub
+	sync  *db.SyncStore // records tombstones so deletes propagate offline
 }
 
 func (h *tagHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +37,7 @@ func (h *tagHandler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *tagHandler) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		ID    string `json:"id"`
 		Name  string `json:"name"`
 		Color string `json:"color"`
 	}
@@ -54,7 +55,7 @@ func (h *tagHandler) create(w http.ResponseWriter, r *http.Request) {
 		body.Color = defaultPalette[len(existing)%len(defaultPalette)]
 	}
 
-	tag, err := h.store.Upsert(r.Context(), uuid.New().String(), body.Name, body.Color)
+	tag, err := h.store.Upsert(r.Context(), clientOrNewID(body.ID), body.Name, body.Color)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -94,6 +95,9 @@ func (h *tagHandler) delete(w http.ResponseWriter, r *http.Request) {
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if h.sync != nil {
+		_ = h.sync.RecordTombstone(r.Context(), "tag", id)
 	}
 	h.hub.Broadcast("tag:change", map[string]string{})
 	w.WriteHeader(http.StatusNoContent)

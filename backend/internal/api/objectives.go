@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/clevercode/sempa/internal/db"
 )
@@ -14,9 +13,11 @@ type objectiveHandler struct {
 	store  *db.ObjectiveStore
 	hub    *EventHub
 	attach *attachmentHandler // for cascading attachment cleanup on delete
+	sync   *db.SyncStore      // records tombstones so deletes propagate offline
 }
 
 type createObjectiveRequest struct {
+	ID          string  `json:"id"`
 	WeekStart   string  `json:"week_start"`
 	Title       string  `json:"title"`
 	Description *string `json:"description"`
@@ -73,7 +74,7 @@ func (h *objectiveHandler) create(w http.ResponseWriter, r *http.Request) {
 		status = "active"
 	}
 	obj, err := h.store.Create(r.Context(), db.CreateObjectiveParams{
-		ID:          uuid.New().String(),
+		ID:          clientOrNewID(req.ID),
 		WeekStart:   req.WeekStart,
 		Title:       req.Title,
 		Description: req.Description,
@@ -83,6 +84,9 @@ func (h *objectiveHandler) create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create objective")
 		return
+	}
+	if h.sync != nil {
+		_ = h.sync.ClearTombstone(r.Context(), "objective", obj.ID)
 	}
 	h.hub.Broadcast("objective:change", map[string]string{"week_start": obj.WeekStart})
 	respond(w, http.StatusCreated, obj)
@@ -142,6 +146,9 @@ func (h *objectiveHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.attach != nil {
 		h.attach.removeForOwner(r, "objective", id)
+	}
+	if h.sync != nil {
+		_ = h.sync.RecordTombstone(r.Context(), "objective", id)
 	}
 	h.hub.Broadcast("objective:change", map[string]string{})
 	respond(w, http.StatusNoContent, nil)

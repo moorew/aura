@@ -58,6 +58,7 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 
 	hub := NewEventHub()
 
+	syncStore := db.NewSyncStore(database)
 	objectiveStore := db.NewObjectiveStore(database)
 	attachments := &attachmentHandler{
 		store:      db.NewAttachmentStore(database),
@@ -74,8 +75,9 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 		appURL:  cfg.AppURL,
 		hub:     hub,
 		attach:  attachments,
+		sync:    syncStore,
 	}
-	objectives := &objectiveHandler{store: objectiveStore, hub: hub, attach: attachments}
+	objectives := &objectiveHandler{store: objectiveStore, hub: hub, attach: attachments, sync: syncStore}
 
 	backupSvc := backup.NewService(database, cfg.DBPath, blobs.Dir())
 	backups := &backupHandler{
@@ -87,8 +89,9 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 	}
 	plans := &planHandler{store: db.NewDailyPlanStore(database), hub: hub}
 	sessions := &sessionHandler{store: db.NewSessionStore(database)}
-	tags := &tagHandler{store: tagStore, hub: hub}
+	tags := &tagHandler{store: tagStore, hub: hub, sync: syncStore}
 	weekReviews := &weekReviewHandler{store: db.NewWeekReviewStore(database)}
+	syncH := &syncHandler{store: syncStore}
 	icals := &icalHandler{
 		store:      db.NewICalStore(database),
 		fmCalStore: fmCalStore,
@@ -141,6 +144,9 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 			r.Use(auth.requireAuth)
 
 			r.Get("/events", hub.ServeSSE)
+
+			// Offline sync: pull all changes since a cursor (created/updated/deleted)
+			r.Get("/sync/changes", syncH.changes)
 
 			r.Route("/tasks", func(r chi.Router) {
 				r.Get("/", tasks.list)

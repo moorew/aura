@@ -26,6 +26,10 @@ export function isTauri(): boolean {
     return typeof window !== 'undefined' && '__TAURI__' in window;
 }
 
+// Platform helpers (canonical definitions live in $lib/platform). Re-exported
+// here so callers that already import from the bridge get them in one place.
+export { isCapacitor, hasLocalDb } from '$lib/platform';
+
 // ── Commands ────────────────────────────────────────────────────────────────
 
 export async function triggerSync(): Promise<void> {
@@ -120,6 +124,15 @@ export async function onSyncStatus(
     const t = getTauri();
     if (t) {
         return await t.event.listen('sync-status', (e) => handler(e.payload as SyncStatus));
+    }
+    return null;
+}
+
+/** Fires when the tray "Sync Now" item is clicked (Rust emits 'sync-trigger'). */
+export async function onSyncTrigger(handler: () => void): Promise<(() => void) | null> {
+    const t = getTauri();
+    if (t) {
+        return await t.event.listen('sync-trigger', () => handler());
     }
     return null;
 }

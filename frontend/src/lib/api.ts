@@ -407,25 +407,40 @@ const httpApi = {
   },
 };
 
-// In Tauri (desktop) mode, use local SQLite only when no server URL is configured.
-// When a server URL is set, use httpApi with Bearer token auth.
+// Offline-first resolver.
+//
+// On any platform with a local SQLite DB (Tauri desktop OR Capacitor Android)
+// the *syncable core* — tasks, objectives, plans, tags, week reviews, recurring,
+// pomodoros, setup — always reads/writes the local DB, so the app works fully
+// offline and on a foreign tailnet. Mutations queue in sync_log and are replayed
+// by the sync engine ($lib/sync) when the server is reachable again.
+//
+// Server-only features (auth session, attachments, backups, devices, iCal,
+// third-party integrations) are NOT offline-capable, so they pass through to the
+// HTTP API when a server URL is configured. They simply error while offline,
+// which the UI already tolerates.
 import { localApi } from './tauri/local-api';
+import { hasLocalDb } from './tauri/bridge';
+
+// Namespaces served from the local DB when one exists.
+const LOCAL_CORE = ['setup', 'tasks', 'objectives', 'plans', 'pomodoros', 'tags', 'recurring', 'weeks'] as const;
 
 let _api: typeof httpApi | null = null;
 export function resetApiResolver() {
   _api = null;
 }
 function resolveApi(): typeof httpApi {
-  if (!_api) {
-    if (isTauri() && getServerUrl()) {
-      // Desktop with server configured: use HTTP API with Bearer token auth
-      _api = httpApi;
-    } else if (isTauri()) {
-      // Desktop without server: local-only mode (offline)
-      _api = localApi as unknown as typeof httpApi;
-    } else {
-      _api = httpApi;
-    }
+  if (_api) return _api;
+
+  if (hasLocalDb()) {
+    // Hybrid: local core overlaid on the HTTP API (which still serves
+    // server-only namespaces when a server URL is set).
+    const composite = { ...httpApi } as Record<string, unknown>;
+    const local = localApi as unknown as Record<string, unknown>;
+    for (const ns of LOCAL_CORE) composite[ns] = local[ns];
+    _api = composite as unknown as typeof httpApi;
+  } else {
+    _api = httpApi;
   }
   return _api;
 }

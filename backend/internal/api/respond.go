@@ -41,3 +41,15 @@ func mondayOfDate(date string) string {
 func newID() string {
 	return uuid.New().String()
 }
+
+// clientOrNewID returns the client-supplied id when it is a valid UUID, else a
+// fresh one. Offline clients generate the id locally so it survives sync (the
+// local row and the server row share one id, keeping foreign keys stable).
+func clientOrNewID(id string) string {
+	if id != "" {
+		if _, err := uuid.Parse(id); err == nil {
+			return id
+		}
+	}
+	return newID()
+}
