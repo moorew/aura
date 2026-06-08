@@ -1209,10 +1209,11 @@
                     role="switch" aria-checked={prefs.contextualReflections}
                     aria-label="Show reflections in context"
                     class="relative shrink-0 rounded-full transition-colors"
-                    style="width:44px; height:24px; border:none; cursor:pointer;
+                    style="width:44px; height:24px; padding:0; border:none; appearance:none; -webkit-appearance:none; cursor:pointer;
                            background: {prefs.contextualReflections ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
-              <span class="absolute top-1/2 rounded-full bg-white transition-transform"
-                    style="width:16px; height:16px; transform: translate({prefs.contextualReflections ? '24px' : '4px'}, -50%);"></span>
+              <span class="absolute rounded-full bg-white"
+                    style="top:4px; left:{prefs.contextualReflections ? '24px' : '4px'}; width:16px; height:16px;
+                           transition: left 150ms ease;"></span>
             </button>
           </div>
         </div>
