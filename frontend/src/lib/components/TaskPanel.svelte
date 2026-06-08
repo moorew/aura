@@ -78,8 +78,11 @@
   let scheduledEndDate   = $state('');
   let scheduledEndTime   = $state('');
 
-  // Mobile bottom sheet: shrinks above the soft keyboard via the shared
-  // visual-viewport store, so the footer (Save/Cancel) stays reachable.
+  // Mobile bottom sheet: the sheet's `bottom` is lifted by the keyboard height
+  // (see template) so it rests on top of the keyboard, and its max-height fills
+  // up to 94% of the *visible* area above it — so the footer (Save/Cancel) is
+  // always reachable, never trapped behind the keyboard. viewport.height is the
+  // visual-viewport height, which already excludes the keyboard.
   const sheetMaxHeight = $derived(Math.round(viewport.height * 0.94));
   let selectedObjectiveId = $state<string | null>(null);
   let weekObjectives = $state<Objective[]>([]);
@@ -592,9 +595,11 @@
     <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
          onclick={onClose}></div>
     <div role="dialog" aria-modal="true" aria-label="{isEdit ? 'Edit task' : 'New task'}"
-         class="fixed bottom-0 left-0 right-0 z-50 flex flex-col shadow-2xl"
+         class="fixed left-0 right-0 z-50 flex flex-col shadow-2xl"
          style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
+                bottom: {viewport.keyboardHeight}px;
                 max-height: {sheetMaxHeight}px;
+                transition: bottom 180ms ease-out;
                 animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
          use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
       <!-- Drag handle -->

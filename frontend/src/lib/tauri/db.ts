@@ -13,6 +13,14 @@
 
 import { isTauri, isCapacitor, hasLocalDb } from '$lib/platform';
 import { LOCAL_SCHEMA_SQL } from './schema';
+// Statically imported (NOT dynamic import()) on purpose. A dynamic import here
+// loads a separate JS chunk at runtime, which in the Tauri webview can fail with
+// "Failed to fetch dynamically imported module" — and since this is the FIRST
+// thing every local DB read/write touches, that failure breaks the entire
+// offline-first path (tasks silently fail to save). The module is tiny and only
+// performs IPC when its functions are *called*, so importing it eagerly is safe
+// on every platform (desktop, Android, plain web).
+import Database from '@tauri-apps/plugin-sql';
 
 interface Driver {
     execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number; lastInsertId: number }>;
@@ -27,8 +35,7 @@ export { hasLocalDb };
 // ── Tauri driver (tauri-plugin-sql) ──────────────────────────────────────────
 
 async function loadTauriDriver(): Promise<Driver> {
-    const mod = await import('@tauri-apps/plugin-sql');
-    const instance = await mod.default.load('sqlite:sempa.db');
+    const instance = await Database.load('sqlite:sempa.db');
     return {
         execute: (sql, params) => instance.execute(sql, params),
         select: (sql, params) => instance.select(sql, params),
@@ -75,10 +82,19 @@ async function getDriver(): Promise<Driver> {
     if (driverPromise) return driverPromise;
     if (!hasLocalDb()) throw new Error('No local database on this platform');
 
-    driverPromise = (isTauri() ? loadTauriDriver() : loadCapacitorDriver()).then((d) => {
-        driver = d;
-        return d;
-    });
+    driverPromise = (isTauri() ? loadTauriDriver() : loadCapacitorDriver())
+        .then((d) => {
+            driver = d;
+            return d;
+        })
+        .catch((e) => {
+            // Don't cache a rejected promise — a transient open failure would
+            // otherwise wedge the local DB forever. Surface a clear message so a
+            // driver problem never masquerades as a generic "Failed to fetch".
+            driverPromise = null;
+            const detail = e instanceof Error ? e.message : String(e);
+            throw new Error(`Local database unavailable: ${detail}`);
+        });
     return driverPromise;
 }
 
