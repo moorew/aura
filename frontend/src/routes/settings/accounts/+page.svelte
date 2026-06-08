@@ -1211,8 +1211,8 @@
                     class="relative shrink-0 rounded-full transition-colors"
                     style="width:44px; height:24px; border:none; cursor:pointer;
                            background: {prefs.contextualReflections ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
-              <span class="absolute top-1/2 -translate-y-1/2 rounded-full bg-white transition-transform"
-                    style="width:16px; height:16px; transform: translateX({prefs.contextualReflections ? '24px' : '4px'});"></span>
+              <span class="absolute top-1/2 rounded-full bg-white transition-transform"
+                    style="width:16px; height:16px; transform: translate({prefs.contextualReflections ? '24px' : '4px'}, -50%);"></span>
             </button>
           </div>
         </div>
