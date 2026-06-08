@@ -24,7 +24,10 @@ export interface SheetOptions {
 }
 
 const SLOP = 8; // px before we decide scroll-vs-drag intent
-const SPRING = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)';
+// Keep the `bottom` transition (sheets animate `bottom` to ride above the soft
+// keyboard) alongside the transform spring so settling a drag doesn't disable
+// the keyboard-follow animation.
+const SPRING = 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1), bottom 180ms ease-out';
 
 export function dismissibleSheet(node: HTMLElement, options: SheetOptions) {
   let opts = options;
@@ -61,7 +64,16 @@ export function dismissibleSheet(node: HTMLElement, options: SheetOptions) {
     decided = false;
     dragging = false;
     allow = eligible(e.target);
-    node.style.transition = 'none';
+    // Defensive reset: if a previous gesture was interrupted (e.g. the keyboard
+    // opened mid-drag and the webview swallowed the touchend), a stale transform
+    // could be left in place, making the sheet look stuck/frozen. Clear it so
+    // every new touch starts from a clean, fully-interactive state. We do NOT
+    // touch `transition` here — only onMove suppresses it once we truly drag, so
+    // plain taps and scrolls never alter the element's styles.
+    if (node.style.transform && node.style.transform !== 'translateY(0px)') {
+      node.style.transition = 'none';
+      node.style.transform = 'translateY(0px)';
+    }
   }
 
   function onMove(e: TouchEvent) {
@@ -75,9 +87,12 @@ export function dismissibleSheet(node: HTMLElement, options: SheetOptions) {
       // Commit to dragging only on a downward, mostly-vertical pull that's
       // eligible. Anything else stays a normal scroll/swipe.
       dragging = allow && dy > 0 && Math.abs(dy) > Math.abs(dx);
-      // Retract the soft keyboard as soon as a dismiss drag starts so the sheet
-      // glides smoothly instead of jumping when focus is lost mid-gesture.
+      // Suppress the spring transition only now that we own a drag, so the
+      // translate tracks the finger 1:1.
       if (dragging) {
+        node.style.transition = 'none';
+        // Retract the soft keyboard as soon as a dismiss drag starts so the
+        // sheet glides smoothly instead of jumping when focus is lost mid-gesture.
         const active = document.activeElement;
         if (active instanceof HTMLElement &&
             active.matches('input, textarea, [contenteditable]')) {
@@ -101,7 +116,7 @@ export function dismissibleSheet(node: HTMLElement, options: SheetOptions) {
         node.style.transform = 'translateY(100%)';
         opts.onClose();
       } else {
-        node.style.transform = 'translateY(0)';
+        node.style.transform = 'translateY(0px)';
       }
     }
     decided = false;
