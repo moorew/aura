@@ -276,7 +276,7 @@
 
     <!-- Body -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
+    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
          data-sheet-scroll
          style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;"
          onfocusin={keepInView}>
