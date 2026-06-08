@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
+  import { tagStore } from '$lib/stores/tags.svelte';
 
   const RULE_LABELS: Record<string, string> = {
     daily: 'Every day',
@@ -100,8 +101,8 @@
             {#if tmpl.tags?.length}
               <div class="flex gap-1">
                 {#each tmpl.tags as tag}
-                  <span class="rounded-full px-2 py-0.5 text-xs"
-                        style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">{tag}</span>
+                  <span class="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                        style="background-color: {tagStore.colorFor(tag)}">{tag}</span>
                 {/each}
               </div>
             {/if}
