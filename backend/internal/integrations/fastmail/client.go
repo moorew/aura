@@ -3,6 +3,7 @@ package fastmail
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,20 +51,24 @@ type jmapResponse struct {
 }
 
 func NewClient(cfg Config) *Client {
+	// Fastmail's JMAP API accepts Basic auth with an app password (the same
+	// credential used for IMAP/SMTP). It does NOT accept app passwords as
+	// Bearer tokens — Bearer is reserved for Fastmail "API tokens", and
+	// sending an app password as a Bearer token is rejected with
+	// "401 Invalid Authorization bearer parameters, not valid format".
+	// We collect an app password (see Config.AppPassword), so use Basic auth.
+	cred := cfg.Email + ":" + sanitizeToken(cfg.AppPassword)
 	return &Client{
 		cfg:  cfg,
-		auth: "Bearer " + sanitizeToken(cfg.AppPassword),
+		auth: "Basic " + base64.StdEncoding.EncodeToString([]byte(cred)),
 		http: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
 // sanitizeToken strips all whitespace from a Fastmail app password.
 // Fastmail displays app passwords in space-separated groups (e.g.
-// "abcd efgh ijkl mnop") and accepts them with spaces for IMAP/SMTP login,
-// but the JMAP API requires a Bearer token with no whitespace — otherwise it
-// rejects the request with "401 invalid authorization bearer parameters, not
-// valid format". App passwords and API tokens never contain internal
-// whitespace, so removing it is always safe.
+// "abcd efgh ijkl mnop"). The whitespace is purely cosmetic; the password
+// works with it removed, which keeps the Basic-auth credential clean.
 func sanitizeToken(s string) string {
 	return strings.Join(strings.Fields(s), "")
 }
