@@ -2,7 +2,7 @@
   import '../app.css';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, afterNavigate } from '$app/navigation';
   import { today, weekStart, offsetDate } from '$lib/utils';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { theme } from '$lib/stores/theme.svelte';
@@ -147,11 +147,21 @@
     }
   });
 
+  // Tags are loaded in onMount, but the shared layout does NOT re-mount after a
+  // client-side login navigation (login uses goto), so onMount's load never
+  // re-runs and tag colours stay grey until a manual reload. afterNavigate
+  // fires on every client navigation — including the post-login one and the
+  // initial load — so reload tags whenever we land on an authenticated page.
+  afterNavigate(({ to }) => {
+    const path = to?.url.pathname;
+    if (path && path !== '/login' && path !== '/setup') tagStore.load();
+  });
+
   // Re-load tags from server when a tag:change SSE event arrives
   $effect(() => {
     const ev = realtime.lastEvent;
     if (!ev) return;
-    if (ev.type === 'tag:change') tagStore.load();
+    if (ev.type === 'tag:change') tagStore.reload();
   });
 
   function isActive(prefix: string): boolean {
