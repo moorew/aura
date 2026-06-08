@@ -61,7 +61,7 @@
       .sort((a, b) => a.position - b.position)
       .map(t => ({
         pct: (t.time_estimate_minutes! / estimateMins) * fillPct,
-        color: t.status === 'done' ? '#22c55e'
+        color: t.status === 'done' ? 'var(--sempa-success)'
              : t.status === 'in_progress' ? '#f59e0b'
              : 'var(--sempa-accent)',
       }))
@@ -190,10 +190,11 @@
     {#if done.length > 0}
       <div class="border-t border-gray-100/80 px-2 pb-1 pt-0.5 dark:border-gray-700/30">
         <button onclick={() => showDone = !showDone}
-                class="flex w-full items-center gap-1 rounded px-1 py-1 text-[10px]
-                       text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-600 dark:hover:text-gray-400">
+                class="inline-flex items-center gap-1 rounded-full transition-opacity hover:opacity-80"
+                style="background: var(--sempa-success-soft); color: var(--sempa-success);
+                       font-size: 11.5px; font-weight: 500; padding: 2px 9px;">
           <svg class="h-3 w-3 transition-transform {showDone ? 'rotate-180' : ''}"
-               fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+               fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <path stroke-linecap="round" d="M19 9l-7 7-7-7"/>
           </svg>
           {done.length} done

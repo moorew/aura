@@ -494,7 +494,7 @@
     <div class="sticky bottom-0 -mx-4 mt-6 flex items-center justify-end gap-3 border-t px-4 py-3"
          style="border-color: var(--sempa-border); background: color-mix(in srgb, var(--sempa-bg) 92%, transparent); backdrop-filter: blur(6px);">
       {#if notice}
-        <span class="mr-auto text-sm" style="color: #16a34a;">{notice}</span>
+        <span class="mr-auto text-sm" style="color: var(--sempa-success);">{notice}</span>
       {:else if error}
         <span class="mr-auto text-sm" style="color: #dc2626;">{error}</span>
       {/if}

@@ -131,9 +131,9 @@
           <!-- Complete circle -->
           <button onclick={() => complete(task.id)}
                   class="h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer"
-                  style="border-color: var(--sempa-border);"
-                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.borderColor = '#22c55e'}
-                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-border)'}
+                  style="border-color: var(--sempa-text-dim);"
+                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'}
+                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-text-dim)'}
                   title="Mark done">
           </button>
 
@@ -154,8 +154,9 @@
                   </span>
                 {/if}
                 {#if task.source && task.source !== 'manual'}
-                  <span class="rounded px-1.5 py-0.5 text-[10px]"
-                        style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+                  <span style="background: var(--sempa-accent-bg); color: var(--sempa-accent);
+                               font-size: 10px; font-weight: 600; padding: 2px 7px;
+                               border-radius: 4px; letter-spacing: 0.02em;">
                     {sourceLabel[task.source] ?? task.source}
                   </span>
                 {/if}

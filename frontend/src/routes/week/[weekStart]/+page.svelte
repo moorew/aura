@@ -226,7 +226,7 @@
                 title="Copy as markdown"
                 class="flex items-center justify-center rounded-lg transition-colors"
                 style="width:34px; height:34px; border: 1px solid var(--sempa-border);
-                       color: {copied ? '#22c55e' : 'var(--sempa-text-soft)'}; background: transparent;">
+                       color: {copied ? 'var(--sempa-success)' : 'var(--sempa-text-soft)'}; background: transparent;">
           {#if copied}
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
@@ -387,7 +387,7 @@
             <button onclick={() => toggleStatus(obj)} title="{isDone ? 'Mark active' : 'Mark complete'}"
                     class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center transition-all
                            {isDone ? 'border-green-500 bg-green-500' : 'border-gray-300'}"
-                    onmouseenter={(e) => { if (!isDone) (e.currentTarget as HTMLElement).style.borderColor = '#22c55e'; }}
+                    onmouseenter={(e) => { if (!isDone) (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'; }}
                     onmouseleave={(e) => { if (!isDone) (e.currentTarget as HTMLElement).style.borderColor = ''; }}>
               {#if isDone}
                 <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
@@ -407,10 +407,10 @@
                 <div class="mt-2 flex items-center gap-2">
                   <div class="h-1.5 flex-1 max-w-[160px] overflow-hidden rounded-full" style="background: var(--sempa-border);">
                     <div style="width:{p}%; height:100%; border-radius:3px;
-                                background: {isDone ? '#22c55e' : 'var(--sempa-accent)'}; transition: width 500ms ease-out;"></div>
+                                background: {isDone ? 'var(--sempa-success)' : 'var(--sempa-accent)'}; transition: width 500ms ease-out;"></div>
                   </div>
                   <span class="text-xs font-medium"
-                        style="color: {isDone || p === 100 ? '#22c55e' : 'var(--sempa-text-dim)'}">
+                        style="color: {isDone || p === 100 ? 'var(--sempa-success)' : 'var(--sempa-text-dim)'}">
                     {p}% · {done.length}/{linked.length} tasks
                   </span>
                 </div>
@@ -449,7 +449,7 @@
                   <button onclick={() => toggleTask(t)}
                           class="h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all
                                  {t.status === 'done' ? 'border-green-500 bg-green-500' : 'border-gray-300'}"
-                          onmouseenter={(e) => { if (t.status !== 'done') (e.currentTarget as HTMLElement).style.borderColor = '#22c55e'; }}
+                          onmouseenter={(e) => { if (t.status !== 'done') (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'; }}
                           onmouseleave={(e) => { if (t.status !== 'done') (e.currentTarget as HTMLElement).style.borderColor = ''; }}>
                     {#if t.status === 'done'}
                       <svg class="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">

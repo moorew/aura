@@ -922,7 +922,7 @@
            style="border-color: var(--sempa-border);">
         <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
              style="background: var(--sempa-cal-feed-bg, #1a2820);">
-          <svg class="h-4 w-4" style="color: #4ade80;" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <svg class="h-4 w-4" style="color: var(--sempa-success);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
             <line x1="16" y1="2" x2="16" y2="6"/>
             <line x1="8" y1="2" x2="8" y2="6"/>

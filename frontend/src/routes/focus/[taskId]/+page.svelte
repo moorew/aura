@@ -69,7 +69,7 @@
                 class="mt-1.5 h-6 w-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-all"
                 class:border-green-500={isDone} class:bg-green-500={isDone}
                 style={isDone ? '' : 'border-color: var(--sempa-border);'}
-                onmouseenter={(e) => { if (!isDone) (e.currentTarget as HTMLElement).style.borderColor = '#22c55e'; }}
+                onmouseenter={(e) => { if (!isDone) (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'; }}
                 onmouseleave={(e) => { if (!isDone) (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-border)'; }}>
           {#if isDone}
             <svg class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">

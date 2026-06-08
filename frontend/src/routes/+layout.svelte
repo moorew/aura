@@ -24,9 +24,9 @@
 
   // Lucide icons
   import {
-    Sun, Calendar, ClipboardCheck, Inbox, Moon, Settings,
+    Sun, CalendarDays, ClipboardCheck, Mail, Moon, SlidersHorizontal,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
-    Target, Timer, LayoutDashboard, Palette, Menu, Layers, BookOpen,
+    Target, Timer, Palette, Menu, Layers, BookOpen,
   } from 'lucide-svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -214,10 +214,10 @@
         </a>
       {/snippet}
 
-      {@render navItem('/home', 'Today', LayoutDashboard)}
-      {@render navItem(`/week/${thisWeek}`, 'This Week', Calendar)}
+      {@render navItem('/home', 'Today', CalendarDays)}
+      {@render navItem(`/week/${thisWeek}`, 'This Week', CalendarDays)}
       {@render navItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
-      {@render navItem('/email', 'Email', Inbox)}
+      {@render navItem('/email', 'Email', Mail)}
       {@render navItem('/backlog', 'Backlog', Layers)}
       {@render navItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
       {@render navItem('/journal', 'Journal', BookOpen)}
@@ -236,7 +236,7 @@
       <!-- Bottom section -->
       <div class="mt-auto flex flex-col gap-0.5 pt-3"
            style="border-top: 1px solid var(--sempa-border);">
-        {@render navItem('/settings/accounts', 'Settings', Settings)}
+        {@render navItem('/settings/accounts', 'Settings', SlidersHorizontal)}
 
         <button onclick={theme.toggle}
                 class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] tracking-[-0.01em] transition-colors"
@@ -297,11 +297,11 @@
                background: none; border: none; cursor: pointer;
                color: {active ? 'var(--sempa-accent)' : 'var(--sempa-text-dim)'};">
         {#if tab.icon === 'today'}
-          <LayoutDashboard size={22} strokeWidth={active ? 2.25 : 1.75} />
+          <CalendarDays size={22} strokeWidth={active ? 2.25 : 1.75} />
         {:else if tab.icon === 'week'}
-          <Calendar size={22} strokeWidth={active ? 2.25 : 1.75} />
+          <CalendarDays size={22} strokeWidth={active ? 2.25 : 1.75} />
         {:else if tab.icon === 'inbox'}
-          <Inbox size={22} strokeWidth={active ? 2.25 : 1.75} />
+          <Mail size={22} strokeWidth={active ? 2.25 : 1.75} />
         {:else if tab.icon === 'journal'}
           <BookOpen size={22} strokeWidth={active ? 2.25 : 1.75} />
         {:else}
@@ -344,9 +344,9 @@
 
       {@render moreItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
       {@render moreItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
-      {@render moreItem('/email', 'Inbox', Inbox)}
+      {@render moreItem('/email', 'Inbox', Mail)}
       {@render moreItem('/backlog', 'Backlog', Layers)}
-      {@render moreItem('/settings/accounts', 'Settings', Settings)}
+      {@render moreItem('/settings/accounts', 'Settings', SlidersHorizontal)}
 
       <!-- Theme toggle -->
       <button onclick={() => { theme.toggle(); }}

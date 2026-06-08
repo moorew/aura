@@ -193,7 +193,7 @@
                 style={step === s.n
                   ? 'background: var(--sempa-btn-bg); color: var(--sempa-btn-fg); border-radius:9999px; padding:4px 14px; font-size:12px; font-weight:500;'
                   : step > s.n
-                    ? 'background: rgba(34,197,94,0.1); color: #16a34a; border-radius:9999px; padding:4px 14px; font-size:12px; font-weight:500;'
+                    ? 'background: var(--sempa-success-soft); color: var(--sempa-success); border-radius:9999px; padding:4px 14px; font-size:12px; font-weight:500;'
                     : 'background: var(--sempa-accent-bg); color: var(--sempa-text-dim); border-radius:9999px; padding:4px 14px; font-size:12px;'}>
           {s.n < step ? '✓ ' : ''}{s.label}
         </button>
@@ -308,7 +308,7 @@
                 <button onclick={() => toggleTask(t)}
                         class="h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all
                                {t.status === 'done' ? 'border-green-500 bg-green-500' : 'border-gray-300'}"
-                        onmouseenter={(e) => { if (t.status !== 'done') (e.currentTarget as HTMLElement).style.borderColor = '#22c55e'; }}
+                        onmouseenter={(e) => { if (t.status !== 'done') (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'; }}
                         onmouseleave={(e) => { if (t.status !== 'done') (e.currentTarget as HTMLElement).style.borderColor = ''; }}>
                   {#if t.status === 'done'}
                     <svg class="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">

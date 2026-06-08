@@ -52,6 +52,19 @@
   --color-indigo-900: #451508;
   --color-indigo-950: #2a0b03;
 
+  /* Green → warm success (completion / connected states) */
+  --color-green-50:  #f0f7f1;
+  --color-green-100: #dcebde;
+  --color-green-200: #bcd9c1;
+  --color-green-300: #93c29c;
+  --color-green-400: #6aa877;
+  --color-green-500: #4a8a55;
+  --color-green-600: #3f7549;
+  --color-green-700: #345f3c;
+  --color-green-800: #2a4a30;
+  --color-green-900: #1f3a25;
+  --color-green-950: #1a2a1e;
+
   /* White → warm cream panel (bg-white cards on warm backgrounds) */
   --color-white: #f0ece3;
 
@@ -88,6 +101,9 @@
   --sempa-today-fg:  #f7f3eb;
   --sempa-btn-bg:    #b3592e;
   --sempa-btn-fg:    #f7f3eb;
+  --sempa-success:      #4a8a55;
+  --sempa-success-soft: rgba(74,138,85,0.12);
+  --sempa-success-bg:   #f0f7f1;
 }
 
 /* ── Sempa warm design tokens — dark mode ────────────────────────────────── */
@@ -106,6 +122,9 @@
   --sempa-today-fg:  #f7f3eb;
   --sempa-btn-bg:    #cc6e3a;
   --sempa-btn-fg:    #f7f3eb;
+  --sempa-success:      #5e9e6b;
+  --sempa-success-soft: rgba(94,158,107,0.12);
+  --sempa-success-bg:   #1a2a1e;
 }
 
 /* ── Sempa animation library ─────────────────────────────────────────────── */

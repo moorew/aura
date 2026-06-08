@@ -88,7 +88,7 @@
   <!-- Swipe reveal (green check) -->
   {#if deltaX > 0}
     <div class="absolute inset-y-0 left-0 flex items-center pl-4"
-         style="color: #22c55e; width: {deltaX}px;">
+         style="color: var(--sempa-success); width: {deltaX}px;">
       <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
       </svg>

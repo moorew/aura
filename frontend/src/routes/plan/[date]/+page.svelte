@@ -106,7 +106,7 @@
         <div class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
              style={i + 1 <= step
                ? 'background: var(--sempa-accent); color: var(--sempa-btn-fg);'
-               : 'background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border); color: var(--sempa-text-dim);'}>
+               : 'background: transparent; border: 1.5px solid var(--sempa-text-dim); color: var(--sempa-text-dim);'}>
           {#if i + 1 < step}
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>

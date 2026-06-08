@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { RefreshCw } from 'lucide-svelte';
   import { api } from '$lib/api';
   import type { FastmailEmail } from '$lib/types';
 
@@ -89,9 +90,10 @@
       {/if}
     </div>
     <button onclick={load} disabled={loading}
-            class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600
-                   hover:bg-gray-50 disabled:opacity-40 transition-colors
-                   dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800">
+            class="flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+            style="border: 1px solid var(--sempa-border); border-radius: 8px; padding: 7px 14px;
+                   color: var(--sempa-text-soft); background: transparent;">
+      <RefreshCw size={13} class={loading ? 'animate-spin' : ''} />
       {loading ? 'Loading…' : 'Refresh'}
     </button>
   </header>

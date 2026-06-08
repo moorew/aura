@@ -116,7 +116,7 @@
               style={step === s.n
                 ? 'background: var(--sempa-btn-bg); color: var(--sempa-btn-fg); border-radius:9999px; padding:4px 14px; font-size:12px; font-weight:500;'
                 : step > s.n
-                  ? 'background: rgba(34,197,94,0.1); color: #16a34a; border-radius:9999px; padding:4px 14px; font-size:12px; font-weight:500;'
+                  ? 'background: var(--sempa-success-soft); color: var(--sempa-success); border-radius:9999px; padding:4px 14px; font-size:12px; font-weight:500;'
                   : 'background: var(--sempa-accent-bg); color: var(--sempa-text-dim); border-radius:9999px; padding:4px 14px; font-size:12px;'}>
         {s.icon} {s.label}
       </button>

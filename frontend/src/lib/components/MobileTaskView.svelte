@@ -224,7 +224,7 @@
               class="flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors"
               style="{isDone
                 ? 'background: var(--sempa-border); color: var(--sempa-text-soft);'
-                : 'background: #22c55e; color: white;'}">
+                : 'background: var(--sempa-success); color: white;'}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           {#if isDone}
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l-4-4m0 0l4-4m-4 4h15"/>
