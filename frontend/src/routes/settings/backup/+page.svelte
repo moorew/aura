@@ -441,8 +441,14 @@
       <p class="mb-3 text-xs" style="color: var(--sempa-text-soft);">
         This <strong>erases all current data</strong> and replaces it with the backup. Encrypted backups need their passphrase.
       </p>
-      <input type="file" accept=".zip,.enc" onchange={onRestorePick}
-             class="mb-2 block w-full text-xs" />
+      <label class="mb-2 inline-flex max-w-full cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+             style="border-color: var(--sempa-border); color: var(--sempa-text);">
+        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+        </svg>
+        <span class="truncate">{restoreFile ? restoreFile.name : 'Choose backup file…'}</span>
+        <input type="file" accept=".zip,.enc" onchange={onRestorePick} class="hidden" />
+      </label>
       {#if restoreFile}
         <input type="password" bind:value={restorePassphrase} placeholder="Passphrase (only if encrypted)"
                class="mb-2 w-full rounded-md border px-2 py-1.5 text-sm" style="border-color: var(--sempa-border); background: var(--sempa-bg);" />
