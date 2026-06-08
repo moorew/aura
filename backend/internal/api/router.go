@@ -54,7 +54,7 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 	configStore := db.NewIntegrationConfigStore(database)
 	setup := &setupHandler{configs: configStore}
 	fmCalStore := db.NewFastmailCalStore(database)
-	auth := newAuthHandler(cfg)
+	auth := newAuthHandler(cfg, database)
 
 	hub := NewEventHub()
 
