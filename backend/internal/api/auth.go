@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -30,21 +31,60 @@ type sessionEntry struct {
 type sessionStore struct {
 	mu      sync.Mutex
 	entries map[string]sessionEntry
+	db      *sql.DB // optional persistence so sessions survive restarts
 }
 
-func newSessionStore() *sessionStore {
-	s := &sessionStore{entries: make(map[string]sessionEntry)}
+// newSessionStore builds a session store. When a DB is provided, sessions are
+// persisted and reloaded on startup so a backend restart/redeploy does not log
+// everyone out (the in-memory map alone is wiped on every process restart).
+func newSessionStore(database *sql.DB) *sessionStore {
+	s := &sessionStore{entries: make(map[string]sessionEntry), db: database}
+	s.loadFromDB()
 	go s.reap()
 	return s
+}
+
+const sessionTimeFmt = time.RFC3339
+
+func (s *sessionStore) loadFromDB() {
+	if s.db == nil {
+		return
+	}
+	rows, err := s.db.Query(
+		`SELECT id, email, expires_at FROM sessions WHERE expires_at > ?`,
+		time.Now().UTC().Format(sessionTimeFmt))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for rows.Next() {
+		var id, email, exp string
+		if err := rows.Scan(&id, &email, &exp); err != nil {
+			continue
+		}
+		t, err := time.Parse(sessionTimeFmt, exp)
+		if err != nil {
+			continue
+		}
+		s.entries[id] = sessionEntry{Email: email, Expires: t}
+	}
 }
 
 func (s *sessionStore) create(ttl time.Duration, email string) string {
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
 	id := hex.EncodeToString(b)
+	expires := time.Now().Add(ttl)
 	s.mu.Lock()
-	s.entries[id] = sessionEntry{Email: email, Expires: time.Now().Add(ttl)}
+	s.entries[id] = sessionEntry{Email: email, Expires: expires}
 	s.mu.Unlock()
+	if s.db != nil {
+		_, _ = s.db.Exec(
+			`INSERT OR REPLACE INTO sessions (id, email, expires_at) VALUES (?, ?, ?)`,
+			id, email, expires.UTC().Format(sessionTimeFmt))
+	}
 	return id
 }
 
@@ -62,6 +102,9 @@ func (s *sessionStore) delete(id string) {
 	s.mu.Lock()
 	delete(s.entries, id)
 	s.mu.Unlock()
+	if s.db != nil {
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE id = ?`, id)
+	}
 }
 
 func (s *sessionStore) reap() {
@@ -74,6 +117,10 @@ func (s *sessionStore) reap() {
 			}
 		}
 		s.mu.Unlock()
+		if s.db != nil {
+			_, _ = s.db.Exec(`DELETE FROM sessions WHERE expires_at <= ?`,
+				now.UTC().Format(sessionTimeFmt))
+		}
 	}
 }
 
@@ -193,10 +240,10 @@ type authHandler struct {
 	linkTokens *linkTokenStore
 }
 
-func newAuthHandler(cfg config.Config) *authHandler {
+func newAuthHandler(cfg config.Config, database *sql.DB) *authHandler {
 	return &authHandler{
 		cfg:        cfg,
-		sessions:   newSessionStore(),
+		sessions:   newSessionStore(database),
 		states:     newStateStore(),
 		linkTokens: newLinkTokenStore(),
 	}
