@@ -275,7 +275,7 @@
   <div class="flex-1 overflow-auto" style="background: var(--sempa-bg-main);
        {mobile.value ? 'padding-bottom: 88px;' : ''}">
     {#key $page.url.pathname}
-      <div class="animate-fade-in">{@render children()}</div>
+      <div class="animate-page-in">{@render children()}</div>
     {/key}
   </div>
   </div><!-- end inner flex row -->
