@@ -207,6 +207,12 @@
       // "Connecting…" with no feedback — the user reported pressing Connect and
       // seeing nothing happen, which was this request not resolving.
       const me = await withTimeout(api.auth.me(), 12_000);
+      // Hide the URL form now that we've reached the server. This MUST be an
+      // explicit state change: the template's {#if showServerUrl && !getServerUrl()}
+      // gate read getServerUrl() (a non-reactive localStorage call), so after a
+      // successful connect Svelte never re-evaluated it and the form just sat
+      // there — the "nothing happens on Connect, fixed by restarting" bug.
+      showServerUrl = false;
       if (me.authenticated) {
         goto(redirectTarget, { replaceState: true });
         return;
@@ -220,6 +226,7 @@
       // Drop the unverified URL so the field stays visible for another attempt.
       localStorage.removeItem('sempa_server_url');
       resetApiResolver();
+      showServerUrl = true;
     } finally {
       loading = false;
     }
@@ -268,7 +275,7 @@
         </div>
       {/if}
 
-      {#if showServerUrl && !getServerUrl()}
+      {#if showServerUrl}
         <!-- Server URL configuration (native/mobile) -->
         <form onsubmit={(e) => { e.preventDefault(); connectServer(); }} class="space-y-4">
           <div>
