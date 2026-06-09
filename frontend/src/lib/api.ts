@@ -413,7 +413,7 @@ const httpApi = {
 // the *syncable core* — tasks, objectives, plans, tags, week reviews, recurring,
 // pomodoros, setup — always reads/writes the local DB, so the app works fully
 // offline and on a foreign tailnet. Mutations queue in sync_log and are replayed
-// by the sync engine ($lib/sync) when the server is reachable again.
+// by the sync engine ($lib/sync.svelte) when the server is reachable again.
 //
 // Server-only features (auth session, attachments, backups, devices, iCal,
 // third-party integrations) are NOT offline-capable, so they pass through to the

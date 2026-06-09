@@ -5,7 +5,7 @@
    * lets the user kick off a sync by clicking. Only meaningful on local-first
    * platforms (desktop/Android); renders nothing on plain web.
    */
-  import { syncStore, sync as runSync } from '$lib/sync';
+  import { syncStore, sync as runSync } from '$lib/sync.svelte';
   import { hasLocalDb } from '$lib/tauri/bridge';
   import { onMount } from 'svelte';
   import { RefreshCw, Cloud, CloudOff, CloudUpload } from 'lucide-svelte';
