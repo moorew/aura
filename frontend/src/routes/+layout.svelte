@@ -207,6 +207,24 @@
     return $page.url.pathname.startsWith(prefix);
   }
 
+  // Sign out. Local-first: clear the stored token and leave for /login
+  // IMMEDIATELY, then tell the server best-effort. The old handler awaited the
+  // logout HTTP POST first, so on Android (or any time the server was slow/
+  // unreachable) the await never resolved and the button appeared dead — and
+  // the mobile variant never cleared the native token at all.
+  async function signOut() {
+    moreSheetOpen = false;
+    // Tell the server to invalidate the session, best-effort, while the token
+    // is still present — but DON'T await it (a hung/offline request must not
+    // block the local sign-out).
+    void api.auth.logout().catch(() => {});
+    clearTauriToken();
+    clearNativeToken();
+    resetApiResolver();
+    realtime.disconnect();
+    await goto('/login', { replaceState: true });
+  }
+
   // Bottom tab nav items
   const tabs = $derived([
     { href: '/home', label: 'Today', prefix: '/home', icon: 'today' },
@@ -309,7 +327,7 @@
         {#if userEmail}
           <div class="mt-1 rounded-lg px-3 py-2" style="border-top: 1px solid var(--sempa-border);">
             <p class="truncate text-[11px]" style="color: var(--sempa-text-dim);" title={userEmail}>{userEmail}</p>
-            <button onclick={async () => { if (isTauri()) { clearTauriToken(); resetApiResolver(); goto('/login'); return; } clearNativeToken(); await api.auth.logout(); goto('/login'); }}
+            <button onclick={signOut}
                     class="mt-0.5 text-[11px] transition-colors"
                     style="color: var(--sempa-text-dim);"
                     onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'}
@@ -428,7 +446,7 @@
       {#if userEmail}
         <div class="mt-3 px-4 pt-3" style="border-top: 1px solid var(--sempa-border);">
           <p class="truncate text-xs" style="color: var(--sempa-text-dim);">{userEmail}</p>
-          <button onclick={async () => { moreSheetOpen = false; if (isTauri()) { clearTauriToken(); resetApiResolver(); goto('/login'); return; } await api.auth.logout(); goto('/login'); }}
+          <button onclick={signOut}
                   class="mt-1 text-xs transition-colors" style="color: var(--sempa-text-dim);">
             Sign out
           </button>
