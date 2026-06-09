@@ -72,10 +72,10 @@
   }}
   onmouseenter={() => onHover?.(task.id)}
   onmouseleave={() => onHover?.(null)}
-  class="group relative flex flex-col gap-2 rounded-xl border border-gray-100 bg-white p-3
-         shadow-sm cursor-grab active:cursor-grabbing active:scale-[0.98] active:shadow-none
-         transition-all duration-100 hover:border-gray-200 hover:shadow-md min-h-[44px]
-         dark:border-gray-700/40 dark:bg-gray-800 dark:hover:border-gray-600/60"
+  class="group relative flex flex-col gap-2 rounded-[10px] shadow-sm cursor-grab
+         active:cursor-grabbing active:scale-[0.98] active:shadow-none
+         transition-all duration-100 hover:shadow-md min-h-[44px]"
+  style="padding: 9px 10px; background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);"
 >
   <div class="flex items-start gap-1.5">
     <!-- Quick-complete — 44×44 tap target wrapping a 16×16 visual circle (FIX 3) -->
@@ -99,10 +99,10 @@
     <!-- Title + click to edit -->
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_static_element_interactions -->
     <div class="min-w-0 flex-1 cursor-pointer" onclick={() => onClick?.(task)}>
-      <p class="text-sm leading-snug
-                {isDone
-                  ? 'line-through text-gray-300 dark:text-gray-600'
-                  : 'font-medium text-gray-800 dark:text-gray-100'}">
+      <p class="{isDone ? 'line-through' : ''}"
+         style="font-size: 13px; font-weight: 500; line-height: 1.35; letter-spacing: -0.005em;
+                text-wrap: pretty;
+                color: {isDone ? 'var(--sempa-text-dim)' : 'var(--sempa-text)'};">
         {task.title}
       </p>
     </div>
@@ -165,36 +165,33 @@
     </div>
   </div>
 
-  <!-- Tags + metadata -->
+  <!-- Tags + metadata — full card width UNDER the title (not indented under the
+       checkbox), so badges flow horizontally instead of stacking. -->
   {#if hasFooter}
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="flex flex-wrap gap-1 pl-6.5 cursor-pointer" onclick={() => onClick?.(task)}>
+    <div class="flex flex-wrap items-center cursor-pointer" style="gap: 4px; margin-top: 7px;" onclick={() => onClick?.(task)}>
       {#each (task.tags ?? []) as tag}
-        <span class="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-              style="background-color: {tagStore.colorFor(tag)}">{tag}</span>
+        <span class="type-badge rounded text-white" style="padding: 2px 7px; background-color: {tagStore.colorFor(tag)}">{tag}</span>
       {/each}
-      {#if task.time_estimate_minutes}
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-mono text-gray-500
-                     dark:bg-gray-700/60 dark:text-gray-400">
-          {formatMinutes(task.time_estimate_minutes)}
-        </span>
-      {/if}
       {#if task.source && task.source !== 'manual'}
-        <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-500
-                     dark:bg-indigo-950/60 dark:text-indigo-400">
+        <span class="type-badge rounded" style="padding: 2px 7px; background: var(--sempa-accent-bg); color: var(--sempa-accent);">
           {sourceLabel[task.source] ?? task.source}
         </span>
       {/if}
+      {#if task.time_estimate_minutes}
+        <span class="type-badge rounded" style="padding: 2px 7px; background: color-mix(in srgb, var(--sempa-text) 6%, transparent); color: var(--sempa-text-soft);">
+          {formatMinutes(task.time_estimate_minutes)}
+        </span>
+      {/if}
       {#if isRecurring}
-        <span class="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] text-violet-500
-                     dark:bg-violet-950/60 dark:text-violet-400"
+        <span class="type-badge rounded" style="padding: 2px 7px; background: var(--sempa-accent-bg); color: var(--sempa-accent);"
               title="Recurring{streak > 0 ? ` · ${streak} in a row` : ''}">
           ↺{#if streak > 0}&thinsp;{streak}🔥{/if}
         </span>
       {/if}
       {#if daysBehind > 0}
-        <span class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600
-                     dark:bg-amber-950/60 dark:text-amber-400"
+        <span class="type-badge rounded bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"
+              style="padding: 2px 7px;"
               title="{daysBehind} day{daysBehind !== 1 ? 's' : ''} overdue">
           +{daysBehind}d
         </span>

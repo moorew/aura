@@ -184,7 +184,7 @@
     <!-- Today's tasks -->
     {#if openToday.length > 0}
       <div>
-        <p class="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest"
+        <p class="mb-2 px-1 text-[10.5px] font-bold uppercase tracking-widest"
            style="font-family:monospace; color: var(--sempa-text-dim);">Up Next</p>
         <div class="flex flex-col gap-2">
           {#each openToday.slice(0, 5) as task (task.id)}
@@ -290,7 +290,7 @@
     <!-- Weekly objectives -->
     {#if objectives.length > 0}
       <div>
-        <p class="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest"
+        <p class="mb-2 px-1 text-[10.5px] font-bold uppercase tracking-widest"
            style="font-family:monospace; color: var(--sempa-text-dim);">Weekly Objectives</p>
         <div class="flex flex-col gap-2">
           {#each objectives.slice(0, 4) as obj (obj.id)}

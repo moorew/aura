@@ -64,7 +64,7 @@
   <!-- Day-of-week headers -->
   <div class="mb-1 grid grid-cols-7">
     {#each DAYS as day}
-      <div class="flex items-center justify-center py-0.5 text-center text-[10px] font-medium
+      <div class="flex items-center justify-center py-0.5 text-center text-[10.5px] font-medium
                   text-gray-400 dark:text-gray-600">{day}</div>
     {/each}
   </div>

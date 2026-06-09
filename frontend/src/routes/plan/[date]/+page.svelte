@@ -140,7 +140,7 @@
 
         {#if yesterdayReflection}
           <div class="mb-5 rounded-xl px-4 py-3" style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border);">
-            <p class="text-[10px] font-semibold uppercase tracking-wider mb-1" style="color: var(--sempa-text-dim);">Yesterday you noted</p>
+            <p class="text-[10.5px] font-semibold uppercase tracking-wider mb-1" style="color: var(--sempa-text-dim);">Yesterday you noted</p>
             <p class="text-sm italic" style="color: var(--sempa-text-soft);">"{yesterdayReflection}"</p>
           </div>
         {/if}

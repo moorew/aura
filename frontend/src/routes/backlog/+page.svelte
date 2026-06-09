@@ -5,8 +5,9 @@
   import { today, weekStart, formatMinutes } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
-  import { Plus } from 'lucide-svelte';
+  import { Plus, Search } from 'lucide-svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { realtime } from '$lib/stores/realtime.svelte';
 
   let tasks   = $state<Task[]>([]);
   let loading = $state(true);
@@ -15,7 +16,10 @@
   let panelOpen = $state(false);
   let panelTask = $state<Task | null>(null);
 
-  import { realtime } from '$lib/stores/realtime.svelte';
+  // Controls
+  let search   = $state('');
+  let filter   = $state<'all' | 'jira' | 'personal'>('all');
+  let sortNewest = $state(false); // default: oldest first
 
   onMount(load);
 
@@ -37,6 +41,16 @@
     const ws = weekStart(d);
     tasks = tasks.filter(t => t.id !== id);
     try { await api.tasks.update(id, { planned_date: d, week_start: ws, status: 'planned' }); }
+    catch { await load(); }
+  }
+
+  // Park the item in this week without pinning a day: assign the current
+  // week_start (so it shows under "Unscheduled this week") but leave it
+  // undated, distinct from "Today" which pins planned_date to today.
+  async function scheduleThisWeek(id: string) {
+    const ws = weekStart(today());
+    tasks = tasks.filter(t => t.id !== id);
+    try { await api.tasks.update(id, { week_start: ws, status: 'planned', planned_date: null }); }
     catch { await load(); }
   }
 
@@ -68,6 +82,60 @@
   const sourceLabel: Record<string, string> = {
     gmail: 'Gmail', fastmail: 'Mail', jira: 'Jira', google_calendar: 'Cal',
   };
+
+  // Age since the task was added, in compact d/w units (e.g. 5d, 3w).
+  function ageLabel(createdAt: string | null | undefined): string {
+    if (!createdAt) return '';
+    const then = new Date(createdAt).getTime();
+    if (Number.isNaN(then)) return '';
+    const days = Math.max(0, Math.floor((Date.now() - then) / 86400000));
+    if (days < 1) return 'today';
+    if (days < 7) return `${days}d`;
+    return `${Math.floor(days / 7)}w`;
+  }
+
+  // The group a task belongs to: its source, or "personal" for manual tasks.
+  function groupKey(t: Task): string {
+    return t.source && t.source !== 'manual' ? t.source : 'personal';
+  }
+  function groupTitle(key: string): string {
+    return key === 'personal' ? 'Personal' : (sourceLabel[key] ?? key);
+  }
+
+  // Oldest item's age, for the subtitle ("oldest 8w").
+  const oldestAge = $derived.by(() => {
+    const stamps = tasks.map(t => t.created_at ? new Date(t.created_at).getTime() : NaN).filter(n => !Number.isNaN(n));
+    if (!stamps.length) return '';
+    return ageLabel(new Date(Math.min(...stamps)).toISOString());
+  });
+
+  // Filter + search, then group by source, then sort within each group by age.
+  const filtered = $derived.by(() => {
+    const q = search.trim().toLowerCase();
+    return tasks.filter(t => {
+      if (q && !t.title.toLowerCase().includes(q)) return false;
+      if (filter === 'jira') return t.source === 'jira';
+      if (filter === 'personal') return groupKey(t) === 'personal';
+      return true;
+    });
+  });
+
+  const groups = $derived.by(() => {
+    const byKey = new Map<string, Task[]>();
+    for (const t of filtered) {
+      const k = groupKey(t);
+      if (!byKey.has(k)) byKey.set(k, []);
+      byKey.get(k)!.push(t);
+    }
+    const dir = sortNewest ? -1 : 1;
+    const sortByAge = (a: Task, b: Task) =>
+      dir * (a.created_at ?? '').localeCompare(b.created_at ?? '');
+    // Stable group order: known sources first (jira), then personal, then others.
+    const order = (k: string) => (k === 'jira' ? 0 : k === 'personal' ? 2 : 1);
+    return [...byKey.entries()]
+      .map(([key, items]) => ({ key, items: [...items].sort(sortByAge) }))
+      .sort((a, b) => order(a.key) - order(b.key) || a.key.localeCompare(b.key));
+  });
 </script>
 
 <svelte:head><title>Backlog — Sempa</title></svelte:head>
@@ -76,26 +144,60 @@
         style="background: color-mix(in srgb, var(--sempa-bg-main) 95%, transparent);
                border-bottom: 1px solid var(--sempa-border);
                padding-top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));">
-  <div class="flex items-center justify-between px-6 py-3">
+  <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
     <div>
-      <p class="text-sm font-semibold" style="color: var(--sempa-text);">Backlog</p>
-      <p class="text-[10px]" style="color: var(--sempa-text-dim);">
-        {tasks.length} item{tasks.length !== 1 ? 's' : ''} waiting to be scheduled
+      <p class="type-page" style="color: var(--sempa-text);">Backlog</p>
+      <p style="font-size: 12.5px; color: var(--sempa-text-dim);">
+        {tasks.length} item{tasks.length !== 1 ? 's' : ''} waiting to be scheduled{oldestAge ? ` · oldest ${oldestAge}` : ''}
       </p>
     </div>
-    <button onclick={openCreate}
-            class="flex items-center gap-1.5 rounded-[9px] px-3 py-1.5 text-[13px] font-[500]
-                   tracking-[-0.01em] transition-colors shadow-sm"
-            style="background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);"
-            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
-            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-      <Plus size={13} strokeWidth={2.5} />
-      Add to backlog
-    </button>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Search -->
+      <div class="flex items-center gap-1.5 rounded-lg px-2.5"
+           style="border: 1px solid var(--sempa-border); height: 32px;">
+        <Search size={13} style="color: var(--sempa-text-dim);" />
+        <input bind:value={search} placeholder="Search backlog"
+               class="bg-transparent outline-none"
+               style="font-size: 12.5px; color: var(--sempa-text); width: 130px;" />
+      </div>
+
+      <!-- Filter chips -->
+      <div class="flex items-center gap-1">
+        {#each [{ k: 'all', l: 'All' }, { k: 'jira', l: 'Jira' }, { k: 'personal', l: 'Personal' }] as chip}
+          {@const active = filter === chip.k}
+          <button onclick={() => filter = chip.k as typeof filter}
+                  class="rounded-lg transition-colors"
+                  style="font-size: 12px; padding: 4px 10px;
+                         {active
+                           ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                           : 'border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);'}">
+            {chip.l}
+          </button>
+        {/each}
+      </div>
+
+      <!-- Sort -->
+      <button onclick={() => sortNewest = !sortNewest}
+              class="rounded-lg transition-colors"
+              style="font-size: 12px; padding: 4px 10px; border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
+        {sortNewest ? 'Newest first' : 'Oldest first'}
+      </button>
+
+      <!-- Add -->
+      <button onclick={openCreate}
+              class="flex items-center gap-1.5 rounded-[9px] px-3 transition-colors shadow-sm"
+              style="background: var(--sempa-btn-bg); color: var(--sempa-btn-fg); height: 32px; font-size: 13px; font-weight: 500;"
+              onmouseenter={(e) => (e.currentTarget as HTMLElement).style.opacity = '0.88'}
+              onmouseleave={(e) => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+        <Plus size={13} strokeWidth={2.5} />
+        Add to backlog
+      </button>
+    </div>
   </div>
 </header>
 
-<main class="mx-auto max-w-2xl px-6 py-6 animate-fade-in">
+<main class="mx-auto max-w-3xl px-6 py-6 animate-fade-in">
   {#if loading}
     <div class="flex h-48 items-center justify-center text-sm" style="color: var(--sempa-text-dim);">Loading…</div>
 
@@ -122,67 +224,84 @@
       </button>
     </div>
 
+  {:else if filtered.length === 0}
+    <div class="flex flex-col items-center justify-center py-20 text-center" style="color: var(--sempa-text-dim);">
+      <p class="text-sm">No matching items.</p>
+    </div>
+
   {:else}
-    <div class="flex flex-col gap-2">
-      {#each tasks as task (task.id)}
-        <div class="group flex items-center gap-3 rounded-xl px-4 py-3 transition-all hover:shadow-sm"
-             style="border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
-
-          <!-- Complete circle -->
-          <button onclick={() => complete(task.id)}
-                  class="h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer"
-                  style="border-color: var(--sempa-text-dim);"
-                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'}
-                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-text-dim)'}
-                  title="Mark done">
-          </button>
-
-          <!-- Title + tags -->
-          <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-          <div class="flex-1 min-w-0 cursor-pointer" onclick={() => openEdit(task)}>
-            <p class="text-sm font-medium" style="color: var(--sempa-text);">{task.title}</p>
-            {#if task.tags?.length || task.time_estimate_minutes || (task.source && task.source !== 'manual')}
-              <div class="mt-1 flex flex-wrap gap-1">
-                {#each (task.tags ?? []) as tag}
-                  <span class="rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                        style="background-color: {tagStore.colorFor(tag)}">{tag}</span>
-                {/each}
-                {#if task.time_estimate_minutes}
-                  <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-mono"
-                        style="color: var(--sempa-text-dim);">
-                    {formatMinutes(task.time_estimate_minutes)}
-                  </span>
-                {/if}
-                {#if task.source && task.source !== 'manual'}
-                  <span style="background: var(--sempa-accent-bg); color: var(--sempa-accent);
-                               font-size: 10px; font-weight: 600; padding: 2px 7px;
-                               border-radius: 4px; letter-spacing: 0.02em;">
-                    {sourceLabel[task.source] ?? task.source}
-                  </span>
-                {/if}
-              </div>
-            {/if}
+    <div class="flex flex-col gap-6">
+      {#each groups as group (group.key)}
+        <div>
+          <!-- Group label -->
+          <div class="mb-2 flex items-center gap-2 px-1">
+            <span class="type-label" style="color: var(--sempa-accent);">{groupTitle(group.key)}</span>
+            <span class="type-label" style="color: var(--sempa-text-dim);">{group.items.length}</span>
           </div>
 
-          <!-- Actions (always visible on hover, "Plan today" is primary) -->
-          <div class="flex shrink-0 items-center gap-1.5 transition-opacity
-                      {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
-            <button onclick={() => scheduleToday(task.id)}
-                    class="rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors"
-                    style="background: var(--sempa-accent-bg); color: var(--sempa-accent);"
-                    title="Schedule to today">
-              Plan today
-            </button>
-            <button onclick={() => remove(task.id)}
-                    class="rounded p-1 transition-colors"
-                    style="color: var(--sempa-text-dim);"
-                    onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = '#f87171'}
-                    onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}
-                    title="Delete">
-              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
+          <!-- One bordered panel; rows divided by a hairline -->
+          <div style="border: 1px solid var(--sempa-border); border-radius: 12px; background: var(--sempa-bg-panel); overflow: hidden;">
+            {#each group.items as task, i (task.id)}
+              <div class="group/row flex items-center gap-3 px-4 transition-colors"
+                   style="min-height: {mobile.value ? '44px' : '38px'}; {i > 0 ? 'border-top: 1px solid var(--sempa-border);' : ''}"
+                   onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--sempa-text) 3%, transparent)'}
+                   onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
+
+                <!-- Complete circle -->
+                <button onclick={() => complete(task.id)}
+                        class="h-[15px] w-[15px] shrink-0 rounded-full border-2 transition-all cursor-pointer"
+                        style="border-color: var(--sempa-text-dim);"
+                        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-success)'}
+                        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-text-dim)'}
+                        title="Mark done"></button>
+
+                <!-- Title (single line, truncates) -->
+                <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+                <button class="min-w-0 flex-1 truncate text-left type-body cursor-pointer"
+                        style="color: var(--sempa-text);" onclick={() => openEdit(task)}>
+                  {task.title}
+                </button>
+
+                <!-- Right side: estimate + age, swapped for quick actions on hover -->
+                <div class="flex shrink-0 items-center gap-2">
+                  <!-- meta (hidden on row hover, desktop only) -->
+                  <div class="flex items-center gap-2 {mobile.value ? '' : 'group-hover/row:hidden'}">
+                    {#if task.time_estimate_minutes}
+                      <span class="type-badge rounded" style="padding: 2px 7px; background: color-mix(in srgb, var(--sempa-text) 6%, transparent); color: var(--sempa-text-soft);">
+                        {formatMinutes(task.time_estimate_minutes)}
+                      </span>
+                    {/if}
+                    <span style="font-size: 11.5px; color: var(--sempa-text-dim);">{ageLabel(task.created_at)}</span>
+                  </div>
+
+                  <!-- quick actions (desktop: hover only; mobile: always) -->
+                  <div class="items-center gap-1.5 {mobile.value ? 'flex' : 'hidden group-hover/row:flex'}">
+                    <button onclick={() => scheduleToday(task.id)}
+                            class="rounded-md transition-colors"
+                            style="font-size: 11.5px; font-weight: 600; padding: 2px 8px;
+                                   border: 1px solid var(--sempa-accent); color: var(--sempa-accent);">
+                      Today
+                    </button>
+                    <button onclick={() => scheduleThisWeek(task.id)}
+                            class="rounded-md transition-colors"
+                            style="font-size: 11.5px; font-weight: 600; padding: 2px 8px;
+                                   border: 1px solid var(--sempa-accent); color: var(--sempa-accent);">
+                      This week
+                    </button>
+                    <button onclick={() => remove(task.id)}
+                            class="rounded p-1 transition-colors"
+                            style="color: var(--sempa-text-dim);"
+                            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = '#f87171'}
+                            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}
+                            title="Delete" aria-label="Delete">
+                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {/each}
           </div>
         </div>
       {/each}

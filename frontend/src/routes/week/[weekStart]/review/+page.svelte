@@ -153,7 +153,7 @@
 
       {#if doneTasks.length > 0}
         <div>
-          <p class="mb-2" style="font-family:monospace; font-size:10px; font-weight:700; letter-spacing:0.12em;
+          <p class="mb-2" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
                    text-transform:uppercase; color:var(--sempa-text-dim)">Completed tasks</p>
           <ul class="space-y-1">
             {#each doneTasks.slice(0, 8) as t}

@@ -183,7 +183,7 @@
                   <span class="truncate text-xs {email.is_unread ? 'font-semibold text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}">
                     {senderName(email)}
                   </span>
-                  <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-600">{formatTime(email.received_at)}</span>
+                  <span class="shrink-0 text-[10.5px] text-gray-400 dark:text-gray-600">{formatTime(email.received_at)}</span>
                 </div>
                 <p class="truncate text-xs {email.is_unread ? 'font-medium text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}">
                   {email.subject || '(no subject)'}
@@ -198,7 +198,7 @@
                 <button onclick={() => toTask(email)}
                         disabled={!!converting[email.id] || !!done[email.id]}
                         title="Add as task + archive"
-                        class="rounded bg-blue-500 px-2 py-1 text-[10px] font-medium text-white
+                        class="rounded bg-blue-500 px-2 py-1 text-[10.5px] font-medium text-white
                                hover:bg-blue-600 disabled:opacity-50 transition-colors">
                   {converting[email.id] ? '…' : done[email.id] === 'task' ? '✓' : '→ Task'}
                 </button>
@@ -214,7 +214,7 @@
                 <button onclick={() => unarchive(email)}
                         disabled={unarchiving[email.id]}
                         title="Move back to inbox"
-                        class="rounded border border-gray-200 px-2 py-1 text-[10px] text-gray-500
+                        class="rounded border border-gray-200 px-2 py-1 text-[10.5px] text-gray-500
                                hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50
                                dark:border-gray-700 dark:hover:bg-gray-700 transition-colors">
                   {unarchiving[email.id] ? '…' : '↩ Inbox'}
@@ -229,7 +229,7 @@
 
   {#if tab === 'inbox'}
     <div class="shrink-0 border-t border-gray-50 px-3 py-2 dark:border-gray-800">
-      <p class="text-[10px] text-gray-300 dark:text-gray-700">Drag emails onto a task column</p>
+      <p class="text-[10.5px] text-gray-300 dark:text-gray-700">Drag emails onto a task column</p>
     </div>
   {/if}
 </div>

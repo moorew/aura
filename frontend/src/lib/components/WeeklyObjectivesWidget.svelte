@@ -42,10 +42,10 @@
             class="flex w-full items-center justify-between px-4 py-2.5 text-left
                    hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
       <div class="flex items-center gap-2">
-        <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-600">
+        <span class="text-[10.5px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-600">
           This week
         </span>
-        <span class="text-[10px] text-gray-400 dark:text-gray-600">
+        <span class="text-[10.5px] text-gray-400 dark:text-gray-600">
           {totalDone}/{total}
         </span>
       </div>
@@ -73,7 +73,7 @@
             <span class="flex-1 truncate text-xs {done ? 'line-through text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-400'}">
               {obj.title}
             </span>
-            <span class="shrink-0 text-[10px] font-mono {done || p === 100 ? 'text-green-500' : 'text-gray-400 dark:text-gray-600'}">
+            <span class="shrink-0 text-[10.5px] font-mono {done || p === 100 ? 'text-green-500' : 'text-gray-400 dark:text-gray-600'}">
               {p}%
             </span>
           </a>

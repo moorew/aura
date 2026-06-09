@@ -95,14 +95,14 @@
             </div>
             {#if intention}
               <div class="mb-2">
-                <p class="text-[10px] font-semibold uppercase tracking-wider"
+                <p class="text-[10.5px] font-semibold uppercase tracking-wider"
                    style="color: var(--sempa-accent);">Intention</p>
                 <p class="mt-0.5 text-sm leading-relaxed" style="color: var(--sempa-text);">{intention}</p>
               </div>
             {/if}
             {#if reflection}
               <div>
-                <p class="text-[10px] font-semibold uppercase tracking-wider"
+                <p class="text-[10.5px] font-semibold uppercase tracking-wider"
                    style="color: var(--sempa-text-soft);">Reflection</p>
                 <p class="mt-0.5 whitespace-pre-line text-sm leading-relaxed" style="color: var(--sempa-text);">{reflection}</p>
               </div>
@@ -125,7 +125,7 @@
             </div>
             {#if wins.length}
               <div class="mb-2">
-                <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Wins</p>
+                <p class="text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Wins</p>
                 <ul class="mt-0.5 list-disc pl-5 text-sm leading-relaxed" style="color: var(--sempa-text);">
                   {#each wins as w}<li>{w}</li>{/each}
                 </ul>
@@ -133,7 +133,7 @@
             {/if}
             {#if challenges.length}
               <div class="mb-2">
-                <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Challenges</p>
+                <p class="text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Challenges</p>
                 <ul class="mt-0.5 list-disc pl-5 text-sm leading-relaxed" style="color: var(--sempa-text);">
                   {#each challenges as c}<li>{c}</li>{/each}
                 </ul>
@@ -141,7 +141,7 @@
             {/if}
             {#if nextFocus}
               <div>
-                <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Next focus</p>
+                <p class="text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Next focus</p>
                 <p class="mt-0.5 whitespace-pre-line text-sm leading-relaxed" style="color: var(--sempa-text);">{nextFocus}</p>
               </div>
             {/if}

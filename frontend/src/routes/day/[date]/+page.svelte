@@ -21,6 +21,7 @@
   import MobileTaskView from '$lib/components/MobileTaskView.svelte';
   import { syncWidgetData } from '$lib/widget-bridge';
   import { realtime } from '$lib/stores/realtime.svelte';
+  import { swipeNavigate } from '$lib/actions/swipeNavigate';
   import { prefs } from '$lib/stores/prefs.svelte';
   import ReflectionCard from '$lib/components/ReflectionCard.svelte';
   import type { DailyPlan } from '$lib/types';
@@ -314,6 +315,10 @@
       const t = tasks.find(t => t.id === hoveredTaskId);
       if (t) openEdit(t);
     }
+    // Arrow keys navigate weeks (desktop week board). Skipped above when focus
+    // is in an input/textarea/contenteditable.
+    if (e.key === 'ArrowLeft' && !panelOpen)  { e.preventDefault(); navigateWeek(-1); }
+    if (e.key === 'ArrowRight' && !panelOpen) { e.preventDefault(); navigateWeek(1); }
   }
 
   // ── Trash (with confirm modal) ──────────────────────────────────────────
@@ -454,7 +459,7 @@
                     : day.isWeekend
                       ? 'color: var(--sempa-text-dim); opacity: 0.7;'
                       : 'color: var(--sempa-text-dim);'}>
-          <span class="text-[10px] font-semibold uppercase">{day.dayName}</span>
+          <span class="text-[10.5px] font-semibold uppercase">{day.dayName}</span>
           <span class="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold"
                 style={day.isToday && !isSel
                   ? 'background: var(--sempa-today-bg); color: var(--sempa-today-fg);'
@@ -503,7 +508,8 @@
   {/if}
 
   <!-- Mobile task list -->
-  <main class="px-4 pb-24 animate-fade-in">
+  <main class="px-4 pb-24 animate-fade-in"
+        use:swipeNavigate={{ onPrev: () => navigateDay(-1), onNext: () => navigateDay(1) }}>
     {#if loading}
       <div class="flex h-48 items-center justify-center text-sm" style="color: var(--sempa-text-dim);">Loading...</div>
     {:else if error}
@@ -600,9 +606,9 @@
         <ChevronLeft size={16} />
       </button>
       <div>
-        <p class="text-sm font-semibold" style="color: var(--sempa-text);">{weekLabel()}</p>
+        <p class="type-date" style="color: var(--sempa-text);">{weekLabel()}</p>
         {#if isToday(date)}
-          <p class="text-[10px] font-medium uppercase tracking-wider" style="color:var(--a500)">This week</p>
+          <p class="type-label" style="color: var(--sempa-accent);">This week</p>
         {/if}
       </div>
       <button onclick={() => navigateWeek(1)} aria-label="Next week"
@@ -612,9 +618,9 @@
       </button>
     </div>
 
-    <!-- Stats -->
+    <!-- Stats — uniform size/colour across the row (spec 4g) -->
     {#if !loading && totalTasks.length > 0}
-      <div class="hidden md:flex items-center gap-4 text-xs" style="color: var(--sempa-text-dim);">
+      <div class="hidden md:flex items-center gap-4" style="font-size: 12.5px; color: var(--sempa-text-soft);">
         {#if isToday(date)}
           <span class="flex items-center gap-1.5" style="color: var(--sempa-text-soft);">
             <span class="inline-flex h-1.5 w-1.5 rounded-full" style="background: var(--sempa-accent);"></span>
@@ -665,7 +671,8 @@
 <div class="flex h-[calc(100vh-57px)] overflow-hidden">
 
   <!-- Kanban area -->
-  <main bind:this={kanbanScroll} class="flex-1 overflow-auto px-4 py-5 animate-fade-in">
+  <main bind:this={kanbanScroll} class="flex-1 overflow-auto px-4 py-5 animate-fade-in"
+        use:swipeNavigate={{ onPrev: () => navigateWeek(-1), onNext: () => navigateWeek(1) }}>
 
     <!-- Rollover banner -->
     {#if rolloverTasks.length > 0 && !rolloverDismissed}
@@ -700,7 +707,10 @@
         {error} <button onclick={loadTasks} class="ml-2 underline">Retry</button>
       </div>
     {:else}
-      <div class="flex items-start gap-3 pb-6">
+      <!-- overflow-x-auto: on a narrow window the fixed-width day columns scroll
+           horizontally instead of being crushed. data-weekgrid lets the wheel/
+           swipe navigation respect the edge (only flip weeks when fully scrolled). -->
+      <div class="flex items-start gap-3 pb-6 overflow-x-auto" data-weekgrid>
         <!-- Mon–Fri -->
         {#each weekDays.slice(0, 5) as day (day.date)}
           <div id="day-col-{day.date}" class="w-56 shrink-0">

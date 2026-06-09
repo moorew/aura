@@ -119,7 +119,7 @@
 
 <div class="flex h-full flex-col overflow-hidden">
   <div class="shrink-0 px-4 py-2 border-b border-gray-100 dark:border-gray-800/60">
-    <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-600">
+    <p class="text-[10.5px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-600">
       Schedule — drag tasks to place them
     </p>
   </div>
@@ -137,7 +137,7 @@
       {#each hours as h}
         <div class="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800/50"
              style="top: {(h - START_HOUR) * HOUR_PX}px;">
-          <span class="absolute -left-10 -top-2 w-9 text-right text-[9px] text-gray-400 dark:text-gray-600 leading-none select-none">
+          <span class="absolute -left-10 -top-2 w-9 text-right text-[10.5px] text-gray-400 dark:text-gray-600 leading-none select-none">
             {formatHour(h)}
           </span>
         </div>
@@ -170,7 +170,7 @@
         {#if !ev.all_day}
           <div class="absolute left-0.5 right-0.5 rounded-lg border px-2 py-1 pointer-events-none opacity-80"
                style="top:{top}px; height:{height}px; background:{ev.color}22; border-color:{ev.color}55; color:{ev.color};">
-            <p class="text-[10px] font-medium leading-tight truncate">{ev.summary}</p>
+            <p class="text-[10.5px] font-medium leading-tight truncate">{ev.summary}</p>
           </div>
         {/if}
       {/each}
@@ -186,9 +186,9 @@
             style="top: {style.top}; height: {style.height};"
             onclick={() => onUnschedule?.(task.id)}
             title="Click to unschedule">
-            <p class="text-[10px] font-medium leading-tight truncate">{blockLabel(task)}</p>
+            <p class="text-[10.5px] font-medium leading-tight truncate">{blockLabel(task)}</p>
             {#if task.time_estimate_minutes}
-              <p class="text-[9px] opacity-70">{formatMinutes(task.time_estimate_minutes)}</p>
+              <p class="text-[10.5px] opacity-70">{formatMinutes(task.time_estimate_minutes)}</p>
             {/if}
           </button>
         {/if}
@@ -198,7 +198,7 @@
 
   {#if scheduled.length === 0}
     <div class="shrink-0 px-4 pb-3 pt-1">
-      <p class="text-[10px] text-gray-300 dark:text-gray-700">
+      <p class="text-[10.5px] text-gray-300 dark:text-gray-700">
         No tasks scheduled · drag from kanban ↗
       </p>
     </div>
