@@ -78,6 +78,14 @@ export function clearNativeToken() {
   localStorage.removeItem(NATIVE_TOKEN_KEY);
 }
 
+// Hard ceiling on any single HTTP request. Without this, a fetch to an
+// unreachable/slow host (e.g. a sleeping Tailscale backend, or the wrong URL
+// typed at the Connect screen) hangs at the network layer for the platform
+// default — tens of seconds — with the UI stuck on "Connecting…". An
+// AbortController turns that into a prompt, catchable failure on EVERY call
+// path (connect probe, auth, sync), not just ones a caller remembered to wrap.
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getBaseUrl();
   const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -86,12 +94,27 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const bearerToken = isTauri() ? getTauriToken() : getNativeToken();
   if (bearerToken) extraHeaders['Authorization'] = `Bearer ${bearerToken}`;
 
-  const res = await fetch(`${base}${path}`, {
-    ...init,
-    headers: { ...extraHeaders, ...(init?.headers as Record<string, string> ?? {}) },
-    // Omit credentials when using Bearer auth; web browser sessions still use cookies
-    credentials: bearerToken ? 'omit' : 'include',
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${base}${path}`, {
+      ...init,
+      headers: { ...extraHeaders, ...(init?.headers as Record<string, string> ?? {}) },
+      // Omit credentials when using Bearer auth; web browser sessions still use cookies
+      credentials: bearerToken ? 'omit' : 'include',
+      signal: init?.signal ?? controller.signal,
+    });
+  } catch (e) {
+    // Normalise an abort into a clear, catchable error rather than a bare
+    // DOMException, so callers can show "server didn't respond".
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`Request to ${path} timed out`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
