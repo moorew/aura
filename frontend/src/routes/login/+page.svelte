@@ -202,19 +202,38 @@
       serverUrl = url;
       resetApiResolver(); // switch from localApi to httpApi now that URL is set
 
-      // Test connectivity
-      const me = await api.auth.me();
+      // Test connectivity. A cold/sleeping backend (e.g. behind Tailscale) can
+      // take a while to wake; bound the probe so the button never hangs on
+      // "Connecting…" with no feedback — the user reported pressing Connect and
+      // seeing nothing happen, which was this request not resolving.
+      const me = await withTimeout(api.auth.me(), 12_000);
       if (me.authenticated) {
         goto(redirectTarget, { replaceState: true });
         return;
       }
-      // Server reachable but not authenticated — proceed to auth
+      // Server reachable but not authenticated — show the sign-in options.
       await continueAuth();
-    } catch {
-      error = 'Could not connect to server. Check the URL and try again.';
+    } catch (e) {
+      error = e instanceof Error && e.message === 'timeout'
+        ? 'Server did not respond. Check the URL and that the server is reachable, then try again.'
+        : 'Could not connect to server. Check the URL and try again.';
+      // Drop the unverified URL so the field stays visible for another attempt.
+      localStorage.removeItem('sempa_server_url');
+      resetApiResolver();
     } finally {
       loading = false;
     }
+  }
+
+  /** Reject with Error('timeout') if the promise doesn't settle in `ms`. */
+  function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), ms);
+      p.then(
+        (v) => { clearTimeout(t); resolve(v); },
+        (e) => { clearTimeout(t); reject(e); },
+      );
+    });
   }
 </script>
 

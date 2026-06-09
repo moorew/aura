@@ -16,7 +16,7 @@
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
   import { isTauri, hasLocalDb, onSyncTrigger } from '$lib/tauri/bridge';
-  import { startSync, sync as runSync } from '$lib/sync.svelte';
+  import { startSync, sync as runSync, syncStore } from '$lib/sync.svelte';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';
@@ -187,6 +187,20 @@
     // On local-first clients a server-side change (from another device) should
     // pull into the local DB so the UI reflects it. runSync is coalesced/cheap.
     if (hasLocalDb()) void runSync();
+  });
+
+  // When a local-first pull writes rows (revision bumps), the local DB has new
+  // data but the already-mounted pages still show their initial snapshot. Route
+  // the change through the realtime channel the pages already watch so they
+  // re-read — this is what makes a freshly-launched app fill in once the first
+  // sync lands, instead of staying empty until a manual reload.
+  let lastRevision = 0;
+  $effect(() => {
+    const rev = syncStore.revision;
+    if (rev === lastRevision) return;
+    lastRevision = rev;
+    tagStore.reload();
+    realtime.emitLocal('task:change');
   });
 
   function isActive(prefix: string): boolean {

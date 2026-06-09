@@ -68,12 +68,23 @@ function createRealtimeStore() {
     return () => listeners.delete(fn);
   }
 
+  // Inject a synthetic change event. Used by the local-first sync engine after a
+  // pull writes rows: pages already re-read on `task:change`/`objective:change`,
+  // so routing local-DB updates through the same channel makes them refresh
+  // without every page having to also watch the sync store directly.
+  function emitLocal(type: string) {
+    const ev: ChangeEvent = { type };
+    lastEvent = ev;
+    listeners.forEach(fn => fn(ev));
+  }
+
   return {
     get connected() { return connected; },
     get lastEvent() { return lastEvent; },
     connect,
     disconnect,
     subscribe,
+    emitLocal,
   };
 }
 

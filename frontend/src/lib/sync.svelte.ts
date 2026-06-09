@@ -55,6 +55,11 @@ function createSyncStore() {
     let pending = $state(0);
     let lastSyncedAt = $state<string | null>(null);
     let lastError = $state<string | null>(null);
+    // Bumped whenever a pull writes ≥1 row to the local DB. The UI reads the
+    // local DB once on mount, so without a reactive signal a freshly-pulled
+    // dataset would stay invisible until a manual reload. Pages/layout watch
+    // this to re-read after the initial (and every subsequent) pull lands.
+    let revision = $state(0);
 
     return {
         get online() { return online; },
@@ -62,6 +67,7 @@ function createSyncStore() {
         get pending() { return pending; },
         get lastSyncedAt() { return lastSyncedAt; },
         get lastError() { return lastError; },
+        get revision() { return revision; },
         _set(p: Partial<SyncState>) {
             if (p.online !== undefined) online = p.online;
             if (p.syncing !== undefined) syncing = p.syncing;
@@ -69,6 +75,7 @@ function createSyncStore() {
             if (p.lastSyncedAt !== undefined) lastSyncedAt = p.lastSyncedAt;
             if (p.lastError !== undefined) lastError = p.lastError;
         },
+        _bumpRevision() { revision += 1; },
     };
 }
 
@@ -199,14 +206,20 @@ async function pullChanges(): Promise<void> {
     if (!res.ok) throw new Error(`pull failed: ${res.status}`);
     const changes: ServerChanges = await res.json();
 
-    for (const t of changes.tasks) await upsertTask(t);
-    for (const o of changes.objectives) await upsertObjective(o);
-    for (const p of changes.plans) await upsertPlan(p);
-    for (const tag of changes.tags) await upsertTag(tag);
-    for (const r of changes.week_reviews) await upsertWeekReview(r);
-    for (const d of changes.deletions) await applyDeletion(d);
+    let applied = 0;
+    for (const t of changes.tasks) applied += (await upsertTask(t)) ? 1 : 0;
+    for (const o of changes.objectives) applied += (await upsertObjective(o)) ? 1 : 0;
+    for (const p of changes.plans) applied += (await upsertPlan(p)) ? 1 : 0;
+    for (const tag of changes.tags) applied += (await upsertTag(tag)) ? 1 : 0;
+    for (const r of changes.week_reviews) applied += (await upsertWeekReview(r)) ? 1 : 0;
+    for (const d of changes.deletions) applied += (await applyDeletion(d)) ? 1 : 0;
 
     if (changes.cursor) await setSyncState(CURSOR_KEY, changes.cursor);
+
+    // Anything actually changed locally → tell the UI to re-read. Without this,
+    // the first pull silently fills SQLite but the already-mounted pages keep
+    // showing their initial (empty) snapshot until a manual reload.
+    if (applied > 0) syncStore._bumpRevision();
 }
 
 // Last-write-wins guard: returns true only when the incoming row should be
@@ -231,8 +244,8 @@ async function lww(table: string, row: Record<string, unknown>, keyCol = 'id'): 
     return true;
 }
 
-async function upsertTask(t: Record<string, unknown>): Promise<void> {
-    if (!(await lww('tasks', t))) return;
+async function upsertTask(t: Record<string, unknown>): Promise<boolean> {
+    if (!(await lww('tasks', t))) return false;
     await execute(
         `INSERT INTO tasks (id, title, description, planned_date, week_start, status, position,
             time_estimate_minutes, time_actual_minutes, parent_task_id, weekly_objective_id,
@@ -261,10 +274,11 @@ async function upsertTask(t: Record<string, unknown>): Promise<void> {
             t.scheduled_start ?? null, t.scheduled_end ?? null, t.roughly_at ?? null,
         ],
     );
+    return true;
 }
 
-async function upsertObjective(o: Record<string, unknown>): Promise<void> {
-    if (!(await lww('weekly_objectives', o))) return;
+async function upsertObjective(o: Record<string, unknown>): Promise<boolean> {
+    if (!(await lww('weekly_objectives', o))) return false;
     await execute(
         `INSERT INTO weekly_objectives (id, week_start, title, description, status, position, created_at, updated_at)
          VALUES (?,?,?,?,?,?,?,?)
@@ -274,10 +288,11 @@ async function upsertObjective(o: Record<string, unknown>): Promise<void> {
         [o.id, o.week_start, o.title, o.description ?? null, o.status ?? 'active', o.position ?? 0,
          o.created_at ?? null, o.updated_at ?? null],
     );
+    return true;
 }
 
-async function upsertPlan(p: Record<string, unknown>): Promise<void> {
-    if (!(await lww('daily_plans', p, 'plan_date'))) return;
+async function upsertPlan(p: Record<string, unknown>): Promise<boolean> {
+    if (!(await lww('daily_plans', p, 'plan_date'))) return false;
     // Conflict on plan_date (the natural key): the server row's id differs from
     // any local id, so id-based upsert would hit the UNIQUE(plan_date) constraint.
     await execute(
@@ -290,10 +305,11 @@ async function upsertPlan(p: Record<string, unknown>): Promise<void> {
         [p.id, p.plan_date, p.status ?? 'pending', p.intention ?? null, p.reflection ?? null,
          p.wins ?? null, p.shutdown_at ?? null, p.created_at ?? null, p.updated_at ?? null],
     );
+    return true;
 }
 
-async function upsertTag(tag: Record<string, unknown>): Promise<void> {
-    if (!(await lww('tag_definitions', tag))) return;
+async function upsertTag(tag: Record<string, unknown>): Promise<boolean> {
+    if (!(await lww('tag_definitions', tag))) return false;
     await execute(
         `INSERT INTO tag_definitions (id, name, color, created_at, updated_at)
          VALUES (?,?,?,?,?)
@@ -301,10 +317,11 @@ async function upsertTag(tag: Record<string, unknown>): Promise<void> {
             name=excluded.name, color=excluded.color, updated_at=excluded.updated_at`,
         [tag.id, tag.name, tag.color ?? '#6366f1', tag.created_at ?? null, tag.updated_at ?? null],
     );
+    return true;
 }
 
-async function upsertWeekReview(r: Record<string, unknown>): Promise<void> {
-    if (!(await lww('week_reviews', r, 'week_start'))) return;
+async function upsertWeekReview(r: Record<string, unknown>): Promise<boolean> {
+    if (!(await lww('week_reviews', r, 'week_start'))) return false;
     // Conflict on week_start (the natural key) — same reasoning as plans.
     await execute(
         `INSERT INTO week_reviews (id, week_start, wins, challenges, next_focus, created_at, updated_at)
@@ -315,6 +332,7 @@ async function upsertWeekReview(r: Record<string, unknown>): Promise<void> {
         [r.id, r.week_start, r.wins ?? null, r.challenges ?? null, r.next_focus ?? null,
          r.created_at ?? null, r.updated_at ?? null],
     );
+    return true;
 }
 
 const TOMBSTONE_TABLE: Record<string, string> = {
@@ -325,10 +343,11 @@ const TOMBSTONE_TABLE: Record<string, string> = {
     week_review: 'week_reviews',
 };
 
-async function applyDeletion(d: Tombstone): Promise<void> {
+async function applyDeletion(d: Tombstone): Promise<boolean> {
     const table = TOMBSTONE_TABLE[d.entity_type];
-    if (!table) return;
-    await execute(`DELETE FROM ${table} WHERE id = ?`, [d.entity_id]);
+    if (!table) return false;
+    const res = await execute(`DELETE FROM ${table} WHERE id = ?`, [d.entity_id]);
+    return (res?.rowsAffected ?? 0) > 0;
 }
 
 // ── Orchestration ────────────────────────────────────────────────────────────
