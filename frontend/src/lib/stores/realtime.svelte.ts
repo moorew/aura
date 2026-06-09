@@ -25,6 +25,7 @@ function createRealtimeStore() {
   let connected = $state(false);
   let lastEvent = $state<ChangeEvent | null>(null);
   let listeners: Set<(ev: ChangeEvent) => void> = new Set();
+  let reconnectListeners: Set<() => void> = new Set();
 
   function connect() {
     if (es) return;
@@ -40,7 +41,18 @@ function createRealtimeStore() {
         } catch { /* ignore parse errors */ }
       });
 
-      es.onopen = () => { connected = true; };
+      es.onopen = () => {
+        const wasReconnect = reconnectDelay > 1000; // we'd backed off → this is a recovery
+        connected = true;
+        reconnectDelay = 1000; // reset backoff
+        // A successful SSE (re)open proves the server is reachable again — the
+        // most reliable "back online" signal on Tailscale, where the OS 'online'
+        // event doesn't fire for tailnet reconnects. Nudge a sync so queued
+        // local changes push and remote changes pull within ~a second, with no
+        // manual Sync press. Fires on first connect too; sync() is coalesced so
+        // the duplicate is harmless.
+        if (wasReconnect) reconnectListeners.forEach(fn => fn());
+      };
 
       es.onerror = () => {
         connected = false;
@@ -68,6 +80,13 @@ function createRealtimeStore() {
     return () => listeners.delete(fn);
   }
 
+  // Register a callback fired when the SSE connection RECOVERS after a drop
+  // (i.e. the server became reachable again). Used to auto-trigger a sync.
+  function onReconnect(fn: () => void): () => void {
+    reconnectListeners.add(fn);
+    return () => reconnectListeners.delete(fn);
+  }
+
   // Inject a synthetic change event. Used by the local-first sync engine after a
   // pull writes rows: pages already re-read on `task:change`/`objective:change`,
   // so routing local-DB updates through the same channel makes them refresh
@@ -84,6 +103,7 @@ function createRealtimeStore() {
     connect,
     disconnect,
     subscribe,
+    onReconnect,
     emitLocal,
   };
 }

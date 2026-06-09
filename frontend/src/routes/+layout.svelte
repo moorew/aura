@@ -92,6 +92,19 @@
       void onSyncTrigger(() => { void runSync(); });
     }
 
+    // Near-real-time reconnect sync (local-first platforms only). The browser
+    // 'online' event doesn't fire when a Tailscale tailnet reconnects on
+    // already-connected wifi, so we trigger sync on signals that actually mean
+    // "the server might be reachable again":
+    //   • SSE recovers after a drop (most reliable — proves the server is up)
+    //   • the app is brought back to the foreground / window regains focus
+    if (hasLocalDb()) {
+      realtime.onReconnect(() => { void runSync(); });
+      const wake = () => { if (!document.hidden) void runSync(); };
+      document.addEventListener('visibilitychange', wake);
+      window.addEventListener('focus', wake);
+    }
+
     if (!isLoginPage && !isSetupPage) {
       tagStore.load();
 

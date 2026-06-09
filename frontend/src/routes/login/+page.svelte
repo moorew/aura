@@ -218,6 +218,10 @@
         return;
       }
       // Server reachable but not authenticated — show the sign-in options.
+      // Clear the placeholder authInfo first so the UI shows the loading spinner
+      // (authInfo === null) rather than briefly flashing the password-only form
+      // before api.auth.config() reveals the real options (e.g. Google).
+      authInfo = null;
       await continueAuth();
     } catch (e) {
       error = e instanceof Error && e.message === 'timeout'

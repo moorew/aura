@@ -70,10 +70,10 @@ pub fn run() {
                 sync::start_sync_loop(app_handle).await;
             });
 
-            // TEMP DIAGNOSTIC: auto-open DevTools so console/network errors are
-            // visible in the release build while we chase the empty-sync issue.
-            // The tauri "devtools" feature (Cargo.toml) makes open_devtools()
-            // available in release builds. Remove this + the feature once resolved.
+            // DevTools open automatically in debug builds; release builds ship
+            // without them. (A temporary release auto-open was used to diagnose
+            // the sync issue — removed now that it's fixed.)
+            #[cfg(debug_assertions)]
             if let Some(win) = app.get_webview_window("main") {
                 win.open_devtools();
             }
