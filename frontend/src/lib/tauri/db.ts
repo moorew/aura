@@ -3,7 +3,7 @@
  *
  * All reads/writes hit a local SQLite database instantly, and mutations are
  * queued in the `sync_log` outbox for the sync engine to replay against the
- * server when a connection is available. See $lib/sync.ts for the engine.
+ * server when a connection is available. See $lib/sync.svelte.ts for the engine.
  *
  * Two backends sit behind one tiny Driver interface:
  *   - Tauri desktop     → @tauri-apps/plugin-sql (migrations run by the plugin)

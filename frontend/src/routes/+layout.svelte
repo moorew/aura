@@ -16,7 +16,7 @@
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
   import { isTauri, hasLocalDb, onSyncTrigger } from '$lib/tauri/bridge';
-  import { startSync, sync as runSync } from '$lib/sync';
+  import { startSync, sync as runSync } from '$lib/sync.svelte';
   import PomodoroTimer from '$lib/components/PomodoroTimer.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';

@@ -3,11 +3,11 @@
  * Capacitor Android. Mirrors the HTTP api surface from $lib/api but reads/writes
  * local SQLite. Every write also appends to the sync_log outbox (logMutation)
  * and nudges the sync engine (flushSoon) so changes reach the server when it's
- * reachable. See $lib/sync.ts.
+ * reachable. See $lib/sync.svelte.ts.
  */
 
 import { query, execute, logMutation } from './db';
-import { flushSoon } from '$lib/sync';
+import { flushSoon } from '$lib/sync.svelte';
 import type {
     Task, CreateTaskInput, UpdateTaskInput,
     Objective, CreateObjectiveInput, UpdateObjectiveInput,
