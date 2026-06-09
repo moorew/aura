@@ -178,6 +178,10 @@
     if (selectedTags.includes(name)) selectedTags = selectedTags.filter(t => t !== name);
     else selectedTags = [...selectedTags, name];
     tagSearch = '';
+    // Close the suggestions dropdown after a pick — it lingering open (and being
+    // hard to dismiss, especially on touch where blur is unreliable) was the
+    // reported annoyance. Reopen happens on focus/typing again.
+    tagDropdownOpen = false;
   }
 
   function handleTagKeydown(e: KeyboardEvent) {
@@ -253,7 +257,7 @@
 
 {#snippet panelContent()}
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+    <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800">
       <div>
         <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
           {isEdit ? 'Edit task' : 'New task'}
@@ -431,7 +435,7 @@
           </label>
           <div class="grid grid-cols-2 gap-2">
             <div class="space-y-1.5">
-              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-start">Start</label>
+              <label class="block text-[10.5px] text-gray-400 dark:text-gray-600" for="sched-start">Start</label>
               <SempaDatePicker id="sched-start" bind:value={scheduledStartDate} placeholder="No date" />
               {#if scheduledStartDate}
                 <SempaSelect value={scheduledStartTime} options={TIME_SLOTS} placeholder="No time"
@@ -439,7 +443,7 @@
               {/if}
             </div>
             <div class="space-y-1.5">
-              <label class="block text-[10px] text-gray-400 dark:text-gray-600" for="sched-end">End</label>
+              <label class="block text-[10.5px] text-gray-400 dark:text-gray-600" for="sched-end">End</label>
               <SempaDatePicker id="sched-end" bind:value={scheduledEndDate} placeholder="No date" />
               {#if scheduledEndDate}
                 <SempaSelect value={scheduledEndTime} options={TIME_SLOTS} placeholder="No time"
@@ -474,7 +478,7 @@
               {/if}
             </span>
           </div>
-          <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-600">
+          <p class="mt-1 text-[10.5px] text-gray-400 dark:text-gray-600">
             Updated automatically by pomodoro sessions
           </p>
         </div>
@@ -541,7 +545,10 @@
     </div>
 
     <!-- Footer — keyboard-safe bottom padding on mobile (FIX 5) -->
-    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800"
+    <!-- shrink-0: in the height-capped mobile sheet the footer must never be
+         compressed/pushed out — the body (flex-1, scrolls) absorbs all the
+         height pressure, so Save/Cancel stay reachable even with a long form. -->
+    <div class="flex shrink-0 items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800"
          style={mobile.value && !inline ? 'padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));' : ''}>
       {#if isEdit && task}
         {#if deleteConfirm}

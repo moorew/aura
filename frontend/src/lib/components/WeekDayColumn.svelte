@@ -109,7 +109,7 @@
 
   <!-- Compact header: MON + day-number circle -->
   <div class="mb-2 flex items-center gap-1.5 px-1">
-    <span class="text-[10px] font-semibold uppercase tracking-wider
+    <span class="text-[10.5px] font-semibold uppercase tracking-wider
                  {isWeekend ? 'text-gray-400 dark:text-gray-600' : 'text-gray-400 dark:text-gray-500'}">
       {dayName}
     </span>
@@ -121,7 +121,7 @@
     </span>
     <!-- Task count -->
     {#if tasks.length > 0}
-      <span class="ml-auto text-[10px] tabular-nums
+      <span class="ml-auto text-[10.5px] tabular-nums
                    {isWeekend ? 'text-gray-300 dark:text-gray-700' : 'text-gray-400 dark:text-gray-600'}">
         {done.length}/{tasks.length}
       </span>
@@ -138,7 +138,7 @@
                  style="width: {seg.pct}%; background: {overloaded ? '#f87171' : seg.color}; opacity: 0.85;"></div>
           {/each}
         </div>
-        <span class="min-w-[28px] text-right text-[9px] tabular-nums
+        <span class="min-w-[28px] text-right text-[10.5px] tabular-nums
                      {overloaded ? 'text-red-500 dark:text-red-400 font-semibold'
                        : nearFull ? 'text-amber-500 dark:text-amber-400'
                        : 'text-gray-400 dark:text-gray-600'}">

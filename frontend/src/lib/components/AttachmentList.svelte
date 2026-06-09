@@ -139,7 +139,7 @@
             <a href={api.attachments.downloadUrl(att.id)} target="_blank" rel="noopener"
                class="min-w-0 flex-1 hover:underline">
               <p class="truncate text-xs font-medium text-gray-700 dark:text-gray-200">{att.filename}</p>
-              <p class="text-[10px] text-gray-400 dark:text-gray-600">{formatBytes(att.size_bytes)}</p>
+              <p class="text-[10.5px] text-gray-400 dark:text-gray-600">{formatBytes(att.size_bytes)}</p>
             </a>
             <button type="button" onclick={() => remove(att)}
                     class="shrink-0 rounded p-1 text-gray-300 opacity-0 transition-opacity hover:text-red-500

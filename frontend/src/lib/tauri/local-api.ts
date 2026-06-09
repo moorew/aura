@@ -238,6 +238,19 @@ export const localApi = {
             }
             return rows[0];
         },
+        // Journal feed: plans that actually carry content (an intention or a
+        // reflection), newest first. Mirrors the server's GET /plans list. This
+        // was missing locally, so the Journal page threw on desktop/Android
+        // (api.plans.list was undefined) and rendered blank.
+        list: async (limit?: number): Promise<DailyPlan[]> => {
+            const rows = await query<DailyPlan[]>(
+                `SELECT * FROM daily_plans
+                 WHERE (intention IS NOT NULL AND trim(intention) != '')
+                    OR (reflection IS NOT NULL AND trim(reflection) != '')
+                 ORDER BY plan_date DESC${limit ? ` LIMIT ${Number(limit)}` : ''}`,
+            );
+            return rows;
+        },
         upsert: async (date: string, input: UpsertPlanInput): Promise<DailyPlan> => {
             const existing = await query<DailyPlan[]>(`SELECT * FROM daily_plans WHERE plan_date = ?`, [date]);
             const ts = now();
@@ -347,6 +360,13 @@ export const localApi = {
                 return { week_start: ws, wins: null, challenges: null, next_focus: null };
             }
             return rows[0];
+        },
+        // Journal feed: all stored week reviews, newest first. Mirrors the
+        // server's GET /weeks/reviews. Was missing locally (see plans.list).
+        listReviews: async (limit?: number): Promise<WeekReview[]> => {
+            return query<WeekReview[]>(
+                `SELECT * FROM week_reviews ORDER BY week_start DESC${limit ? ` LIMIT ${Number(limit)}` : ''}`,
+            );
         },
         upsertReview: async (ws: string, data: { wins: string | null; challenges: string | null; next_focus: string | null }): Promise<WeekReview> => {
             const existing = await query<WeekReview[]>(`SELECT * FROM week_reviews WHERE week_start = ?`, [ws]);

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedream2007/tauri/v2/crates/tauri-cli/schema.json",
   "productName": "sempa",
-  "version": "1.0.71",
+  "version": "1.0.73",
   "identifier": "com.sempa.desktop",
   "build": {
     "frontendDist": "../build",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "sempa",
+        "title": "Sempa",
         "dragDropEnabled": false,
         "width": 1280,
         "height": 820,

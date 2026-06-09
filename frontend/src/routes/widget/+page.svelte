@@ -155,7 +155,7 @@
   }
 
   .widget-cell-title {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -188,7 +188,7 @@
   .widget-footer {
     margin-top: 8px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
+    font-size: 10.5px;
     color: var(--sempa-text-dim);
     text-align: center;
   }

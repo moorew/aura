@@ -40,6 +40,18 @@
   let isSetupPage      = $derived(($page.url.pathname as string) === '/setup');
   let shortcutsOpen      = $state(false);
   let userEmail          = $state<string | undefined>(undefined);
+
+  // The account line must show a real email, never a device/platform fallback
+  // ("desktop"/"mobile" were placeholders used when offline). Prefer the live
+  // userEmail when it looks like an email, else the email persisted at login.
+  const accountEmail = $derived.by(() => {
+    if (userEmail && userEmail.includes('@')) return userEmail;
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('sempa_account_email') : null;
+    return stored ?? undefined;
+  });
+  const accountPicture = $derived(
+    typeof localStorage !== 'undefined' ? (localStorage.getItem('sempa_account_picture') ?? undefined) : undefined,
+  );
   let moreSheetOpen      = $state(false);
   let showIntroAnimation = $state(false);
   let introFadingOut     = $state(false);
@@ -132,8 +144,10 @@
             return;
           }
           userEmail = me.email ?? 'desktop';
+          if (me.email) localStorage.setItem('sempa_account_email', me.email);
         } catch {
           // Network error → offline. Proceed on local data; sync reconciles later.
+          // accountEmail falls back to the email persisted at the last login.
           userEmail = 'desktop';
         }
         startSync();
@@ -151,6 +165,7 @@
           return;
         }
         userEmail = me.email;
+        if (me.email) localStorage.setItem('sempa_account_email', me.email);
         // Register for push notifications after auth confirmed
         initPushNotifications();
         // Redirect to first-run wizard if setup hasn't been completed
@@ -245,6 +260,9 @@
     void api.auth.logout().catch(() => {});
     clearTauriToken();
     clearNativeToken();
+    localStorage.removeItem('sempa_account_email');
+    localStorage.removeItem('sempa_account_picture');
+    userEmail = undefined;
     resetApiResolver();
     realtime.disconnect();
     await goto('/login', { replaceState: true });
@@ -318,7 +336,7 @@
       {#if pomodoro.taskId}
         <div class="mt-2 rounded-xl border px-3 py-2.5"
              style="border-color: var(--sempa-accent-bg); background: var(--sempa-accent-bg); color: var(--sempa-accent);">
-          <p class="truncate text-[10px] font-semibold uppercase tracking-wider opacity-70">
+          <p class="truncate text-[10.5px] font-semibold uppercase tracking-wider opacity-70">
             {pomodoro.phaseLabel}
           </p>
           <p class="font-mono text-xl font-bold">{pomodoro.display}</p>
@@ -348,19 +366,34 @@
         <!-- Sync status (local-first platforms only) -->
         <SyncIndicator />
 
-        <!-- Signed-in user + sign out -->
-        {#if userEmail}
-          <div class="mt-1 rounded-lg px-3 py-2" style="border-top: 1px solid var(--sempa-border);">
-            <p class="truncate text-[11px]" style="color: var(--sempa-text-dim);" title={userEmail}>{userEmail}</p>
+        <!-- Signed-in account + sign out: Google avatar (or letter fallback) ·
+             account email · Sign out. Never shows a device/platform name. -->
+        <div class="mt-1 flex items-center gap-2.5 px-3 py-2" style="border-top: 1px solid var(--sempa-border);">
+          {#if accountEmail}
+            {#if accountPicture}
+              <img src={accountPicture} alt="" referrerpolicy="no-referrer"
+                   class="h-[22px] w-[22px] shrink-0 rounded-full object-cover"
+                   style="border: 1px solid var(--sempa-border);" />
+            {:else}
+              <span class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full"
+                    style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);
+                           color: var(--sempa-accent); font-size: 10px; font-weight: 700;">
+                {accountEmail.charAt(0).toUpperCase()}
+              </span>
+            {/if}
+          {/if}
+          <div class="min-w-0 flex-1">
+            {#if accountEmail}
+              <p class="truncate" style="font-size: 11.5px; color: var(--sempa-text-soft);" title={accountEmail}>{accountEmail}</p>
+            {/if}
             <button onclick={signOut}
-                    class="mt-0.5 text-[11px] transition-colors"
-                    style="color: var(--sempa-text-dim);"
+                    class="transition-colors" style="font-size: 11px; color: var(--sempa-text-dim);"
                     onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'}
                     onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}>
               Sign out
             </button>
           </div>
-        {/if}
+        </div>
       </div>
     </nav>
   </aside>
@@ -459,7 +492,7 @@
       {#if pomodoro.taskId}
         <div class="mt-2 rounded-xl px-4 py-3"
              style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
-          <p class="text-[10px] font-semibold uppercase tracking-wider opacity-70">{pomodoro.phaseLabel}</p>
+          <p class="text-[10.5px] font-semibold uppercase tracking-wider opacity-70">{pomodoro.phaseLabel}</p>
           <p class="font-mono text-xl font-bold">{pomodoro.display}</p>
         </div>
       {/if}

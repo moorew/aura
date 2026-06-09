@@ -62,7 +62,7 @@
   {#if settingsOpen}
     <!-- Settings panel -->
     <div class="mb-3 rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/60">
-      <p class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Durations (min)</p>
+      <p class="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-gray-400">Durations (min)</p>
       <div class="flex flex-col gap-2">
         <label class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
           Focus

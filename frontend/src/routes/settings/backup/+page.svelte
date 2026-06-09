@@ -350,7 +350,7 @@
         {#each destinations as dest (dest.id)}
           <div class="rounded-lg border p-3" style="border-color: var(--sempa-border);">
             <div class="mb-2 flex items-center justify-between gap-2">
-              <span class="rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+              <span class="rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide"
                     style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">{destTypeLabel[dest.type]}</span>
               <div class="flex items-center gap-2">
                 <label class="flex items-center gap-1.5 text-xs" style="color: var(--sempa-text-soft);">

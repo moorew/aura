@@ -483,7 +483,7 @@
     {/if}
 
     <!-- ── Email & Calendar ──────────────────────────────────────── -->
-    <p class="mb-3" style="font-family:monospace; font-size:10px; font-weight:700; letter-spacing:0.12em;
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
      text-transform:uppercase; color:var(--sempa-text-dim)">Email & Calendar</p>
 
     <!-- ── Gmail ─────────────────────────────────────────────────── -->
@@ -1025,7 +1025,7 @@
     </section>
 
     <!-- ── Project Management ────────────────────────────────────── -->
-    <p class="mb-3" style="font-family:monospace; font-size:10px; font-weight:700; letter-spacing:0.12em;
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
      text-transform:uppercase; color:var(--sempa-text-dim)">Project Management</p>
 
     <div class="mb-8">
@@ -1062,7 +1062,7 @@
        SECTION: Tasks
   ════════════════════════════════════════════════════════════════════════ -->
   <div id="settings-tasks">
-    <p class="mb-3" style="font-family:monospace; font-size:10px; font-weight:700; letter-spacing:0.12em;
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
      text-transform:uppercase; color:var(--sempa-text-dim)">Tasks</p>
 
     <div class="mb-8 flex flex-col gap-2">
@@ -1125,7 +1125,7 @@
        SECTION: Appearance
   ════════════════════════════════════════════════════════════════════════ -->
   <div id="settings-appearance">
-    <p class="mb-3" style="font-family:monospace; font-size:10px; font-weight:700; letter-spacing:0.12em;
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
      text-transform:uppercase; color:var(--sempa-text-dim)">Appearance</p>
 
     <section class="overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
@@ -1147,7 +1147,7 @@
               </button>
             {/each}
           </div>
-          <p class="mt-3 text-[10px]" style="color: var(--sempa-text-dim);">
+          <p class="mt-3 text-[10.5px]" style="color: var(--sempa-text-dim);">
             Currently: <span class="font-medium" style="color: var(--sempa-text-soft);">{ACCENT_PRESETS[theme.accent].label}</span>
           </p>
         </div>
