@@ -30,25 +30,14 @@
     height: 38px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    background: var(--sempa-bg-nav);
+    justify-content: flex-end;
+    background: var(--sempa-bg-panel);
     border-bottom: 1px solid var(--sempa-border);
     user-select: none;
     flex-shrink: 0;
   ">
-  <!-- App name / logo on left -->
-  <div
-    data-tauri-drag-region
-    style="display: flex; align-items: center; gap: 6px; padding-left: 12px; pointer-events: none;">
-    <svg width="16" height="16" viewBox="0 0 100 100" fill="none" aria-hidden="true">
-      <path d="M22,40 a28,28 0 0 0 56,0"
-        stroke="var(--sempa-accent)" stroke-width="10"
-        stroke-linecap="round"/>
-      <circle cx="50" cy="35" r="8" fill="var(--sempa-accent)"/>
-    </svg>
-    <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 500;
-                 letter-spacing: -0.01em; color: var(--sempa-text-soft);">sempa</span>
-  </div>
+  <!-- Quiet drag strip: the brand lives in the sidebar, so the titlebar is just
+       a drag region + window controls (no duplicate logo/wordmark). -->
 
   <!-- Windows-style window controls on right -->
   <div style="display: flex; align-items: stretch; height: 38px;">

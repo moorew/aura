@@ -321,7 +321,7 @@
                   {t.title}
                 </span>
                 {#if linked.length > 0}
-                  <span class="ml-auto text-[10px] shrink-0" style="color: var(--sempa-text-dim);">
+                  <span class="ml-auto text-[10.5px] shrink-0" style="color: var(--sempa-text-dim);">
                     {Math.round(100 / linked.length)}%
                   </span>
                 {/if}

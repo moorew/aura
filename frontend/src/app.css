@@ -104,7 +104,27 @@
   --sempa-success:      #4a8a55;
   --sempa-success-soft: rgba(74,138,85,0.12);
   --sempa-success-bg:   #f0f7f1;
+
+  /* ── Type scale (theme-independent) ──────────────────────────────────────
+   * One role per text element across every screen. See the .type-* utility
+   * classes below, which bundle size + weight + spacing for each role. */
+  --type-page:  20px;   /* page titles — weight 600, ls -.02em */
+  --type-date:  18px;   /* header dates — weight 600, ls -.02em */
+  --type-body:  13.5px; /* list rows, nav items — weight 400 */
+  --type-card:  13px;   /* card titles — weight 500, lh 1.35 */
+  --type-meta:  12px;   /* secondary meta — weight 400 */
+  --type-label: 10.5px; /* eyebrows/labels — weight 700, caps, ls .12em */
+  --type-badge: 10.5px; /* badges — weight 600 */
 }
+
+/* ── Type-scale utility classes — apply ONE per text element ─────────────── */
+.type-page  { font-size: var(--type-page);  font-weight: 600; letter-spacing: -.02em; }
+.type-date  { font-size: var(--type-date);  font-weight: 600; letter-spacing: -.02em; }
+.type-body  { font-size: var(--type-body);  font-weight: 400; }
+.type-card  { font-size: var(--type-card);  font-weight: 500; line-height: 1.35; letter-spacing: -.005em; }
+.type-meta  { font-size: var(--type-meta);  font-weight: 400; }
+.type-label { font-size: var(--type-label); font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
+.type-badge { font-size: var(--type-badge); font-weight: 600; letter-spacing: .02em; }
 
 /* ── Sempa warm design tokens — dark mode ────────────────────────────────── */
 .dark {

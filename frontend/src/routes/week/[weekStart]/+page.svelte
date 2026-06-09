@@ -10,6 +10,7 @@
   import SempaPattern from '$lib/components/ui/SempaPattern.svelte';
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import AttachmentList from '$lib/components/AttachmentList.svelte';
+  import { swipeNavigate } from '$lib/actions/swipeNavigate';
 
   let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(new Date().toISOString().split('T')[0]));
 
@@ -320,7 +321,8 @@
 </header>
 
 <!-- Body -->
-<main class="mx-auto max-w-2xl px-6 py-6 animate-fade-in">
+<main class="mx-auto max-w-2xl px-6 py-6 animate-fade-in"
+      use:swipeNavigate={{ onPrev: () => navigate(-1), onNext: () => navigate(1) }}>
   {#if loading}
     <div class="flex h-48 items-center justify-center text-sm text-gray-400">Loading…</div>
 
@@ -353,7 +355,7 @@
           <svg class="h-3.5 w-3.5 shrink-0" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
           </svg>
-          <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-accent);">Week reviewed</p>
+          <p class="text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-accent);">Week reviewed</p>
         </div>
         {#if reviewWins.length}
           <p class="text-sm leading-relaxed" style="color: var(--sempa-text);">
@@ -462,12 +464,12 @@
                     {t.title}
                   </span>
                   {#if linked.length > 0}
-                    <span class="text-[10px] shrink-0" style="color: var(--sempa-text-dim);">
+                    <span class="text-[10.5px] shrink-0" style="color: var(--sempa-text-dim);">
                       {Math.round(100 / linked.length)}%
                     </span>
                   {/if}
                   {#if t.planned_date}
-                    <span class="text-[10px] shrink-0" style="color: var(--sempa-text-dim);">{t.planned_date.slice(5)}</span>
+                    <span class="text-[10.5px] shrink-0" style="color: var(--sempa-text-dim);">{t.planned_date.slice(5)}</span>
                   {/if}
                 </div>
               {/each}

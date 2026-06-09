@@ -40,7 +40,7 @@
     {#if showIntention}
       {#if hasIntention}
         <div class="rounded-xl px-4 py-3" style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);">
-          <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-accent);">Today's intention</p>
+          <p class="text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-accent);">Today's intention</p>
           <p class="mt-1 text-sm leading-relaxed" style="color: var(--sempa-text);">{intention}</p>
         </div>
       {:else if promptWhenEmpty}
@@ -56,7 +56,7 @@
     {#if showReflection}
       {#if hasReflection}
         <div class="rounded-xl px-4 py-3" style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);">
-          <p class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Reflection</p>
+          <p class="text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-soft);">Reflection</p>
           <p class="mt-1 whitespace-pre-line text-sm leading-relaxed" style="color: var(--sempa-text);">{reflection}</p>
         </div>
       {:else if promptWhenEmpty}
