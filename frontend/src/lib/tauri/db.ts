@@ -31,6 +31,17 @@ let driver: Driver | null = null;
 let driverPromise: Promise<Driver> | null = null;
 
 export { hasLocalDb };
+export type { Driver };
+
+/**
+ * Test-only: inject a Driver (e.g. backed by node:sqlite) so the sync engine and
+ * local-api can run against a real in-memory SQLite database in unit tests,
+ * without a Tauri/Capacitor runtime. Pass null to reset. Not used in production.
+ */
+export function __setTestDriver(d: Driver | null): void {
+    driver = d;
+    driverPromise = null;
+}
 
 // ── Tauri driver (tauri-plugin-sql) ──────────────────────────────────────────
 

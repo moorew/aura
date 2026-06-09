@@ -179,6 +179,19 @@ pub fn get_migrations() -> Vec<Migration> {
             "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            // The server's task rows (and the sync engine's upsertTask) carry a
+            // `roughly_at` column that this local schema never had. Pulling any
+            // task therefore threw "no column named roughly_at", which aborted the
+            // whole pull and left the desktop DB empty. Add it to match the server
+            // and the Capacitor schema (schema.ts) column-for-column.
+            version: 6,
+            description: "add roughly_at to tasks",
+            sql: r#"
+                ALTER TABLE tasks ADD COLUMN roughly_at TEXT;
+            "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
