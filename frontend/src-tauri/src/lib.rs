@@ -70,6 +70,14 @@ pub fn run() {
                 sync::start_sync_loop(app_handle).await;
             });
 
+            // TEMP DIAGNOSTIC: auto-open DevTools so console/network errors are
+            // visible in the release build while we chase the empty-sync issue.
+            // The tauri "devtools" feature (Cargo.toml) makes open_devtools()
+            // available in release builds. Remove this + the feature once resolved.
+            if let Some(win) = app.get_webview_window("main") {
+                win.open_devtools();
+            }
+
             // Check if launched with --minimized flag (startup boot)
             let minimized = std::env::args().any(|a| a == "--minimized");
             if minimized {

@@ -176,7 +176,19 @@
   // initial load — so reload tags whenever we land on an authenticated page.
   afterNavigate(({ to }) => {
     const path = to?.url.pathname;
-    if (path && path !== '/login' && path !== '/setup') tagStore.load();
+    if (path && path !== '/login' && path !== '/setup') {
+      tagStore.load();
+      // Same remount problem bites sync: on a FRESH login the onMount sync gate
+      // already returned early (no token yet) and never runs again, so the
+      // first session after sign-in never pulled and the app stayed empty until
+      // a restart. startSync()/realtime.connect() self-guard against double
+      // starts, so calling them here on every authenticated landing is safe and
+      // guarantees sync runs the moment we're signed in on a local-first client.
+      if (hasLocalDb()) {
+        startSync();
+        realtime.connect();
+      }
+    }
   });
 
   // Re-load tags from server when a tag:change SSE event arrives

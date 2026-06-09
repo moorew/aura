@@ -8,7 +8,7 @@
   import { syncStore, sync as runSync } from '$lib/sync.svelte';
   import { hasLocalDb } from '$lib/tauri/bridge';
   import { onMount } from 'svelte';
-  import { RefreshCw, Cloud, CloudOff, CloudUpload } from 'lucide-svelte';
+  import { RefreshCw, Cloud, CloudOff, CloudUpload, CloudAlert } from 'lucide-svelte';
 
   // A ticking clock so the relative "synced Xm ago" label stays current even
   // when nothing else changes. Updated every 30s.
@@ -32,6 +32,7 @@
 
   const syncState = $derived(
     syncStore.syncing ? 'syncing'
+    : syncStore.lastError ? 'error'
     : !syncStore.online ? 'offline'
     : syncStore.pending > 0 ? 'pending'
     : 'synced',
@@ -39,23 +40,37 @@
 
   const label = $derived(
     syncState === 'syncing' ? 'Syncing…'
+    : syncState === 'error' ? 'Sync error — tap'
     : syncState === 'offline' ? (syncStore.pending > 0 ? `Offline · ${syncStore.pending} pending` : 'Offline')
     : syncState === 'pending' ? `${syncStore.pending} to sync`
     : syncStore.lastSyncedAt ? `Synced ${ago(syncStore.lastSyncedAt, nowMs)}` : 'Synced',
   );
 
   const color = $derived(
-    syncState === 'offline' ? 'var(--sempa-text-dim)'
+    syncState === 'error' ? '#dc2626'
+    : syncState === 'offline' ? 'var(--sempa-text-dim)'
     : syncState === 'pending' ? 'var(--sempa-accent)'
     : 'var(--sempa-text-soft)',
   );
+
+  // Tapping the pill while in an error state shows the raw error so it can be
+  // read off the device (release builds have no DevTools). Otherwise it syncs.
+  function onClick() {
+    if (syncStore.lastError) {
+      alert(`Sync error:\n\n${syncStore.lastError}`);
+    } else {
+      runSync();
+    }
+  }
 </script>
 
 {#if hasLocalDb()}
   <button
-    onclick={() => runSync()}
+    onclick={onClick}
     disabled={syncStore.syncing}
-    title={syncState === 'offline'
+    title={syncState === 'error'
+      ? (syncStore.lastError ?? 'Sync error')
+      : syncState === 'offline'
       ? 'No connection to your sempa server. Changes are saved locally and will sync when you reconnect.'
       : 'Click to sync now'}
     class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] transition-colors"
@@ -65,6 +80,8 @@
     <span class="flex-shrink-0" class:spin={syncStore.syncing}>
       {#if syncState === 'syncing'}
         <RefreshCw size={13} strokeWidth={1.75} />
+      {:else if syncState === 'error'}
+        <CloudAlert size={13} strokeWidth={1.75} />
       {:else if syncState === 'offline'}
         <CloudOff size={13} strokeWidth={1.75} />
       {:else if syncState === 'pending'}
