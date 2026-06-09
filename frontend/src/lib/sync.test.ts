@@ -124,6 +124,59 @@ describe.each(SCHEMAS)('sync engine on %s schema', (_name, schema) => {
         expect(rows[1]).toMatchObject({ id: 'task-2', title: 'Ship it' });
     });
 
+    it('pulls FK-laden data without aborting (objective + parent refs)', async () => {
+        // Mirrors real data: tasks reference an objective (weekly_objective_id)
+        // and a parent task (parent_task_id). The feed lists tasks before
+        // objectives, and a child can appear before its parent — both violate
+        // the FK if applied naively, which threw "FOREIGN KEY constraint failed
+        // (787)" and aborted the entire pull, leaving the app empty.
+        stubServer({
+            objectives: [{ id: 'obj-1', week_start: '2026-06-08', title: 'Q2 goal', status: 'active',
+                position: 0, created_at: '2026-06-09 10:00:00', updated_at: '2026-06-09 10:00:00' }],
+            tasks: [
+                // child first, references parent that comes later AND the objective
+                sampleTask({ id: 'child', title: 'Subtask', parent_task_id: 'parent',
+                    weekly_objective_id: 'obj-1' }),
+                sampleTask({ id: 'parent', title: 'Parent task', weekly_objective_id: 'obj-1' }),
+            ],
+        });
+
+        await sync();
+
+        expect(syncStore.lastError).toBeNull();
+        expect(db.select('SELECT * FROM tasks')).toHaveLength(2);
+        expect(db.select('SELECT * FROM weekly_objectives')).toHaveLength(1);
+        const child = db.select<{ parent_task_id: string; weekly_objective_id: string }[]>(
+            "SELECT parent_task_id, weekly_objective_id FROM tasks WHERE id = 'child'",
+        );
+        expect(child[0]).toMatchObject({ parent_task_id: 'parent', weekly_objective_id: 'obj-1' });
+    });
+
+    it('a single FK-violating row is skipped, not fatal — the rest still apply', async () => {
+        // A task pointing at an objective that is NOT in this batch (e.g. stale
+        // reference) must be skipped while every other task is still written.
+        // Previously one bad row threw and aborted the whole pull → empty app.
+        stubServer({
+            tasks: [
+                sampleTask({ id: 'ok-1', title: 'Good A' }),
+                sampleTask({ id: 'bad', title: 'Dangling', weekly_objective_id: 'missing-obj' }),
+                sampleTask({ id: 'ok-2', title: 'Good B' }),
+            ],
+        });
+
+        await sync();
+
+        const ids = db.select<{ id: string }[]>('SELECT id FROM tasks ORDER BY id').map(r => r.id);
+        expect(ids).toContain('ok-1');
+        expect(ids).toContain('ok-2');
+        expect(ids).not.toContain('bad');
+        // The good rows refreshed the UI even though one row failed.
+        expect(syncStore.revision).toBeGreaterThan(0);
+        // Cursor NOT advanced (so the skipped row is retried next sync).
+        const cur = db.select<{ value: string }[]>("SELECT value FROM sync_state WHERE key = 'changes_cursor'");
+        expect(cur.length).toBe(0);
+    });
+
     it('pull writes objectives, plans, tags and week_reviews too', async () => {
         stubServer({
             objectives: [{ id: 'o1', week_start: '2026-06-08', title: 'Goal', status: 'active', position: 0,

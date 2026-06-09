@@ -200,26 +200,77 @@ async function replayWeekReview(m: PendingMutation): Promise<boolean> {
 
 // ── Pull: apply server changes locally ───────────────────────────────────────
 
+// Order tasks so that any task referenced by another (as parent_task_id or
+// recurrence_origin_id) is inserted first. The tasks table has self-referential
+// FKs, so a child arriving before its parent fails the FK constraint. A simple
+// stable topological pass over in-batch references is enough (chains are short);
+// anything still unresolved (e.g. a parent not in this batch) is appended and
+// caught per-row below.
+function orderTasksByDependency(tasks: Record<string, unknown>[]): Record<string, unknown>[] {
+    const ids = new Set(tasks.map(t => t.id as string));
+    const byId = new Map(tasks.map(t => [t.id as string, t]));
+    const ordered: Record<string, unknown>[] = [];
+    const placed = new Set<string>();
+
+    const visit = (t: Record<string, unknown>, stack: Set<string>) => {
+        const id = t.id as string;
+        if (placed.has(id) || stack.has(id)) return;
+        stack.add(id);
+        for (const refCol of ['parent_task_id', 'recurrence_origin_id'] as const) {
+            const ref = t[refCol] as string | null;
+            if (ref && ref !== id && ids.has(ref) && !placed.has(ref)) {
+                visit(byId.get(ref)!, stack);
+            }
+        }
+        stack.delete(id);
+        if (!placed.has(id)) { placed.add(id); ordered.push(t); }
+    };
+
+    for (const t of tasks) visit(t, new Set());
+    return ordered;
+}
+
 async function pullChanges(): Promise<void> {
     const since = (await getSyncState(CURSOR_KEY)) ?? '';
     const res = await serverFetch(`/api/v1/sync/changes?since=${encodeURIComponent(since)}`);
     if (!res.ok) throw new Error(`pull failed: ${res.status}`);
     const changes: ServerChanges = await res.json();
 
+    // Apply parents-before-children: objectives (and tags/plans/reviews) must
+    // exist before tasks that reference them, and parent tasks before child
+    // tasks. Each row is upserted defensively — a single FK failure (e.g. a row
+    // referencing something not in this batch) must skip that row, NOT abort the
+    // whole pull and leave the app empty. That silent total-abort was the
+    // "synced but empty" bug; surfaced as a 787 FOREIGN KEY error in the UI.
     let applied = 0;
-    for (const t of changes.tasks) applied += (await upsertTask(t)) ? 1 : 0;
-    for (const o of changes.objectives) applied += (await upsertObjective(o)) ? 1 : 0;
-    for (const p of changes.plans) applied += (await upsertPlan(p)) ? 1 : 0;
-    for (const tag of changes.tags) applied += (await upsertTag(tag)) ? 1 : 0;
-    for (const r of changes.week_reviews) applied += (await upsertWeekReview(r)) ? 1 : 0;
-    for (const d of changes.deletions) applied += (await applyDeletion(d)) ? 1 : 0;
+    let failed = 0;
+    const tryUpsert = async (fn: () => Promise<boolean>): Promise<void> => {
+        try { if (await fn()) applied += 1; }
+        catch (e) { failed += 1; console.error('sync upsert skipped a row:', e); }
+    };
 
-    if (changes.cursor) await setSyncState(CURSOR_KEY, changes.cursor);
+    for (const o of changes.objectives) await tryUpsert(() => upsertObjective(o));
+    for (const tag of changes.tags) await tryUpsert(() => upsertTag(tag));
+    for (const p of changes.plans) await tryUpsert(() => upsertPlan(p));
+    for (const r of changes.week_reviews) await tryUpsert(() => upsertWeekReview(r));
+    for (const t of orderTasksByDependency(changes.tasks)) await tryUpsert(() => upsertTask(t));
+    for (const d of changes.deletions) await tryUpsert(() => applyDeletion(d));
 
-    // Anything actually changed locally → tell the UI to re-read. Without this,
-    // the first pull silently fills SQLite but the already-mounted pages keep
-    // showing their initial (empty) snapshot until a manual reload.
+    // Anything actually changed locally → tell the UI to re-read. Do this BEFORE
+    // any partial-failure throw below, so the rows that DID apply show up even
+    // when a few couldn't.
     if (applied > 0) syncStore._bumpRevision();
+
+    // Only advance the cursor when everything applied. If some rows failed we
+    // keep the old cursor so the next pull retries them (e.g. a parent that
+    // arrives in a later batch), rather than skipping them forever.
+    if (failed === 0 && changes.cursor) {
+        await setSyncState(CURSOR_KEY, changes.cursor);
+    } else if (failed > 0) {
+        const total = changes.tasks.length + changes.objectives.length + changes.plans.length
+            + changes.tags.length + changes.week_reviews.length;
+        throw new Error(`Applied ${applied}, skipped ${failed} of ${total} changes (will retry next sync)`);
+    }
 }
 
 // Last-write-wins guard: returns true only when the incoming row should be
