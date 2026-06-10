@@ -55,6 +55,15 @@ class ViewportStore {
       update();
     });
 
+    // Belt-and-braces for Android WebViews that don't reliably fire a
+    // visualViewport `resize` when the soft keyboard *closes* — which left
+    // keyboardHeight/height stale and sheets stuck at half size. Blurring an
+    // input (or focusing one) closes/opens the keyboard; re-measure a couple of
+    // times as the animation settles so the values always recover.
+    const recheck = () => { update(); setTimeout(update, 150); setTimeout(update, 400); };
+    window.addEventListener('focusout', recheck);
+    window.addEventListener('focusin', recheck);
+
     update();
   }
 }

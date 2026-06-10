@@ -33,9 +33,6 @@
     gmail: 'Gmail', fastmail: 'Mail', jira: 'Jira', google_calendar: 'Calendar',
   };
 
-  // Sheet shrinks above the soft keyboard via the visual viewport.
-  const maxHeight = $derived(Math.round(viewport.height * 0.9));
-
   // Keep a focused field (e.g. the add-subtask input) visible above keyboard.
   function keepInView(e: FocusEvent) {
     const el = e.target as HTMLElement | null;
@@ -66,7 +63,7 @@
        class="fixed left-0 right-0 z-[90] flex flex-col shadow-2xl"
        style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
               bottom: {viewport.keyboardHeight}px;
-              max-height: {maxHeight}px;
+              max-height: calc(100% - max(40px, env(safe-area-inset-top, 0px)) - {viewport.keyboardHeight}px);
               transition: bottom 180ms ease-out;
               animation: task-view-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
        use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', threshold: 90, onDismissHaptic: hapticTick }}>
@@ -79,7 +76,9 @@
 
     <!-- Scrollable content -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="flex-1 overflow-y-auto overscroll-contain px-5 pb-4" data-sheet-scroll
+    <!-- flex-[1_1_auto]+min-h-0: basis-0 (flex-1) collapses inside a max-height
+         flex column in Chromium, so the body wouldn't fill or scroll. -->
+    <div class="flex-[1_1_auto] min-h-0 overflow-y-auto overscroll-contain px-5 pb-4" data-sheet-scroll
          style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;"
          onfocusin={keepInView}>
 

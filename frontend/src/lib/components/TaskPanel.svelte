@@ -78,12 +78,6 @@
   let scheduledEndDate   = $state('');
   let scheduledEndTime   = $state('');
 
-  // Mobile bottom sheet: the sheet's `bottom` is lifted by the keyboard height
-  // (see template) so it rests on top of the keyboard, and its max-height fills
-  // up to 94% of the *visible* area above it — so the footer (Save/Cancel) is
-  // always reachable, never trapped behind the keyboard. viewport.height is the
-  // visual-viewport height, which already excludes the keyboard.
-  const sheetMaxHeight = $derived(Math.round(viewport.height * 0.94));
   let selectedObjectiveId = $state<string | null>(null);
   let weekObjectives = $state<Objective[]>([]);
   let recurrenceRule = $state('');
@@ -283,7 +277,11 @@
 
     <!-- Body -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
+    <!-- flex-[1_1_auto] (not flex-1 = basis 0): inside a max-height-capped flex
+         column a basis-0 child collapses to zero height in Chromium, so the body
+         never filled and the sheet shrank to header+footer (Save unreachable).
+         basis-auto lets content size propagate so the body fills and scrolls. -->
+    <div class="min-h-0 flex-[1_1_auto] overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
          data-sheet-scroll
          style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;"
          onfocusin={keepInView}>
@@ -601,11 +599,15 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
          onclick={onClose}></div>
+    <!-- The cap is computed in CSS off the LIVE layout viewport (100%) rather
+         than a JS-tracked visualViewport height, which on Android can get stuck
+         at the keyboard-open value when the dismiss never fires a resize event —
+         that left the sheet frozen at half height with Save unreachable. -->
     <div role="dialog" aria-modal="true" aria-label="{isEdit ? 'Edit task' : 'New task'}"
          class="fixed left-0 right-0 z-50 flex flex-col shadow-2xl"
          style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
                 bottom: {viewport.keyboardHeight}px;
-                max-height: {sheetMaxHeight}px;
+                max-height: calc(100% - max(40px, env(safe-area-inset-top, 0px)) - {viewport.keyboardHeight}px);
                 transition: bottom 180ms ease-out;
                 animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
          use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
@@ -614,7 +616,9 @@
       <div class="flex justify-center pt-3 pb-1 cursor-grab shrink-0" data-sheet-handle onclick={onClose}>
         <div class="h-1 w-8 rounded-full" style="background: var(--sempa-border);"></div>
       </div>
-      <div class="flex flex-1 flex-col overflow-hidden">
+      <!-- basis-auto + min-h-0 so this wrapper fills the capped sheet and lets
+           the inner body scroll (see note on the body element). -->
+      <div class="flex flex-[1_1_auto] min-h-0 flex-col overflow-hidden">
         {@render panelContent()}
       </div>
     </div>
