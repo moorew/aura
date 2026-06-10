@@ -115,3 +115,21 @@ export function parseMinutes(raw: string): number | null {
   if (m) return parseInt(m[1], 10);
   return null;
 }
+
+// A task title that is nothing but a bare URL (no surrounding words). Cards use
+// this to render a clean link chip (icon + host/path) instead of a long,
+// unwrappable string that stretches the card. Returns the parsed URL or null.
+export function bareUrl(s: string): URL | null {
+  const t = (s ?? '').trim();
+  if (!t || /\s/.test(t)) return null;          // empty or has spaces → not bare
+  if (!/^https?:\/\//i.test(t)) return null;
+  try { return new URL(t); } catch { return null; }
+}
+
+// Compact, human-friendly form of a URL: host (sans www) + a trimmed path.
+export function prettyUrl(u: URL): string {
+  const host = u.hostname.replace(/^www\./, '');
+  let path = (u.pathname + u.search).replace(/\/+$/, '');
+  if (path.length > 20) path = path.slice(0, 20) + '…';
+  return host + path;
+}

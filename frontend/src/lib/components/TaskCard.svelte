@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Task } from '$lib/types';
-  import { formatMinutes, today as getToday } from '$lib/utils';
+  import { formatMinutes, today as getToday, bareUrl, prettyUrl } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { hapticClick } from '$lib/haptics';
   import { api } from '$lib/api';
@@ -103,9 +103,18 @@
     <div class="min-w-0 flex-1 cursor-pointer" onclick={() => onClick?.(task)}>
       <p class="{isDone ? 'line-through' : ''}"
          style="font-size: 13px; font-weight: 500; line-height: 1.35; letter-spacing: -0.005em;
-                text-wrap: pretty;
+                text-wrap: pretty; overflow-wrap: anywhere; word-break: break-word;
                 color: {isDone ? 'var(--sempa-text-dim)' : 'var(--sempa-text)'};">
-        {task.title}
+        {#if bareUrl(task.title)}
+          <span class="inline-flex max-w-full items-center gap-1 align-middle">
+            <svg class="h-3 w-3 shrink-0 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+            </svg>
+            <span class="truncate">{prettyUrl(bareUrl(task.title)!)}</span>
+          </span>
+        {:else}
+          {task.title}
+        {/if}
       </p>
     </div>
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Task } from '$lib/types';
-  import { formatMinutes } from '$lib/utils';
+  import { formatMinutes, bareUrl, prettyUrl } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { hapticClick, hapticTick } from '$lib/haptics';
 
@@ -126,8 +126,17 @@
     <div class="min-w-0 flex-1">
       <p class="text-[15px] leading-snug
                 {isDone ? 'line-through opacity-40' : 'font-medium'}"
-         style="color: var(--sempa-text);">
-        {task.title}
+         style="color: var(--sempa-text); overflow-wrap: anywhere; word-break: break-word;">
+        {#if bareUrl(task.title)}
+          <span class="inline-flex max-w-full items-center gap-1 align-middle">
+            <svg class="h-3.5 w-3.5 shrink-0 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+            </svg>
+            <span class="truncate">{prettyUrl(bareUrl(task.title)!)}</span>
+          </span>
+        {:else}
+          {task.title}
+        {/if}
       </p>
 
       <!-- Meta row -->

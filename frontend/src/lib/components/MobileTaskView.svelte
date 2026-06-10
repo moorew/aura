@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Task } from '$lib/types';
-  import { formatMinutes } from '$lib/utils';
+  import { formatMinutes, bareUrl, prettyUrl } from '$lib/utils';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { hapticClick, hapticTick } from '$lib/haptics';
@@ -78,6 +78,62 @@
       <div class="h-1 w-8 rounded-full" style="background: var(--sempa-border);"></div>
     </div>
 
+    <!-- Action bar at the TOP of the sheet. The bottom of these sheets is
+         unreliable on this Android WebView (soft keyboard / layout-vs-visual
+         viewport split hides it), so actions — including Edit — live up here
+         where they're always on screen. -->
+    <div class="shrink-0 px-4 pb-3 pt-1 flex items-center gap-2"
+         style="border-bottom: 1px solid var(--sempa-border);">
+
+      <!-- Complete / Undo -->
+      <button onclick={() => { hapticClick(); onComplete(task.id); onClose(); }}
+              class="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition-colors"
+              style="{isDone
+                ? 'background: var(--sempa-border); color: var(--sempa-text-soft);'
+                : 'background: var(--sempa-success); color: white;'}">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          {#if isDone}
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l-4-4m0 0l4-4m-4 4h15"/>
+          {:else}
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          {/if}
+        </svg>
+        {isDone ? 'Undo' : 'Done'}
+      </button>
+
+      <!-- Focus / Pomodoro -->
+      {#if onFocusStart && !isDone}
+        <button onclick={() => { hapticClick(); onFocusStart!(task.id, task.title); onClose(); }}
+                aria-label="Start focus timer"
+                class="flex h-11 w-11 items-center justify-center rounded-xl transition-colors"
+                style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-accent);">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 3"/>
+          </svg>
+        </button>
+      {/if}
+
+      <!-- Edit -->
+      <button onclick={onEdit}
+              aria-label="Edit task"
+              class="flex h-11 w-11 items-center justify-center rounded-xl transition-colors"
+              style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+      </button>
+
+      <!-- Delete -->
+      <button onclick={() => { hapticClick(); onDelete(task.id, task.title); onClose(); }}
+              aria-label="Delete task"
+              class="flex h-11 w-11 items-center justify-center rounded-xl transition-colors"
+              style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: #f87171;">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </button>
+    </div>
+
     <!-- Scrollable content -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- flex-[1_1_auto]+min-h-0: basis-0 (flex-1) collapses inside a max-height
@@ -103,9 +159,21 @@
             </svg>
           {/if}
         </button>
-        <h2 class="flex-1 text-xl font-semibold leading-snug {isDone ? 'line-through opacity-40' : ''}"
-            style="color: var(--sempa-text);">
-          {task.title}
+        <h2 class="flex-1 min-w-0 text-xl font-semibold leading-snug {isDone ? 'line-through opacity-40' : ''}"
+            style="color: var(--sempa-text); overflow-wrap: anywhere; word-break: break-word;">
+          {#if bareUrl(task.title)}
+            <a href={task.title} target="_blank" rel="noopener noreferrer"
+               onclick={(e) => e.stopPropagation()}
+               class="inline-flex max-w-full items-center gap-1.5 align-middle hover:underline"
+               style="color: var(--sempa-accent);">
+              <svg class="h-4 w-4 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+              </svg>
+              <span class="truncate">{prettyUrl(bareUrl(task.title)!)}</span>
+            </a>
+          {:else}
+            {task.title}
+          {/if}
         </h2>
       </div>
 
@@ -216,61 +284,6 @@
           </div>
         </div>
       {/if}
-    </div>
-
-    <!-- Action bar -->
-    <div class="shrink-0 px-4 py-3 flex items-center gap-2"
-         style="border-top: 1px solid var(--sempa-border);
-                padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
-                background: var(--sempa-bg-panel);">
-
-      <!-- Complete / Undo -->
-      <button onclick={() => { hapticClick(); onComplete(task.id); onClose(); }}
-              class="flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors"
-              style="{isDone
-                ? 'background: var(--sempa-border); color: var(--sempa-text-soft);'
-                : 'background: var(--sempa-success); color: white;'}">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          {#if isDone}
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l-4-4m0 0l4-4m-4 4h15"/>
-          {:else}
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-          {/if}
-        </svg>
-        {isDone ? 'Undo' : 'Done'}
-      </button>
-
-      <!-- Focus / Pomodoro -->
-      {#if onFocusStart && !isDone}
-        <button onclick={() => { hapticClick(); onFocusStart!(task.id, task.title); onClose(); }}
-                aria-label="Start focus timer"
-                class="flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
-                style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-accent);">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 3"/>
-          </svg>
-        </button>
-      {/if}
-
-      <!-- Edit -->
-      <button onclick={onEdit}
-              aria-label="Edit task"
-              class="flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
-              style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-        </svg>
-      </button>
-
-      <!-- Delete -->
-      <button onclick={() => { hapticClick(); onDelete(task.id, task.title); onClose(); }}
-              aria-label="Delete task"
-              class="flex h-12 w-12 items-center justify-center rounded-xl transition-colors"
-              style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: #f87171;">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-        </svg>
-      </button>
     </div>
   </div>
 {/if}
