@@ -1,12 +1,48 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
-  import { api } from '$lib/api';
+  import { api, getServerUrl, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
   import { theme, ACCENT_PRESETS, type AccentName } from '$lib/stores/theme.svelte';
   import { prefs } from '$lib/stores/prefs.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { realtime } from '$lib/stores/realtime.svelte';
   import { goto } from '$app/navigation';
   import type { ICalSubscription } from '$lib/types';
+
+  // ── Account / profile ──────────────────────────────────────────────────────
+  let me = $state<{ authenticated: boolean; auth_enabled?: boolean; google_enabled?: boolean; email?: string }>({ authenticated: false });
+  let accountPicture = $state<string | undefined>();
+  let serverUrl = $state('');
+  let signingOut = $state(false);
+
+  // The signed-in email: prefer the live session, fall back to the value
+  // persisted at login (so it still shows while offline / local-first).
+  const accountEmail = $derived.by(() => {
+    if (me.email && me.email.includes('@')) return me.email;
+    if (typeof localStorage === 'undefined') return undefined;
+    return localStorage.getItem('sempa_account_email') ?? undefined;
+  });
+
+  const authMethod = $derived(
+    me.auth_enabled === false ? 'Open access — no sign-in required'
+    : accountPicture            ? 'Signed in with Google'
+    : accountEmail              ? 'Signed in with email & password'
+    : 'Signed in'
+  );
+
+  async function doSignOut() {
+    signingOut = true;
+    // Best-effort server logout (don't await — a hung/offline request must not
+    // block the local sign-out), then clear all local session state.
+    void api.auth.logout().catch(() => {});
+    clearTauriToken();
+    clearNativeToken();
+    localStorage.removeItem('sempa_account_email');
+    localStorage.removeItem('sempa_account_picture');
+    resetApiResolver();
+    realtime.disconnect();
+    await goto('/login', { replaceState: true });
+  }
 
   type AccountStatus = { connected: boolean; email?: string; last_synced_at?: string | null; enabled?: boolean };
 
@@ -66,6 +102,7 @@
   let mobileSection = $state<string | null>(null);
 
   const NAV_SECTIONS = [
+    { id: 'profile', label: 'Account' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'tasks', label: 'Tasks' },
     { id: 'appearance', label: 'Appearance' },
@@ -112,6 +149,11 @@
 
     serverUnreachable = results.every((r) => r.status === 'rejected');
 
+    // Account / profile details
+    serverUrl = getServerUrl();
+    accountPicture = typeof localStorage !== 'undefined' ? (localStorage.getItem('sempa_account_picture') ?? undefined) : undefined;
+    try { me = await api.auth.me(); } catch { /* offline — accountEmail falls back to stored value */ }
+
     // IntersectionObserver for sub-nav active state
     await tick();
     setupObserver();
@@ -144,11 +186,14 @@
     if (!icalUrl.trim()) return;
     icalAdding = true; icalError = '';
     try {
-      let parsedUrl = icalUrl.trim();
-      const urlForParsing = parsedUrl.replace(/^webcal:\/\//, 'https://');
+      // webcal:// is just https:// for an ICS feed. The backend only fetches
+      // http(s), so normalise the scheme on the URL we actually store/sync —
+      // previously only the hostname-parse was normalised and the raw
+      // webcal:// URL was sent, so the feed silently never synced.
+      const normalizedUrl = icalUrl.trim().replace(/^webcal:\/\//i, 'https://');
       const sub = await api.ical.createSubscription({
-        name: icalName.trim() || new URL(urlForParsing).hostname,
-        url:  parsedUrl,
+        name: icalName.trim() || new URL(normalizedUrl).hostname,
+        url:  normalizedUrl,
         color: icalColor,
       });
       icalSubs = [...icalSubs, sub];
@@ -330,7 +375,11 @@
 </script>
 
 {#snippet sectionIcon(id: string)}
-  {#if id === 'integrations'}
+  {#if id === 'profile'}
+    <svg class="h-5 w-5" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="4"/><path stroke-linecap="round" d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>
+    </svg>
+  {:else if id === 'integrations'}
     <svg class="h-5 w-5" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
       <path stroke-linecap="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
     </svg>
@@ -346,7 +395,8 @@
 {/snippet}
 
 {#snippet sectionDesc(id: string)}
-  {#if id === 'integrations'}Gmail, Fastmail, Jira, Calendars
+  {#if id === 'profile'}{accountEmail ?? 'Signed in'} · sign out
+  {:else if id === 'integrations'}Gmail, Fastmail, Jira, Calendars
   {:else if id === 'tasks'}Tags, recurring templates
   {:else}Accent colour, text size, dark mode
   {/if}
@@ -421,7 +471,9 @@
       <!-- Section content -->
       <div class="flex-1 overflow-y-auto">
         <div class="px-4 py-4 pb-16">
-          {#if mobileSection === 'integrations'}
+          {#if mobileSection === 'profile'}
+            {@render profileContent()}
+          {:else if mobileSection === 'integrations'}
             {@render integrationsContent()}
           {:else if mobileSection === 'tasks'}
             {@render tasksContent()}
@@ -455,6 +507,7 @@
     <!-- ── Scrollable content ────────────────────────────────────────────── -->
     <div bind:this={scrollContainer} class="flex-1 overflow-y-auto">
       <div class="mx-auto max-w-xl px-6 py-8 pb-16">
+        {@render profileContent()}
         {@render integrationsContent()}
         {@render tasksContent()}
         {@render appearanceContent()}
@@ -464,6 +517,73 @@
 {/if}
 
 <!-- ══ CONTENT SNIPPETS (accessible from both mobile and desktop) ══════════ -->
+
+{#snippet profileContent()}
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION: Account / profile
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="settings-profile" class="mb-8 scroll-mt-6">
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
+       text-transform:uppercase; color:var(--sempa-text-dim)">Account</p>
+
+    <section class="overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+      <!-- Identity row: avatar · email · auth method -->
+      <div class="flex items-center gap-3.5 px-5 py-4" style="border-bottom: 1px solid var(--sempa-border);">
+        {#if accountPicture}
+          <img src={accountPicture} alt="" referrerpolicy="no-referrer"
+               class="h-11 w-11 shrink-0 rounded-full object-cover"
+               style="border: 1px solid var(--sempa-border);" />
+        {:else}
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold"
+               style="background: var(--sempa-accent-bg); color: var(--sempa-accent); border: 1px solid var(--sempa-border);">
+            {(accountEmail ?? '?').charAt(0).toUpperCase()}
+          </div>
+        {/if}
+        <div class="min-w-0 flex-1">
+          {#if accountEmail}
+            <p class="truncate text-sm font-semibold" style="color: var(--sempa-text);" title={accountEmail}>{accountEmail}</p>
+          {:else}
+            <p class="text-sm font-semibold" style="color: var(--sempa-text);">Signed in</p>
+          {/if}
+          <p class="mt-0.5 flex items-center gap-1.5 text-xs" style="color: var(--sempa-text-soft);">
+            {#if accountPicture}
+              <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/>
+                <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38Z"/>
+              </svg>
+            {/if}
+            {authMethod}
+          </p>
+        </div>
+      </div>
+
+      <!-- Server URL -->
+      {#if serverUrl}
+        <div class="flex items-center justify-between gap-3 px-5 py-3" style="border-bottom: 1px solid var(--sempa-border);">
+          <span class="text-xs" style="color: var(--sempa-text-soft);">Server</span>
+          <span class="truncate font-mono text-xs" style="color: var(--sempa-text-dim);" title={serverUrl}>{serverUrl}</span>
+        </div>
+      {/if}
+
+      <!-- Sign out -->
+      <div class="flex items-center justify-between gap-3 px-5 py-4">
+        <div>
+          <p class="text-sm font-medium" style="color: var(--sempa-text);">Sign out</p>
+          <p class="text-xs" style="color: var(--sempa-text-dim);">Local data stays on this device until you sign back in.</p>
+        </div>
+        <button onclick={doSignOut} disabled={signingOut}
+                class="shrink-0 rounded-[9px] px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                style="border: 1px solid color-mix(in srgb, #ef4444 40%, var(--sempa-border)); color: #ef4444; background: transparent;"
+                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, #ef4444 10%, transparent)'}
+                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+          {signingOut ? 'Signing out…' : 'Sign out'}
+        </button>
+      </div>
+    </section>
+  </div>
+{/snippet}
 
 {#snippet integrationsContent()}
   <!-- ═══════════════════════════════════════════════════════════════════════
