@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { dismissibleSheet } from '$lib/actions/sheet';
-  import { viewport } from '$lib/stores/viewport.svelte';
   import { hapticTick } from '$lib/haptics';
 
   let {
@@ -23,16 +22,14 @@
        style="animation: sempa-fade-in 200ms ease both;"
        onclick={onClose}></div>
 
-  <!-- Sheet — lifted above the soft keyboard so any inputs/footer stay reachable -->
-  <!-- max-height off the LIVE layout viewport (100%) so it can't get stuck at a
-       stale visualViewport height when the Android keyboard dismisses. -->
-  <div class="fixed left-0 right-0 z-[90] flex flex-col overflow-hidden"
-       style="bottom: {viewport.keyboardHeight}px;
-              max-height: calc(100% - max(32px, env(safe-area-inset-top, 0px)) - {viewport.keyboardHeight}px);
+  <!-- Sheet rests at the bottom and caps at the live layout viewport (no JS
+       visualViewport tracking, which got stuck on Android keyboard dismiss).
+       adjustResize shrinks/restores that viewport with the keyboard. -->
+  <div class="fixed left-0 right-0 bottom-0 z-[90] flex flex-col overflow-hidden"
+       style="max-height: calc(100% - max(32px, env(safe-area-inset-top, 0px)));
               border-radius: 20px 20px 0 0;
               background: var(--sempa-bg-panel);
-              padding-bottom: {viewport.keyboardHeight > 0 ? '0px' : 'env(safe-area-inset-bottom)'};
-              transition: bottom 180ms ease-out;
+              padding-bottom: env(safe-area-inset-bottom);
               animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
        role="dialog" aria-modal="true"
        use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
