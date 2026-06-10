@@ -1,11 +1,22 @@
+// Format a Date as YYYY-MM-DD using the device's LOCAL timezone. Using
+// toISOString() here would convert to UTC, which rolls the date forward (or
+// back) for users whose local time differs from UTC — e.g. after ~8pm US
+// Eastern it would report "tomorrow" as today.
+export function toLocalISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function today(): string {
-  return new Date().toISOString().split('T')[0];
+  return toLocalISODate(new Date());
 }
 
 export function offsetDate(dateStr: string, delta: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + delta);
-  return d.toISOString().split('T')[0];
+  return toLocalISODate(d);
 }
 
 export function formatDate(dateStr: string): string {
@@ -34,7 +45,7 @@ export function weekStart(dateStr: string): string {
   const day = d.getDay(); // 0 = Sunday
   const offset = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + offset);
-  return d.toISOString().split('T')[0];
+  return toLocalISODate(d);
 }
 
 export function formatWeekRange(weekStartStr: string): string {

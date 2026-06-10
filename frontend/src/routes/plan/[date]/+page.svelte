@@ -4,9 +4,9 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
-  import { formatDate, formatMinutes, isToday, offsetDate, weekStart } from '$lib/utils';
+  import { formatDate, formatMinutes, isToday, offsetDate, today, weekStart } from '$lib/utils';
 
-  let date       = $derived($page.params.date ?? new Date().toISOString().split('T')[0]);
+  let date       = $derived($page.params.date ?? today());
   let yesterday  = $derived(offsetDate(date, -1));
 
   let step                  = $state<1 | 2 | 3>(1);

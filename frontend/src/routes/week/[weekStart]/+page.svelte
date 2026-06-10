@@ -12,7 +12,7 @@
   import AttachmentList from '$lib/components/AttachmentList.svelte';
   import { swipeNavigate } from '$lib/actions/swipeNavigate';
 
-  let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(new Date().toISOString().split('T')[0]));
+  let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(today()));
 
   let objectives       = $state<Objective[]>([]);
   let tasks            = $state<Task[]>([]);

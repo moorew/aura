@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { onMount } from 'svelte';
+  import { today } from '$lib/utils';
 
   let step = $state(1);
   const TOTAL = 3;
@@ -26,7 +27,7 @@
 
   async function finish() {
     await api.setup.complete();
-    goto('/day/' + new Date().toISOString().slice(0, 10));
+    goto('/day/' + today());
   }
 
   const progressPct = $derived(((step - 1) / TOTAL) * 100);

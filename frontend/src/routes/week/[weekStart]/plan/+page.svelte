@@ -4,9 +4,9 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import type { Objective, Task } from '$lib/types';
-  import { appendPosition, formatWeekRange, offsetDate, weekStart as calcWeekStart } from '$lib/utils';
+  import { appendPosition, formatWeekRange, offsetDate, today, weekStart as calcWeekStart } from '$lib/utils';
 
-  let ws = $derived($page.params.weekStart ?? calcWeekStart(new Date().toISOString().split('T')[0]));
+  let ws = $derived($page.params.weekStart ?? calcWeekStart(today()));
 
   let step = $state(1);
   let loading = $state(true);

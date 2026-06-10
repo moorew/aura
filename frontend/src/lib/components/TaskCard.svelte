@@ -178,7 +178,11 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="flex flex-wrap items-center cursor-pointer" style="gap: 4px; margin-top: 7px;" onclick={() => onClick?.(task)}>
       {#each (task.tags ?? []) as tag}
-        <span class="type-badge rounded text-white" style="padding: 2px 7px; background-color: {tagStore.colorFor(tag)}">{tag}</span>
+        <!-- Quiet tag: colour lives in the dot so the list scans by colour
+             without filled pills shouting; label stays muted text. -->
+        <span class="inline-flex items-center" style="gap: 5px; font-size: 10.5px; font-weight: 500; color: var(--sempa-text-soft);">
+          <span class="shrink-0 rounded-full" style="width: 6px; height: 6px; background-color: {tagStore.colorFor(tag)};"></span>{tag}
+        </span>
       {/each}
       {#if task.source && task.source !== 'manual'}
         <span class="type-badge rounded" style="padding: 2px 7px; background: var(--sempa-accent-bg); color: var(--sempa-accent);">
