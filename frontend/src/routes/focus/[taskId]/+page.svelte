@@ -93,9 +93,9 @@
       <!-- Description -->
       {#if task.description}
         <div class="mb-8 rounded-xl px-4 py-3" style="border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
-          <p class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
+          <div class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
             <RichText text={task.description} />
-          </p>
+          </div>
         </div>
       {/if}
 

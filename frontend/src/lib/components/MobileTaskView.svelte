@@ -261,9 +261,9 @@
         <div class="py-4" style="border-bottom: 1px solid var(--sempa-border);">
           <p class="text-[11px] font-semibold uppercase tracking-wider mb-2"
              style="color: var(--sempa-text-dim);">Notes</p>
-          <p class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
+          <div class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
             <RichText text={task.description} />
-          </p>
+          </div>
         </div>
       {/if}
 

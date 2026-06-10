@@ -1,56 +1,85 @@
 <script lang="ts">
-  // Renders free-text notes with any URLs turned into clean, tappable link
-  // chips (favicon + host/path) instead of long raw strings that overflow the
-  // layout. Plain text keeps its line breaks; everything wraps. Shared by the
-  // mobile task detail view and the focus screen so it behaves the same on
-  // every platform.
-  import { prettyUrl } from '$lib/utils';
+  // Renders free-text notes with smart link handling:
+  //  • Markdown links — [label](https://…) — stay INLINE as hyperlinked text.
+  //  • Bare pasted URLs — https://… on their own — are pulled OUT of the prose
+  //    and shown as rich preview cards in a "Links" section below, so a long
+  //    URL never stretches the layout and you get a thumbnail/title preview.
+  // Everything else renders as plain, wrapped text.
+  import LinkPreview from './LinkPreview.svelte';
 
   let { text }: { text: string } = $props();
 
-  // Split on URLs, trimming trailing punctuation that's clearly not part of the
-  // link (e.g. a period or closing paren at the end of a sentence).
-  const parts = $derived.by(() => {
-    const out: { url: boolean; value: string }[] = [];
-    const re = /(https?:\/\/[^\s]+)/g;
-    let last = 0;
+  type Node = { t: 'text'; v: string } | { t: 'link'; label: string; url: string };
+
+  const parsed = $derived.by(() => {
+    const nodes: Node[] = [];
+    const links: string[] = [];
+    const seen = new Set<string>();
+
+    // Pass 1: split out markdown links so they survive as inline hyperlinks.
+    const MD = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    const segments: ({ md: { label: string; url: string } } | { text: string })[] = [];
+    let i = 0;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-      let raw = m[0];
-      let trailing = '';
-      const tm = raw.match(/[).,;:!?\]]+$/);
-      if (tm) { trailing = tm[0]; raw = raw.slice(0, -trailing.length); }
-      if (m.index > last) out.push({ url: false, value: text.slice(last, m.index) });
-      out.push({ url: true, value: raw });
-      if (trailing) out.push({ url: false, value: trailing });
-      last = m.index + m[0].length;
+    while ((m = MD.exec(text)) !== null) {
+      if (m.index > i) segments.push({ text: text.slice(i, m.index) });
+      segments.push({ md: { label: m[1], url: m[2] } });
+      i = m.index + m[0].length;
     }
-    if (last < text.length) out.push({ url: false, value: text.slice(last) });
-    return out;
+    if (i < text.length) segments.push({ text: text.slice(i) });
+
+    // Pass 2: in the plain-text segments, lift bare URLs into the links section.
+    for (const seg of segments) {
+      if ('md' in seg) {
+        nodes.push({ t: 'link', label: seg.md.label, url: seg.md.url });
+        continue;
+      }
+      const URL_RE = /(https?:\/\/[^\s)]+)/g;
+      let last = 0;
+      let rebuilt = '';
+      let um: RegExpExecArray | null;
+      while ((um = URL_RE.exec(seg.text)) !== null) {
+        let raw = um[0];
+        let trailing = '';
+        const tm = raw.match(/[).,;:!?\]]+$/);
+        if (tm) { trailing = tm[0]; raw = raw.slice(0, -trailing.length); }
+        rebuilt += seg.text.slice(last, um.index) + trailing; // keep surrounding text, drop the URL
+        if (!seen.has(raw)) { seen.add(raw); links.push(raw); }
+        last = um.index + um[0].length;
+      }
+      rebuilt += seg.text.slice(last);
+      nodes.push({ t: 'text', v: rebuilt });
+    }
+
+    // Tidy whitespace left where URLs were removed (trailing spaces, blank lines).
+    for (const n of nodes) {
+      if (n.t === 'text') n.v = n.v.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    }
+    if (nodes.length && nodes[0].t === 'text') nodes[0].v = nodes[0].v.replace(/^\s+/, '');
+    const lastN = nodes[nodes.length - 1];
+    if (lastN && lastN.t === 'text') lastN.v = lastN.v.replace(/\s+$/, '');
+
+    const hasProse = nodes.some((n) => (n.t === 'text' ? n.v.trim() !== '' : true));
+    return { nodes, links, hasProse };
   });
-
-  function hostOf(u: string): string {
-    try { return new URL(u).hostname; } catch { return ''; }
-  }
-  function label(u: string): string {
-    try { return prettyUrl(new URL(u)); } catch { return u; }
-  }
-  const favicon = (host: string) => `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
-
-  // URLs whose favicon failed to load (offline / blocked) → fall back to a glyph.
-  let noFav = $state<Set<string>>(new Set());
 </script>
 
-<span style="overflow-wrap:anywhere; word-break:break-word; white-space:pre-wrap;">{#each parts as part}{#if part.url}<a
-        href={part.value}
+{#if parsed.hasProse}<p
+    class="m-0"
+    style="overflow-wrap:anywhere; word-break:break-word; white-space:pre-wrap;"
+  >{#each parsed.nodes as n}{#if n.t === 'text'}{n.v}{:else}<a
+        href={n.url}
         target="_blank"
         rel="noopener noreferrer"
         onclick={(e) => e.stopPropagation()}
-        class="mx-0.5 inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1 align-middle text-[13px] no-underline"
-        style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-accent); vertical-align: middle;"
-      >{#if noFav.has(part.value)}<svg class="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>{:else}<img
-            src={favicon(hostOf(part.value))}
-            alt=""
-            class="h-4 w-4 shrink-0 rounded-sm"
-            onerror={() => { const s = new Set(noFav); s.add(part.value); noFav = s; }}
-          />{/if}<span class="truncate">{label(part.value)}</span></a>{:else}{part.value}{/if}{/each}</span>
+        class="underline decoration-1 underline-offset-2"
+        style="color: var(--sempa-accent);"
+      >{n.label}</a>{/if}{/each}</p>{/if}
+
+{#if parsed.links.length}
+  <div class="mt-3 flex flex-col gap-2">
+    {#each parsed.links as url (url)}
+      <LinkPreview {url} />
+    {/each}
+  </div>
+{/if}

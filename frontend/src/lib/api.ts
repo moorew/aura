@@ -10,6 +10,7 @@ import type {
   FastmailEmail,
   GmailIntegrationConfig,
   JiraIntegrationConfig,
+  LinkUnfurl,
   Objective,
   PomodoroSession,
   SyncResult,
@@ -206,6 +207,10 @@ const httpApi = {
     nativeFinalize: (linkToken: string) =>
       req<{ status: string; token?: string }>('/api/v1/auth/native/finalize', { method: 'POST', body: body({ link_token: linkToken }) }),
   },
+
+  // Open Graph link preview for a URL (server-fetched + cached).
+  unfurl: (url: string) =>
+    req<LinkUnfurl>(`/api/v1/unfurl?url=${encodeURIComponent(url)}`),
 
   tasks: {
     listByDate:   (date: string)        => req<Task[]>(`/api/v1/tasks?date=${date}`),
