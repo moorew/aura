@@ -75,7 +75,7 @@
   class="group relative flex flex-col gap-2 rounded-[10px] shadow-sm cursor-grab
          active:cursor-grabbing active:scale-[0.98] active:shadow-none
          transition-all duration-100 hover:shadow-md min-h-[44px]"
-  style="padding: 9px 10px; background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);"
+  style="padding: 9px 10px; background: var(--card-bg); border: 1px solid var(--card-border);"
 >
   <div class="flex items-start gap-2">
     <!-- Quick-complete — 44×44 tap target on mobile, compact on desktop so the
@@ -125,7 +125,7 @@
                 {mobile.value
                   ? 'shrink-0 opacity-100'
                   : 'absolute right-1.5 top-1.5 z-10 rounded-md shadow-sm opacity-0 group-hover:opacity-100'}"
-         style={mobile.value ? '' : 'background: var(--sempa-bg-panel); padding: 1px;'}>
+         style={mobile.value ? '' : 'background: var(--card-bg); padding: 1px;'}>
       {#if onFocusMode && !isDone}
         <button onclick={(e) => { e.stopPropagation(); onFocusMode?.(task.id); }}
                 class="{mobile.value ? 'h-[44px] w-[44px] flex items-center justify-center' : 'rounded p-1'}

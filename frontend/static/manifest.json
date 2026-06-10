@@ -6,10 +6,11 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#181310",
-  "theme_color": "#1d1510",
+  "theme_color": "#b3592e",
   "icons": [
-    { "src": "/android-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/android-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/android-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

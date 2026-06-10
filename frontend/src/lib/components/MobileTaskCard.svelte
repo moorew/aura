@@ -99,7 +99,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
     class="relative flex items-start gap-3 rounded-xl border p-3.5"
-    style="background: var(--sempa-bg-panel); border-color: var(--sempa-border);
+    style="background: var(--card-bg); border-color: var(--card-border);
            transform: translateX({deltaX}px);
            transition: {swiping ? 'none' : 'transform 200ms ease-out'};"
     ontouchstart={handleTouchStart}

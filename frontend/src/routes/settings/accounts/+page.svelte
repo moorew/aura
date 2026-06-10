@@ -609,8 +609,16 @@
     {/if}
 
     <!-- ── Email & Calendar ──────────────────────────────────────── -->
-    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
-     text-transform:uppercase; color:var(--sempa-text-dim)">Email & Calendar</p>
+    <div class="mb-3 flex items-center justify-between">
+      <p style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
+         text-transform:uppercase; color:var(--sempa-text-dim)">Email & Calendar</p>
+      <a href="/settings/calendars" class="flex items-center gap-1 text-xs font-medium transition-colors" style="color: var(--sempa-accent);">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/>
+        </svg>
+        Manage calendars
+      </a>
+    </div>
 
     <!-- ── Gmail ─────────────────────────────────────────────────── -->
     <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">

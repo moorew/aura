@@ -2,6 +2,7 @@
   import { api } from '$lib/api';
   import type { ICalEvent, Task } from '$lib/types';
   import { formatMinutes, today as getToday } from '$lib/utils';
+  import { calendars, calFg, calBg } from '$lib/stores/calendars.svelte';
 
   let {
     date,
@@ -28,28 +29,12 @@
   let nowPx       = $state<number | null>(null);
 
   // ── Calendar show/hide ──────────────────────────────────────────────────────
-  // Which calendar keys (subscription_id) the user has hidden. Persisted so the
-  // choice sticks across days/sessions. Default = everything visible.
-  const HIDDEN_KEY = 'sempa_hidden_calendars';
-  let hidden = $state<Set<string>>(new Set(loadHidden()));
+  // Visibility + brand colour live in the shared `calendars` store (also driven
+  // by the Calendars settings tab), so toggling there updates the schedule live.
   let showFilter = $state(false);
 
-  function loadHidden(): string[] {
-    if (typeof localStorage === 'undefined') return [];
-    try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]'); } catch { return []; }
-  }
-  function persistHidden() {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
-  }
-  function toggleCalendar(key: string) {
-    const next = new Set(hidden);
-    next.has(key) ? next.delete(key) : next.add(key);
-    hidden = next;
-    persistHidden();
-  }
-
   // Distinct calendars present in the current day's events (key + label + colour).
-  const calendars = $derived.by(() => {
+  const eventCalendars = $derived.by(() => {
     const map = new Map<string, { key: string; name: string; color: string }>();
     for (const ev of icalEvents) {
       if (!map.has(ev.subscription_id)) {
@@ -63,7 +48,13 @@
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  const visibleEvents = $derived(icalEvents.filter(ev => !ev.all_day && !hidden.has(ev.subscription_id)));
+  const visibleEvents = $derived(icalEvents.filter(ev => !ev.all_day && !calendars.isHidden(ev.subscription_id)));
+
+  // Past events fade out (today only) when the "Dim past events" pref is on.
+  function isPast(iso: string): boolean {
+    if (!calendars.display.dimPastEvents || date !== getToday()) return false;
+    return new Date(iso).getTime() < Date.now();
+  }
 
   function updateNow() {
     if (date !== getToday()) { nowPx = null; return; }
@@ -200,9 +191,11 @@
     ghostHour = null;
   }
 
-  function taskColor(task: Task): string {
-    if (task.source === 'google_calendar') return 'bg-purple-100 border-purple-300 text-purple-700 dark:bg-purple-950/60 dark:border-purple-700 dark:text-purple-300';
-    return 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300';
+  // Scheduled task blocks take the on-brand terracotta; calendar-sourced ones use
+  // sage so they read as "from a calendar" without falling back to cold blue.
+  function taskCal(task: Task): { fg: string; bg: string } {
+    const key = task.source === 'google_calendar' ? 'sage' : 'terracotta';
+    return { fg: calFg(key), bg: calBg(key) };
   }
 
   function blockLabel(task: Task): string {
@@ -220,29 +213,41 @@
       <p class="text-[10.5px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-600">
         Schedule — drag tasks to place them
       </p>
-      {#if calendars.length > 0}
-        <button onclick={() => showFilter = !showFilter}
-                class="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium transition-colors"
-                style="color: var(--sempa-text-dim); {showFilter ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);' : ''}"
-                title="Show or hide calendars">
+      <div class="flex shrink-0 items-center gap-1">
+        {#if eventCalendars.length > 0}
+          <button onclick={() => showFilter = !showFilter}
+                  class="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium transition-colors"
+                  style="color: var(--sempa-text-dim); {showFilter ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);' : ''}"
+                  title="Show or hide calendars">
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/>
+            </svg>
+            Calendars
+          </button>
+        {/if}
+        <a href="/settings/calendars"
+           class="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium transition-colors"
+           style="color: var(--sempa-text-dim);"
+           title="Calendar settings">
           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/>
+            <circle cx="12" cy="12" r="3"/><path stroke-linecap="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          Calendars
-        </button>
-      {/if}
+          Settings
+        </a>
+      </div>
     </div>
 
-    {#if showFilter && calendars.length > 0}
+    {#if showFilter && eventCalendars.length > 0}
       <div class="mt-2 flex flex-col gap-1.5">
-        {#each calendars as cal (cal.key)}
-          {@const isHidden = hidden.has(cal.key)}
-          <button onclick={() => toggleCalendar(cal.key)}
+        {#each eventCalendars as cal (cal.key)}
+          {@const isHidden = calendars.isHidden(cal.key)}
+          {@const fg = calFg(calendars.colorKey(cal.key))}
+          <button onclick={() => calendars.toggleHidden(cal.key)}
                   class="flex items-center gap-2 text-left transition-opacity"
                   style="opacity: {isHidden ? 0.4 : 1};"
                   title={isHidden ? 'Show this calendar' : 'Hide this calendar'}>
             <span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px]"
-                  style="background: {isHidden ? 'transparent' : cal.color}; border: 1.5px solid {cal.color};">
+                  style="background: {isHidden ? 'transparent' : fg}; border: 1.5px solid {fg};">
               {#if !isHidden}
                 <svg class="h-2 w-2 text-white" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
@@ -277,22 +282,23 @@
 
       <!-- Ghost drop line -->
       {#if dragOver && ghostHour !== null}
-        <div class="absolute left-0 right-0 border-t-2 border-dashed border-blue-400 z-10 pointer-events-none"
-             style="top: {(ghostHour - START_HOUR) * HOUR_PX}px;">
+        <div class="absolute left-0 right-0 border-t-2 border-dashed z-10 pointer-events-none"
+             style="top: {(ghostHour - START_HOUR) * HOUR_PX}px; border-color: var(--sempa-accent);">
         </div>
       {/if}
 
-      <!-- Current time indicator -->
+      <!-- Current time indicator — brand accent, not red (7px dot + 1.5px rule) -->
       {#if nowPx !== null}
         <div class="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
              style="top: {nowPx}px;">
-          <div class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" style="margin-left: -5px;"></div>
-          <div class="h-px flex-1 bg-red-500/70"></div>
+          <div class="shrink-0 rounded-full" style="width:7px; height:7px; margin-left:-3.5px; background: var(--sempa-accent);"></div>
+          <div class="flex-1" style="height:1.5px; background: var(--sempa-accent);"></div>
         </div>
       {/if}
 
-      <!-- ICS / external calendar events (read-only). Concurrent events are
-           laid out in side-by-side columns; hidden calendars are filtered. -->
+      <!-- ICS / external calendar events (read-only). On-brand left-border accent
+           + tinted background; concurrent events lay out side-by-side, hidden
+           calendars are filtered, past events dim when that pref is on. -->
       {#each visibleEvents as ev (ev.id)}
         {@const s = new Date(ev.start_time)}
         {@const e = new Date(ev.end_time)}
@@ -300,27 +306,27 @@
         {@const endH   = e.getHours() + e.getMinutes() / 60}
         {@const top    = Math.max(0, (startH - START_HOUR) * HOUR_PX)}
         {@const height = Math.max(20, (endH - startH) * HOUR_PX)}
-        <div class="absolute rounded-lg border px-2 py-1 pointer-events-none overflow-hidden opacity-90"
-             style="top:{top}px; height:{height}px; {colStyle('e:' + ev.id)} background:{ev.color}22; border-color:{ev.color}55; color:{ev.color};"
+        {@const key    = calendars.colorKey(ev.subscription_id)}
+        <div class="cal-event absolute pointer-events-none overflow-hidden"
+             style="top:{top}px; height:{height}px; {colStyle('e:' + ev.id)} --cal-fg:{calFg(key)}; --cal-bg:{calBg(key)}; opacity:{isPast(ev.end_time) ? 0.5 : 1};"
              title={ev.calendar ? ev.summary + ' · ' + ev.calendar : ev.summary}>
-          <p class="text-[10.5px] font-medium leading-tight truncate">{ev.summary}</p>
+          <p class="title leading-tight truncate">{ev.summary}</p>
         </div>
       {/each}
 
-      <!-- Scheduled task blocks -->
+      <!-- Scheduled task blocks — on-brand terracotta / sage -->
       {#each scheduled as task (task.id)}
         {@const style = blockStyle(task)}
+        {@const cal   = taskCal(task)}
         {#if style}
           <button
-            class="absolute rounded-lg border px-2 py-1 text-left
-                   overflow-hidden cursor-pointer hover:brightness-95 transition-all
-                   {taskColor(task)}"
-            style="top: {style.top}; height: {style.height}; {colStyle('t:' + task.id)}"
+            class="cal-event absolute text-left overflow-hidden cursor-pointer hover:brightness-95 transition-all"
+            style="top: {style.top}; height: {style.height}; {colStyle('t:' + task.id)} --cal-fg:{cal.fg}; --cal-bg:{cal.bg}; opacity:{isPast(task.scheduled_end ?? task.scheduled_start!) ? 0.55 : 1};"
             onclick={() => onUnschedule?.(task.id)}
             title="Click to unschedule">
-            <p class="text-[10.5px] font-medium leading-tight truncate">{blockLabel(task)}</p>
+            <p class="title leading-tight truncate">{blockLabel(task)}</p>
             {#if task.time_estimate_minutes}
-              <p class="text-[10.5px] opacity-70">{formatMinutes(task.time_estimate_minutes)}</p>
+              <p class="time">{formatMinutes(task.time_estimate_minutes)}</p>
             {/if}
           </button>
         {/if}

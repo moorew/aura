@@ -101,9 +101,20 @@
   --sempa-today-fg:  #f7f3eb;
   --sempa-btn-bg:    #b3592e;
   --sempa-btn-fg:    #f7f3eb;
-  --sempa-success:      #4a8a55;
-  --sempa-success-soft: rgba(74,138,85,0.12);
+  --sempa-success:      #4d8a5a;
+  --sempa-success-soft: rgba(77,138,90,0.12);
   --sempa-success-bg:   #f0f7f1;
+
+  /* Task-card surface — neutral white body + hairline border in light mode, so
+     warmth comes from the accents (today pill, dots, badges), not the card fill. */
+  --card-bg:     #ffffff;
+  --card-border: #e6ded2;
+
+  /* Curated on-brand calendar/schedule event colours (left-border + tinted bg). */
+  --cal-terracotta-fg: #b3592e;  --cal-terracotta-bg: #fdf4ef;
+  --cal-stone-fg:      #7a6a5e;  --cal-stone-bg:      #f0ece3;
+  --cal-sage-fg:       #4d8a5a;  --cal-sage-bg:       #e8f0ea;
+  --cal-amber-fg:      #9a7340;  --cal-amber-bg:      #faf3e8;
 
   /* ── Type scale (theme-independent) ──────────────────────────────────────
    * One role per text element across every screen. See the .type-* utility
@@ -145,7 +156,41 @@
   --sempa-success:      #5e9e6b;
   --sempa-success-soft: rgba(94,158,107,0.12);
   --sempa-success-bg:   #1a2a1e;
+
+  --card-bg:     #1f1813;
+  --card-border: #2e2016;
+
+  --cal-terracotta-fg: #cc6e3a;  --cal-terracotta-bg: #2d1d12;
+  --cal-stone-fg:      #b8a89a;  --cal-stone-bg:      #1d1510;
+  --cal-sage-fg:       #5e9e6b;  --cal-sage-bg:       #1a2a1e;
+  --cal-amber-fg:      #da9f62;  --cal-amber-bg:      #2a2010;
 }
+
+/* ── Task card / day-bar / calendar-event primitives (FIX pass) ──────────── */
+.task-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+}
+.day-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sempa-border);
+  overflow: hidden;
+}
+.day-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 300ms ease;
+}
+.cal-event {
+  background: var(--cal-bg);
+  border-left: 3px solid var(--cal-fg);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.cal-event .title { color: var(--cal-fg); font-weight: 600; font-size: 11px; }
+.cal-event .time  { color: var(--sempa-text-dim); font-size: 10px; }
 
 /* ── Sempa animation library ─────────────────────────────────────────────── */
 @keyframes sempa-fade-in    { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }

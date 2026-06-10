@@ -46,25 +46,17 @@
   const done   = $derived(tasks.filter(t => t.status === 'done').sort(compareTasksForDay));
   let showDone = $state(false);
 
-  const CAPACITY_MINS = 8 * 60;
-  const estimateMins = $derived(
-    tasks.filter(t => t.status !== 'cancelled').reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0)
-  );
-  const fillPct    = $derived(Math.min((estimateMins / CAPACITY_MINS) * 100, 100));
-  const overloaded = $derived(estimateMins > CAPACITY_MINS);
-  const nearFull   = $derived(!overloaded && estimateMins > CAPACITY_MINS * 0.75);
-
-  const segments = $derived(
-    estimateMins === 0 ? [] :
-    tasks
-      .filter(t => t.status !== 'cancelled' && t.time_estimate_minutes)
-      .sort((a, b) => a.position - b.position)
-      .map(t => ({
-        pct: (t.time_estimate_minutes! / estimateMins) * fillPct,
-        color: t.status === 'done' ? 'var(--sempa-success)'
-             : t.status === 'in_progress' ? '#f59e0b'
-             : 'var(--sempa-accent)',
-      }))
+  // ── Day progress: one clear metric — time worked vs time planned ──────────
+  // Planned = sum of estimates; worked = sum of logged actuals. The bar fills
+  // worked/planned. Three states drive the labels below (unstarted / in
+  // progress / complete) so there's never a green+amber mix.
+  const active2     = $derived(tasks.filter(t => t.status !== 'cancelled'));
+  const plannedMins = $derived(active2.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
+  const workedMins  = $derived(active2.reduce((s, t) => s + (t.time_actual_minutes  ?? 0), 0));
+  const dayComplete = $derived(active2.length > 0 && active2.every(t => t.status === 'done'));
+  const dayStarted  = $derived(!dayComplete && workedMins > 0);
+  const barPct      = $derived(
+    dayComplete ? 100 : plannedMins === 0 ? 0 : Math.min((workedMins / plannedMins) * 100, 100)
   );
 
   function fmtCapacity(mins: number): string {
@@ -128,22 +120,22 @@
     {/if}
   </div>
 
-  <!-- Capacity bar -->
-  {#if estimateMins > 0}
+  <!-- Day progress bar — single metric: time worked vs time planned -->
+  {#if plannedMins > 0}
     <div class="mb-2 px-1">
-      <div class="flex items-center gap-1.5">
-        <div class="h-1 flex-1 flex overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-          {#each segments as seg}
-            <div class="h-full transition-all duration-300"
-                 style="width: {seg.pct}%; background: {overloaded ? '#f87171' : seg.color}; opacity: 0.85;"></div>
-          {/each}
-        </div>
-        <span class="min-w-[28px] text-right text-[10.5px] tabular-nums
-                     {overloaded ? 'text-red-500 dark:text-red-400 font-semibold'
-                       : nearFull ? 'text-amber-500 dark:text-amber-400'
-                       : 'text-gray-400 dark:text-gray-600'}">
-          {fmtCapacity(estimateMins)}
-        </span>
+      <div class="day-bar-track">
+        <div class="day-bar-fill"
+             style="width: {barPct}%; background: {dayComplete ? 'var(--sempa-success)' : 'var(--sempa-accent)'};"></div>
+      </div>
+      <div class="mt-1 flex items-center justify-between text-[10px] tabular-nums">
+        {#if dayComplete}
+          <span style="color: var(--sempa-success);">{fmtCapacity(workedMins || plannedMins)} done</span>
+        {:else if dayStarted}
+          <span style="color: var(--sempa-accent);">{fmtCapacity(workedMins)} done</span>
+          <span style="color: var(--sempa-text-dim);">{fmtCapacity(Math.max(plannedMins - workedMins, 0))} left</span>
+        {:else}
+          <span style="color: var(--sempa-text-dim);">{fmtCapacity(plannedMins)} planned</span>
+        {/if}
       </div>
     </div>
   {/if}
