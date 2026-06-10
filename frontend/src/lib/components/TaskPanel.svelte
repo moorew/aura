@@ -254,6 +254,44 @@
 </script>
 
 {#snippet panelContent()}
+    {#if mobile.value && !inline}
+      <!-- Mobile action bar at the TOP of the sheet. The bottom of these sheets is
+           unreliable on this Android WebView (the soft keyboard / layout-vs-visual
+           viewport split kept hiding a bottom footer), so the primary actions live
+           in the header — which is always on screen (top: 40px) no matter what. -->
+      <div class="flex shrink-0 items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+        <button onclick={onClose}
+                class="-ml-1 shrink-0 rounded-lg px-2 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+          Cancel
+        </button>
+        <h2 class="flex-1 truncate text-center text-sm font-semibold text-gray-800 dark:text-gray-100">
+          {isEdit ? 'Edit task' : 'New task'}
+        </h2>
+        <div class="flex shrink-0 items-center gap-1">
+          {#if isEdit && task}
+            {#if deleteConfirm}
+              <button onclick={async () => { await api.tasks.delete(task!.id); onSave({ ...task!, status: 'cancelled' } as Task); }}
+                      class="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-500"
+                      style="background: color-mix(in srgb, #ef4444 12%, transparent);">
+                Delete
+              </button>
+            {:else}
+              <button onclick={() => deleteConfirm = true} aria-label="Delete task"
+                      class="rounded-lg p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500">
+                <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                </svg>
+              </button>
+            {/if}
+          {/if}
+          <button onclick={handleSubmit} disabled={!title.trim() || saving}
+                  class="rounded-lg bg-blue-500 px-3.5 py-1.5 text-sm font-medium text-white
+                         disabled:opacity-40 disabled:cursor-not-allowed">
+            {saving ? 'Saving…' : isEdit ? 'Save' : recurrenceRule ? 'Create' : 'Add'}
+          </button>
+        </div>
+      </div>
+    {:else}
     <!-- Header -->
     <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800">
       <div>
@@ -278,6 +316,7 @@
         </svg>
       </button>
     </div>
+    {/if}
 
     <!-- Body -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -546,12 +585,11 @@
 
     </div>
 
-    <!-- Footer — keyboard-safe bottom padding on mobile (FIX 5) -->
-    <!-- shrink-0: in the height-capped mobile sheet the footer must never be
-         compressed/pushed out — the body (flex-1, scrolls) absorbs all the
-         height pressure, so Save/Cancel stay reachable even with a long form. -->
-    <div class="flex shrink-0 items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800"
-         style={mobile.value && !inline ? 'padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));' : ''}>
+    <!-- Footer — desktop / inline only. On the mobile sheet the actions live in
+         the top action bar (the bottom of the sheet is unreliable behind the
+         Android soft keyboard), so this footer is suppressed there. -->
+    {#if !(mobile.value && !inline)}
+    <div class="flex shrink-0 items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-gray-800">
       {#if isEdit && task}
         {#if deleteConfirm}
           <div class="flex items-center gap-2">
@@ -591,6 +629,7 @@
         </button>
       </div>
     </div>
+    {/if}
 {/snippet}
 
 {#if open}
