@@ -8,6 +8,7 @@
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import SempaDatePicker from '$lib/components/ui/SempaDatePicker.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
+  import { viewport } from '$lib/stores/viewport.svelte';
   import { dismissibleSheet } from '$lib/actions/sheet';
   import { hapticTick } from '$lib/haptics';
 
@@ -148,7 +149,11 @@
       selectedObjectiveId = null;
     }
     tagSearch = ''; tagDropdownOpen = false; error = '';
-    setTimeout(() => titleInput?.focus(), 30);
+    // Don't auto-open the soft keyboard on mobile: this device doesn't honour
+    // adjustResize, so the keyboard overlays the bottom of the sheet and hides
+    // the Save button. The user taps the title to start editing. Desktop keeps
+    // the focus-on-open convenience.
+    if (!mobile.value) setTimeout(() => titleInput?.focus(), 30);
 
     // Load objectives for the current week
     const dateForWeek = task?.planned_date ?? defaultDate;
@@ -610,6 +615,8 @@
          style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
                 top: max(40px, env(safe-area-inset-top, 0px));
                 bottom: 0;
+                padding-bottom: {viewport.keyboardHeight}px;
+                transition: padding-bottom 180ms ease-out;
                 animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
          use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
       <!-- Drag handle -->

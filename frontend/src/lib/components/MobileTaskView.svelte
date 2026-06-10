@@ -5,6 +5,7 @@
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { hapticClick, hapticTick } from '$lib/haptics';
   import { dismissibleSheet } from '$lib/actions/sheet';
+  import { viewport } from '$lib/stores/viewport.svelte';
   import SubTaskList from './SubTaskList.svelte';
 
   let {
@@ -63,6 +64,8 @@
        style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
               top: max(40px, env(safe-area-inset-top, 0px));
               bottom: 0;
+              padding-bottom: {viewport.keyboardHeight}px;
+              transition: padding-bottom 180ms ease-out;
               animation: task-view-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
        use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', threshold: 90, onDismissHaptic: hapticTick }}>
 
