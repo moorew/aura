@@ -8,7 +8,6 @@
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import SempaDatePicker from '$lib/components/ui/SempaDatePicker.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
-  import { viewport } from '$lib/stores/viewport.svelte';
   import { dismissibleSheet } from '$lib/actions/sheet';
   import { hapticTick } from '$lib/haptics';
 
@@ -599,16 +598,18 @@
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
          onclick={onClose}></div>
-    <!-- The cap is computed in CSS off the LIVE layout viewport (100%) rather
-         than a JS-tracked visualViewport height, which on Android can get stuck
-         at the keyboard-open value when the dismiss never fires a resize event —
-         that left the sheet frozen at half height with Save unreachable. -->
+    <!-- Definite height anchored top+bottom to the VIEWPORT (no transformed
+         ancestor here, verified) instead of a JS visualViewport height. The old
+         approach sized off viewport.keyboardHeight, which on Android got stuck at
+         the keyboard-open value and left the sheet frozen at half screen with
+         Save unreachable. With top/bottom the browser sizes the sheet from the
+         live layout viewport (which adjustResize shrinks/restores with the
+         keyboard), the body scrolls, and the footer is always reachable. -->
     <div role="dialog" aria-modal="true" aria-label="{isEdit ? 'Edit task' : 'New task'}"
          class="fixed left-0 right-0 z-50 flex flex-col shadow-2xl"
          style="border-radius: 20px 20px 0 0; background: var(--sempa-bg-panel);
-                bottom: {viewport.keyboardHeight}px;
-                max-height: calc(100% - max(40px, env(safe-area-inset-top, 0px)) - {viewport.keyboardHeight}px);
-                transition: bottom 180ms ease-out;
+                top: max(40px, env(safe-area-inset-top, 0px));
+                bottom: 0;
                 animation: sempa-sheet-up 320ms cubic-bezier(0.32, 0.72, 0, 1) both;"
          use:dismissibleSheet={{ onClose, scrollSelector: '[data-sheet-scroll]', onDismissHaptic: hapticTick }}>
       <!-- Drag handle -->
