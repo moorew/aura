@@ -115,6 +115,7 @@ export interface ICalSubscription {
 export interface ICalEvent {
   id: string;
   subscription_id: string;
+  calendar?: string;
   uid: string;
   summary: string;
   description?: string;

@@ -71,15 +71,16 @@ func ReadCalendarEvents(ctx context.Context, c *Client, dateFrom, dateTo string)
 				}
 				seen[ev.UID] = true
 				out = append(out, db.FastmailCalEvent{
-					ID:          ev.UID,
-					UID:         ev.UID,
-					Summary:     ev.Summary,
-					Description: ev.Description,
-					Location:    ev.Location,
-					StartTime:   ev.StartTime,
-					EndTime:     ev.EndTime,
-					AllDay:      ev.AllDay,
-					Color:       color,
+					ID:           ev.UID,
+					UID:          ev.UID,
+					Summary:      ev.Summary,
+					Description:  ev.Description,
+					Location:     ev.Location,
+					StartTime:    ev.StartTime,
+					EndTime:      ev.EndTime,
+					AllDay:       ev.AllDay,
+					Color:        color,
+					CalendarName: cal.Name,
 				})
 			}
 		}

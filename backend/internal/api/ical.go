@@ -78,14 +78,33 @@ func (h *icalHandler) listEventsForDate(w http.ResponseWriter, r *http.Request) 
 		events = []db.ICalEvent{}
 	}
 
-	// Merge Fastmail calendar events when the integration is enabled
+	// Tag each subscription event with its feed's display name so the client
+	// can group/show/hide by calendar.
+	if subs, err := h.store.ListSubscriptions(r.Context()); err == nil {
+		names := make(map[string]string, len(subs))
+		for _, s := range subs {
+			names[s.ID] = s.Name
+		}
+		for i := range events {
+			events[i].Calendar = names[events[i].SubscriptionID]
+		}
+	}
+
+	// Merge Fastmail calendar events when the integration is enabled. Each
+	// Fastmail calendar becomes its own selectable "calendar" via a stable
+	// subscription_id of fastmail:<calendar name>.
 	if h.fmCalStore != nil && h.configs != nil {
 		if cfg, err := h.configs.Get(r.Context(), "fastmail_calendar"); err == nil && cfg.Enabled {
 			fmEvents, _ := h.fmCalStore.ListEventsForDate(r.Context(), date)
 			for _, ev := range fmEvents {
+				calName := ev.CalendarName
+				if calName == "" {
+					calName = "Fastmail"
+				}
 				events = append(events, db.ICalEvent{
 					ID:             "fm:" + ev.ID,
-					SubscriptionID: "fastmail",
+					SubscriptionID: "fastmail:" + calName,
+					Calendar:       calName,
 					UID:            ev.UID,
 					Summary:        ev.Summary,
 					Description:    ev.Description,

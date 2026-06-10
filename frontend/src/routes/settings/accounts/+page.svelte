@@ -202,10 +202,16 @@
     finally { icalAdding = false; }
   }
 
+  let icalUrlInput = $state<HTMLInputElement | undefined>();
+
+  // Toggle the add-feed form. Clicking "+ Add feed" again closes it; opening it
+  // focuses the URL field so the click always has a visible effect.
   async function openIcalForm() {
-    showIcalForm = true;
+    showIcalForm = !showIcalForm;
+    if (!showIcalForm) { icalError = ''; return; }
     await tick();
     icalFormEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    icalUrlInput?.focus();
   }
 
   async function removeIcalSub(id: string) {
@@ -1055,8 +1061,8 @@
         </div>
         <button onclick={openIcalForm}
                 class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-                style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-          + Add feed
+                style="border-color: var(--sempa-border); color: {showIcalForm ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};">
+          {showIcalForm ? 'Close' : '+ Add feed'}
         </button>
       </div>
 
@@ -1097,7 +1103,7 @@
             <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-url">
               ICS / Webcal URL <span class="text-red-400">*</span>
             </label>
-            <input id="ical-url" type="url" inputmode="url" bind:value={icalUrl}
+            <input id="ical-url" type="url" inputmode="url" bind:value={icalUrl} bind:this={icalUrlInput}
                    autocomplete="off" autocapitalize="none" spellcheck="false"
                    placeholder="https://example.com/calendar.ics  or  webcal://..."
                    class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
