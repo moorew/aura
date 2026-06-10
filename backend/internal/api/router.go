@@ -98,6 +98,7 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 		configs:    configStore,
 	}
 	devices := &deviceHandler{store: db.NewDeviceTokenStore(database)}
+	unfurls := &unfurlHandler{store: db.NewUnfurlStore(database)}
 	integrations := &integrationHandler{
 		configs:    configStore,
 		tasks:      db.NewTaskStore(database),
@@ -144,6 +145,9 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 			r.Use(auth.requireAuth)
 
 			r.Get("/events", hub.ServeSSE)
+
+			// Link preview / Open Graph unfurl for URLs in task notes.
+			r.Get("/unfurl", unfurls.get)
 
 			// Offline sync: pull all changes since a cursor (created/updated/deleted)
 			r.Get("/sync/changes", syncH.changes)

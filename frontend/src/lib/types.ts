@@ -281,3 +281,16 @@ export interface FastmailEmail {
   preview: string;
   is_unread: boolean;
 }
+
+// Open Graph / link-preview metadata for a URL, returned by GET /api/v1/unfurl.
+// `ok` is false when no usable metadata was found (client falls back to a chip).
+export interface LinkUnfurl {
+  url: string;
+  title: string;
+  description: string;
+  image_url: string;
+  site_name: string;
+  favicon_url: string;
+  ok: boolean;
+  fetched_at: string;
+}
