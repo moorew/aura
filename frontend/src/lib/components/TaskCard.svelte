@@ -77,13 +77,15 @@
          transition-all duration-100 hover:shadow-md min-h-[44px]"
   style="padding: 9px 10px; background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);"
 >
-  <div class="flex items-start gap-1.5">
-    <!-- Quick-complete — 44×44 tap target wrapping a 16×16 visual circle (FIX 3) -->
+  <div class="flex items-start gap-2">
+    <!-- Quick-complete — 44×44 tap target on mobile, compact on desktop so the
+         title gets the full column width instead of being squashed (FIX 3) -->
     <button
       type="button"
       onclick={(e) => { e.stopPropagation(); hapticClick(); onComplete?.(task.id); }}
       title={isDone ? 'Completed' : 'Mark complete'}
-      class="shrink-0 flex items-center justify-center h-[44px] w-[44px] -ml-1 -my-1 cursor-pointer"
+      class="shrink-0 flex items-center justify-center cursor-pointer
+             {mobile.value ? 'h-[44px] w-[44px] -ml-1 -my-1' : 'h-[18px] w-[18px] mt-px'}"
       aria-label="Complete task"
     >
       <span class="flex h-4 w-4 items-center justify-center rounded-full border-2 transition-all
@@ -107,9 +109,14 @@
       </p>
     </div>
 
-    <!-- Hover/mobile actions (FIX 2) -->
-    <div class="flex shrink-0 items-center gap-0.5 transition-opacity
-                {mobile.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
+    <!-- Hover/mobile actions (FIX 2) — on desktop these overlay the card's
+         top-right corner (absolute) so they don't steal width from the title;
+         on mobile they stay inline with full-size touch targets. -->
+    <div class="flex items-center gap-0.5 transition-opacity
+                {mobile.value
+                  ? 'shrink-0 opacity-100'
+                  : 'absolute right-1.5 top-1.5 z-10 rounded-md shadow-sm opacity-0 group-hover:opacity-100'}"
+         style={mobile.value ? '' : 'background: var(--sempa-bg-panel); padding: 1px;'}>
       {#if onFocusMode && !isDone}
         <button onclick={(e) => { e.stopPropagation(); onFocusMode?.(task.id); }}
                 class="{mobile.value ? 'h-[44px] w-[44px] flex items-center justify-center' : 'rounded p-1'}
