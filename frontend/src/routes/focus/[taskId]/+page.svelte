@@ -6,6 +6,7 @@
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
   import { formatMinutes, today } from '$lib/utils';
   import SubTaskList from '$lib/components/SubTaskList.svelte';
+  import RichText from '$lib/components/RichText.svelte';
 
   let taskId  = $derived($page.params.taskId);
   let task    = $state<Task | null>(null);
@@ -92,8 +93,8 @@
       <!-- Description -->
       {#if task.description}
         <div class="mb-8 rounded-xl px-4 py-3" style="border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
-          <p class="text-sm leading-relaxed whitespace-pre-wrap" style="color: var(--sempa-text-soft);">
-            {task.description}
+          <p class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
+            <RichText text={task.description} />
           </p>
         </div>
       {/if}

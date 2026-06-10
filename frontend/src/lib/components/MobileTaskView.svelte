@@ -7,6 +7,7 @@
   import { dismissibleSheet } from '$lib/actions/sheet';
   import { viewport } from '$lib/stores/viewport.svelte';
   import SubTaskList from './SubTaskList.svelte';
+  import RichText from './RichText.svelte';
 
   let {
     open,
@@ -260,8 +261,8 @@
         <div class="py-4" style="border-bottom: 1px solid var(--sempa-border);">
           <p class="text-[11px] font-semibold uppercase tracking-wider mb-2"
              style="color: var(--sempa-text-dim);">Notes</p>
-          <p class="text-sm leading-relaxed whitespace-pre-wrap" style="color: var(--sempa-text-soft);">
-            {task.description}
+          <p class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
+            <RichText text={task.description} />
           </p>
         </div>
       {/if}
