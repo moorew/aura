@@ -19,7 +19,8 @@ type ICalSubscription struct {
 
 type ICalEvent struct {
 	ID             string `json:"id"`
-	SubscriptionID string `json:"subscription_id"`
+	SubscriptionID string `json:"subscription_id"`    // stable per-calendar key (used for show/hide)
+	Calendar       string `json:"calendar,omitempty"` // human display name of the source calendar
 	UID            string `json:"uid"`
 	Summary        string `json:"summary"`
 	Description    string `json:"description,omitempty"`
