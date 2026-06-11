@@ -15,8 +15,11 @@ Plan your day, track focused work, and end each day with intention — with your
 - **Weekly review** — set objectives, review what shipped, plan ahead
 - **Shutdown ritual** — guided end-of-day reflection
 - **Jira sync** — bi-directional: import assigned issues, mark done in Sempa to close the ticket
+- **Reminders & notifications** — per-task reminders delivered by Web Push, Android, or a webhook, with selectable alert sounds
 - **Recurring tasks** — daily, weekly, and monthly templates
 - **Keyboard shortcuts** — `n` new task, `t` today, `j/k` prev/next week, `?` help
+
+📖 **New here? Jump to the [User Guide](#user-guide) for how to use every feature.**
 
 ### Apps
 
@@ -226,6 +229,167 @@ The Android app and Windows desktop app connect to your self-hosted server:
 Both your phone and server must be on the same Tailscale network (or the server must be reachable from your phone's network).
 
 > **Tip:** Install Tailscale on your phone to access your server from anywhere, even on mobile data.
+
+---
+
+## User Guide
+
+Everything below is how to *use* Sempa day to day. Features work the same on web, the Windows desktop app, and Android, except where noted.
+
+### First run
+
+After signing in, a short setup wizard helps you connect email and calendar (all optional — you can skip and add them later in **Settings**). You land on **Today**.
+
+### Getting around
+
+- **Desktop / web:** a left sidebar with Today, Search, This Week, Plan Day, Email, Backlog, Shutdown, Journal, and Settings. A theme toggle (light/dark) sits at the bottom.
+- **Mobile:** a bottom tab bar — **Today**, **Week**, **Journal**, and **More** (which opens Search, Plan Day, Shutdown, Inbox, Backlog, and Settings). A **+** button creates a task on list screens.
+
+### Tasks
+
+The core unit. Open any task to edit it in a panel (desktop) or bottom sheet (mobile).
+
+- **Create:** the **+** button, the “Add task” box, or press `n` on a day view.
+- **Title & notes:** notes support pasted URLs, which render as tidy **link preview chips** (title, site, thumbnail) instead of raw links.
+- **Status:** `backlog → planned → in progress → done` (plus `cancelled`). On the week board you change status by dragging between columns; in a task you toggle it done with the checkbox.
+- **Due date & time estimate:** pick a due date with the styled date picker and an estimate (15 min – 8 h) used for planning.
+- **Tags:** type to add colour-coded tags; they show as coloured dots on compact cards.
+- **Sub-tasks:** break a task into a checklist of smaller items.
+- **Time-blocking:** give a task a scheduled start/end so it appears as a block on the Schedule panel next to your calendar events.
+- **“Roughly at”:** a soft time hint (e.g. “around 2pm”) that orders a task in the day without committing to a hard block.
+- **Reminders:** set **Remind me** (date + time) for a hard alert — see [Reminders & notifications](#reminders-notifications--routines).
+- **Attachments:** attach files to a task (or objective); stored on your server.
+
+Press `e` to edit the hovered task on a day view.
+
+### Plan your day
+
+**Plan Day** (`/plan`) is a guided morning ritual: write your **intention** for the day, see what carried over **from yesterday**, and pull tasks from your backlog into today. Your previous day’s note is shown for continuity.
+
+### Week view
+
+The **Week** board is a Kanban across the seven days. Drag tasks between days and statuses, set **Weekly Objectives** (the handful of outcomes that matter this week), and link tasks to an objective so progress is visible.
+
+### Weekly planning & review
+
+- **Plan the week:** review your backlog and schedule the week ahead. This is also surfaced automatically as a gentle in-app prompt (see Routines).
+- **Weekly review:** capture **Wins**, **Challenges**, and your **Next focus**. Reviews are saved per week and searchable.
+
+### Daily shutdown
+
+**Shutdown** (`/shutdown`) is an end-of-day ritual: tick off what’s done, **reschedule** anything unfinished, record a **win** and an optional reflection, and close the day cleanly. Like weekly planning, it can prompt you automatically at a time you choose.
+
+### Backlog
+
+A single list of everything not yet scheduled. Use it as your inbox of ideas and pull items into days as you plan.
+
+### Journal
+
+The **Journal** collects your daily **intentions** and **reflections** and your weekly **wins / challenges / next focus** in one timeline. You can have intentions and reflections also appear inline on the day and week screens (toggle in **Settings → Appearance**, “contextual reflections”).
+
+### Focus & Pomodoro
+
+Open a task in **Focus** mode to work distraction-free with a built-in **Pomodoro** timer. Completed sessions are logged per task, so you can see time actually spent vs. your estimate.
+
+### Search & tag filters
+
+**Search** looks across tasks, objectives, and journal entries. On list views you can switch into **tag filter mode** to show only tasks with a given tag.
+
+### Recurring tasks
+
+Create **daily, weekly, or monthly** templates (managed in **Settings → Recurring Tasks**). Instances are generated automatically; editing one instance customises just that occurrence while the series rolls forward.
+
+### Calendars & schedule
+
+See calendar events beside your tasks in the **Schedule** panel:
+
+- **Google Calendar** and **Fastmail Calendar** — connect in **Settings → Integrations / Accounts**.
+- **CalDAV** — connect a CalDAV server and optionally push your time-blocks back to it.
+- **ICS / webcal feeds** — subscribe to any read-only calendar URL.
+
+In **Settings → Calendars** you can show/hide each calendar and cycle its colour through the brand palette.
+
+### Email → tasks
+
+Turn email into tasks several ways:
+
+- **Gmail / Fastmail:** star an email and it imports as a task (same OAuth app as sign-in for Gmail; an app password for Fastmail).
+- **Task inbox:** forward (or auto-forward) mail to a dedicated address to create tasks; allow-list senders in settings.
+- **AI title cleanup:** with `ANTHROPIC_API_KEY` set, imported subjects are tidied into clean task titles.
+
+The **Email** screen lets you triage incoming mail and convert messages to tasks, with the original linked.
+
+### Jira
+
+Connect Jira to import your assigned issues as tasks. Marking a Jira-sourced task **done** transitions/closes the linked ticket. You can also view issue details and available transitions from the task.
+
+### Reminders, notifications & routines
+
+Configured in **Settings → Notifications**.
+
+**Per-task reminders.** Set **Remind me** (date + time) on any task for a hard alert. It fires with two quick actions — **Mark done** and **Snooze 1h** — and tapping the notification opens the app on that task. Reminders are deduplicated, so re-arming or snoozing won’t double-fire.
+
+**Delivery channels** (toggle each independently):
+
+- **Web Push** — native OS notifications on Windows/Android browsers and installed PWAs. Click **Enable** to grant permission; it subscribes this device.
+- **Native Android** — push to the installed Android app.
+- **Custom webhook** — POST notifications to a self-hosted service such as **ntfy** or **Gotify**. Enter the endpoint URL, optional topic, HTTP method, and an auth header/token, then use **Send test notification** to verify the handshake.
+
+**Alert sound.** Turn the custom sound on and pick from **10 calm tones** (Carbon Piano, Handpan, Kalimba, Waterside, and more) — each row has a **▶ preview**. The choice applies to in-app alerts, Android notification channels, and the desktop reminder.
+
+**In-app routines.** Set the day/time for the **Weekly planning** prompt and the time + workdays for the **Daily shutdown** prompt. These appear as calm in-app banners (not OS alarms) that guide you into the matching workflow.
+
+**Will reminders fire if I’m offline?** Yes, within reason:
+
+| Situation | What happens |
+|-----------|--------------|
+| Server briefly down | The reminder fires when the server returns (late, not lost) |
+| Android device fully offline / app closed | An **on-device OS alarm** still fires (scheduled locally from your tasks) |
+| Settings changed offline | Saved locally and synced to the server on reconnect |
+| Windows desktop, app running | Fires in-app with your chosen sound |
+| Windows desktop, app closed | Reminders need the app running (no background push in the desktop shell) |
+
+> Custom notification *sounds* play for the in-app/desktop reminder, the settings preview, and Android channels. A **background** web-push notification on a plain browser uses the OS default sound — a browser platform limit.
+
+### Backup & restore
+
+In **Settings → Backup & Restore**:
+
+- **Automatic daily backups** at an hour you choose, with a retention count.
+- **Encryption** — optionally protect backups with a passphrase.
+- **Destinations** — keep backups locally or push to **S3**, **WebDAV**, or **Google Drive**. Use **Test** to verify a destination.
+- **Run now** for an on-demand backup, **Download** the latest archive, or **Restore** from a file.
+
+Database migrations run automatically on startup, and your data lives in the `sempa_data` Docker volume.
+
+### Offline & sync
+
+The desktop and Android apps are **local-first**: they keep a local copy of your data, so the app stays fully usable with no connection. Changes queue and **sync automatically** when the server is reachable again. A sync indicator shows status. Plain web (in a browser, not installed) talks directly to the server.
+
+### Settings overview
+
+| Section | What you configure |
+|---------|--------------------|
+| **Account** | Sign-in, profile |
+| **Integrations** | Gmail, Fastmail, Jira, CalDAV, task inbox, ICS feeds |
+| **Calendars** | Show/hide calendars, colours |
+| **Tags** | Create/rename/recolour tags |
+| **Recurring Tasks** | Daily/weekly/monthly templates |
+| **Notifications** | Reminders, delivery channels, sounds, routines |
+| **Backup & Restore** | Schedule, encryption, destinations |
+| **Appearance** | Light/dark theme, contextual reflections |
+
+### Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `n` | New task (day view) |
+| `e` | Edit the hovered task (day view) |
+| `t` | Go to today |
+| `j` | Previous week |
+| `k` | Next week |
+| `?` | Show shortcuts help |
+| `Esc` | Close the open dialog |
 
 ---
 
