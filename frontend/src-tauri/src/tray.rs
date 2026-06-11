@@ -7,12 +7,13 @@ use tauri::{
 
 pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let open = MenuItem::with_id(app, "open", "Open sempa", true, None::<&str>)?;
+    let show_widget = MenuItem::with_id(app, "show_widget", "Show widget", true, None::<&str>)?;
     let quick_add = MenuItem::with_id(app, "quick_add", "Quick Add Task", true, None::<&str>)?;
     let sync_now = MenuItem::with_id(app, "sync_now", "Sync Now", true, None::<&str>)?;
     let separator = MenuItem::with_id(app, "sep", "────────────", false, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Exit", true, None::<&str>)?;
 
-    let menu = Menu::with_items(app, &[&open, &quick_add, &sync_now, &separator, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &show_widget, &quick_add, &sync_now, &separator, &quit])?;
 
     let icon = app
         .default_window_icon()
@@ -28,6 +29,13 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.show();
                     let _ = win.set_focus();
+                }
+            }
+            "show_widget" => {
+                // Spawn (or re-focus) the floating always-on-top desktop widget
+                // showing today's tasks at a glance.
+                if let Err(e) = crate::windows::create_widget(app) {
+                    eprintln!("widget creation failed: {e}");
                 }
             }
             "quick_add" => {

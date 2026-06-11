@@ -3,7 +3,7 @@
   import { isTauri } from '$lib/tauri/bridge';
   import { query } from '$lib/tauri/db';
   import { today } from '$lib/utils';
-  import { Check } from 'lucide-svelte';
+  import { Check, X } from 'lucide-svelte';
 
   interface WidgetTask {
     id: string;
@@ -37,6 +37,16 @@
       // silently fail in widget context
     }
   }
+
+  // Decorationless window → provide our own dismiss (re-openable from the tray).
+  async function closeWidget() {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().close();
+    } catch {
+      /* not in Tauri */
+    }
+  }
 </script>
 
 <svelte:head>
@@ -49,7 +59,13 @@
   <!-- Header -->
   <div class="widget-header">
     <span class="widget-logo">sempa</span>
-    <span class="widget-progress">{progress}%</span>
+    <div class="widget-header-right">
+      <span class="widget-progress">{progress}%</span>
+      <button class="widget-close" onclick={closeWidget} title="Hide widget (re-open from the tray)"
+              aria-label="Hide widget">
+        <X size={12} strokeWidth={2.5} />
+      </button>
+    </div>
   </div>
 
   <!-- Progress bar -->
@@ -111,6 +127,30 @@
     font-size: 11px;
     font-weight: 600;
     color: var(--sempa-text-soft);
+  }
+
+  .widget-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .widget-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--sempa-text-dim);
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .widget-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--sempa-text);
   }
 
   .widget-bar {
