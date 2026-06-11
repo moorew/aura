@@ -12,6 +12,9 @@
   import { viewport } from '$lib/stores/viewport.svelte';
   import { hapticTick } from '$lib/haptics';
   import { initPushNotifications } from '$lib/push';
+  import { registerServiceWorker, enableWebPush, listenForPushNavigation, isWebPushSupported, notificationPermission } from '$lib/webpush';
+  import { routines } from '$lib/stores/routines.svelte';
+  import RoutineBanner from '$lib/components/RoutineBanner.svelte';
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
@@ -168,6 +171,14 @@
         if (me.email) localStorage.setItem('sempa_account_email', me.email);
         // Register for push notifications after auth confirmed
         initPushNotifications();
+        // Web Push (PWA / browser): register the service worker, bridge its
+        // deep-link messages to the router, and refresh the subscription if the
+        // user already granted notification permission on a previous visit.
+        listenForPushNavigation((url) => goto(url));
+        void registerServiceWorker();
+        if (isWebPushSupported() && notificationPermission() === 'granted') {
+          void enableWebPush();
+        }
         // Redirect to first-run wizard if setup hasn't been completed
         const setup = await api.setup.status();
         if (!setup.done) {
@@ -216,6 +227,9 @@
         startSync();
         realtime.connect();
       }
+      // Arm the in-app routine scheduler (weekly planning / daily shutdown
+      // prompts). Idempotent: re-calling on every authenticated landing is safe.
+      routines.init((url) => goto(url));
     }
   });
 
@@ -403,6 +417,7 @@
   <!-- ── Main content ───────────────────────────────────────────────────── -->
   <div class="flex-1 overflow-auto" style="background: var(--sempa-bg-main);
        {mobile.value ? 'padding-bottom: 88px;' : ''}">
+    <RoutineBanner />
     {#key $page.url.pathname}
       <div class="animate-page-in">{@render children()}</div>
     {/key}

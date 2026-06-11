@@ -42,6 +42,10 @@ type Config struct {
 
 	// Firebase Cloud Messaging — path to service account JSON key file
 	FCMKeyPath string // e.g. ./firebase-service-account.json
+
+	// VAPID contact subject for Web Push JWTs (RFC 8292 `sub` claim). The VAPID
+	// key pair itself is auto-generated and persisted in the DB on first boot.
+	VAPIDSubject string // e.g. mailto:you@example.com
 }
 
 func Load() Config {
@@ -66,6 +70,7 @@ func Load() Config {
 		OllamaBaseURL:      env("OLLAMA_BASE_URL", ""),
 		OllamaModel:        env("OLLAMA_MODEL", "qwen2.5:1.5b"),
 		FCMKeyPath:         env("FCM_KEY_PATH", ""),
+		VAPIDSubject:       env("VAPID_SUBJECT", "mailto:admin@localhost"),
 	}
 }
 

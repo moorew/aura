@@ -80,6 +80,9 @@
   let scheduledStartTime = $state('');
   let scheduledEndDate   = $state('');
   let scheduledEndTime   = $state('');
+  // Hard reminder (remind_at) — split date+time like the scheduled fields.
+  let remindDate = $state('');
+  let remindTime = $state('');
 
   let selectedObjectiveId = $state<string | null>(null);
   let weekObjectives = $state<Objective[]>([]);
@@ -140,6 +143,8 @@
       scheduledStartDate = ss.date; scheduledStartTime = ss.time;
       const se = splitFromISO(task.scheduled_end);
       scheduledEndDate = se.date; scheduledEndTime = se.time;
+      const rm = splitFromISO(task.remind_at);
+      remindDate = rm.date; remindTime = rm.time;
       recurrenceRule = task.recurrence_rule ?? '';
       selectedTags = [...(task.tags ?? [])];
       selectedObjectiveId = task.weekly_objective_id ?? null;
@@ -148,6 +153,7 @@
       estimateMinutes = null; actualMinutesInput = '';
       scheduledStartDate = ''; scheduledStartTime = '';
       scheduledEndDate = '';   scheduledEndTime = '';
+      remindDate = ''; remindTime = '';
       recurrenceRule = ''; selectedTags = [];
       selectedObjectiveId = null;
     }
@@ -214,6 +220,8 @@
           tags: selectedTags,
           scheduled_start: combineToISO(scheduledStartDate, scheduledStartTime),
           scheduled_end:   combineToISO(scheduledEndDate,   scheduledEndTime),
+          // Empty string clears the reminder; a date produces an ISO timestamp.
+          remind_at: remindDate ? (combineToISO(remindDate, remindTime) ?? '') : '',
           weekly_objective_id: selectedObjectiveId ?? null,
         });
       } else {
@@ -413,6 +421,26 @@
           </label>
           <SempaSelect id="task-estimate" bind:value={estimateMinutes}
                        options={TIME_OPTIONS} placeholder="No estimate" />
+        </div>
+      </div>
+
+      <!-- Reminder (remind_at) -->
+      <div>
+        <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-remind-date">
+          Remind me
+        </label>
+        <div class="flex items-center gap-2">
+          <input id="task-remind-date" type="date" bind:value={remindDate}
+                 class="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm
+                        dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
+          <input type="time" bind:value={remindTime} aria-label="Reminder time"
+                 disabled={!remindDate}
+                 class="w-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm disabled:opacity-50
+                        dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
+          {#if remindDate}
+            <button type="button" onclick={() => { remindDate = ''; remindTime = ''; }}
+                    class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
+          {/if}
         </div>
       </div>
 

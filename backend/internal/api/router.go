@@ -17,7 +17,7 @@ import (
 	"github.com/clevercode/sempa/internal/db"
 )
 
-func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Handler {
+func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store, vapidPublicKey string) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -98,6 +98,11 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 		configs:    configStore,
 	}
 	devices := &deviceHandler{store: db.NewDeviceTokenStore(database)}
+	notifications := &notificationHandler{
+		configs:  configStore,
+		pushSubs: db.NewPushSubStore(database),
+		vapidPub: vapidPublicKey,
+	}
 	unfurls := &unfurlHandler{store: db.NewUnfurlStore(database)}
 	search := &searchHandler{
 		tasks:      db.NewTaskStore(database),
@@ -170,6 +175,7 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 				r.Get("/{id}", tasks.get)
 				r.Patch("/{id}", tasks.update)
 				r.Delete("/{id}", tasks.delete)
+				r.Post("/{id}/snooze", tasks.snooze)
 				r.Get("/{id}/attachments", attachments.list("task"))
 				r.Post("/{id}/attachments", attachments.upload("task"))
 			})
@@ -240,6 +246,15 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store) http.Hand
 			r.Route("/devices", func(r chi.Router) {
 				r.Post("/", devices.register)
 				r.Delete("/", devices.unregister)
+			})
+
+			r.Route("/notifications", func(r chi.Router) {
+				r.Get("/settings", notifications.getSettings)
+				r.Put("/settings", notifications.putSettings)
+				r.Get("/vapid-public-key", notifications.vapidKey)
+				r.Post("/webpush/subscribe", notifications.subscribe)
+				r.Delete("/webpush/subscribe", notifications.unsubscribe)
+				r.Post("/webhook/test", notifications.testWebhook)
 			})
 
 			r.Route("/integrations", func(r chi.Router) {

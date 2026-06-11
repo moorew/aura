@@ -61,6 +61,7 @@ type updateTaskRequest struct {
 	ScheduledStart      *string  `json:"scheduled_start"`
 	ScheduledEnd        *string  `json:"scheduled_end"`
 	RoughlyAt           *string  `json:"roughly_at"`
+	RemindAt            *string  `json:"remind_at"`
 }
 
 func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -285,6 +286,16 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 		}
 		task.RoughlyAt = req.RoughlyAt
 	}
+	// Hard reminder timestamp. Empty string clears it. Whenever it changes we
+	// re-arm the reminder so a freshly-set time fires even if a prior reminder
+	// on this task had already been dispatched.
+	if req.RemindAt != nil {
+		if *req.RemindAt == "" {
+			task.RemindAt = nil
+		} else {
+			task.RemindAt = req.RemindAt
+		}
+	}
 
 	// Auto-stamp completed_at when moving to done for the first time
 	if req.Status != nil && *req.Status == "done" && task.CompletedAt == nil {
@@ -301,6 +312,11 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update task")
 		return
+	}
+
+	// Re-arm the reminder loop whenever the reminder time was touched.
+	if req.RemindAt != nil {
+		_ = h.store.ClearReminderSent(r.Context(), updated.ID)
 	}
 
 	// Checking off / editing a sub-task of a recurring instance modifies that
@@ -335,6 +351,37 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if updated.WeekStart != nil {
 		meta["week_start"] = *updated.WeekStart
+	}
+	h.hub.Broadcast("task:change", meta)
+	respond(w, http.StatusOK, updated)
+}
+
+// snooze pushes a task's reminder out by N minutes (default 60) and re-arms it.
+// Called by the service worker's "Snooze" notification action with the session
+// cookie. Body: optional {"minutes": 60}.
+func (h *taskHandler) snooze(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Minutes int `json:"minutes"`
+	}
+	_ = decode(r, &req) // body is optional
+	if req.Minutes <= 0 {
+		req.Minutes = 60
+	}
+
+	updated, err := h.store.SnoozeReminder(r.Context(), id, req.Minutes)
+	if errors.Is(err, db.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to snooze reminder")
+		return
+	}
+
+	meta := map[string]string{"entity": "task"}
+	if updated.PlannedDate != nil {
+		meta["date"] = *updated.PlannedDate
 	}
 	h.hub.Broadcast("task:change", meta)
 	respond(w, http.StatusOK, updated)

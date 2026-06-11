@@ -31,6 +31,8 @@ export interface Task {
   scheduled_end: string | null;
   // "Roughly at" sort hint (HH:MM) — visual ordering only, no time block
   roughly_at: string | null;
+  // Exact timestamp for a hard reminder (ISO 8601). null = no reminder.
+  remind_at: string | null;
 }
 
 export interface Attachment {
@@ -152,6 +154,38 @@ export interface UpdateTaskInput {
   scheduled_start?: string | null;
   scheduled_end?: string | null;
   roughly_at?: string | null;
+  // Empty string clears the reminder; an ISO 8601 timestamp sets it.
+  remind_at?: string | null;
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export interface WebhookConfig {
+  endpoint: string;
+  method: string;
+  auth_header: string;
+  auth_value: string;
+  topic: string;
+}
+
+export interface RoutineConfig {
+  weekly_plan_day: number;      // 1=Mon … 7=Sun
+  weekly_plan_time: string;     // "HH:MM"
+  daily_shutdown_time: string;  // "HH:MM"
+  workdays: number[];           // e.g. [1,2,3,4,5]
+}
+
+export interface NotificationSettings {
+  master_enabled: boolean;
+  webpush_enabled: boolean;
+  fcm_enabled: boolean;
+  webhook_enabled: boolean;
+  sound_enabled: boolean;
+  sound_id: string;
+  morning_digest: boolean;
+  digest_hour: number;
+  webhook: WebhookConfig;
+  routines: RoutineConfig;
 }
 
 export interface CreateObjectiveInput {

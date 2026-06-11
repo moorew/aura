@@ -38,6 +38,8 @@ type Task struct {
 	ScheduledEnd   *string `json:"scheduled_end"`
 	// "Roughly at" sort hint, HH:MM (added in migration 011). Visual ordering only.
 	RoughlyAt *string `json:"roughly_at"`
+	// Exact timestamp for a hard reminder (added in migration 018). NULL = none.
+	RemindAt *string `json:"remind_at"`
 }
 
 const taskCols = `id, title, description, planned_date, week_start, status, position,
@@ -45,7 +47,7 @@ const taskCols = `id, title, description, planned_date, week_start, status, posi
        source, source_id, source_url, source_metadata,
        completed_at, archived_at, created_at, updated_at,
        tags, recurrence_rule, recurrence_origin_id, is_customized,
-       scheduled_start, scheduled_end, roughly_at`
+       scheduled_start, scheduled_end, roughly_at, remind_at`
 
 func scanTask(s scanner) (Task, error) {
 	var t Task
@@ -57,7 +59,7 @@ func scanTask(s scanner) (Task, error) {
 	var tagsJSON string
 	var recurrenceRule, recurrenceOriginID sql.NullString
 	var isCustomized int64
-	var scheduledStart, scheduledEnd, roughlyAt sql.NullString
+	var scheduledStart, scheduledEnd, roughlyAt, remindAt sql.NullString
 
 	err := s.Scan(
 		&t.ID, &t.Title, &description, &plannedDate, &weekStart,
@@ -68,7 +70,7 @@ func scanTask(s scanner) (Task, error) {
 		&completedAt, &archivedAt,
 		&t.CreatedAt, &t.UpdatedAt,
 		&tagsJSON, &recurrenceRule, &recurrenceOriginID, &isCustomized,
-		&scheduledStart, &scheduledEnd, &roughlyAt,
+		&scheduledStart, &scheduledEnd, &roughlyAt, &remindAt,
 	)
 	if err != nil {
 		return Task{}, err
@@ -93,6 +95,7 @@ func scanTask(s scanner) (Task, error) {
 	t.ScheduledStart = nullStr(scheduledStart)
 	t.ScheduledEnd = nullStr(scheduledEnd)
 	t.RoughlyAt = nullStr(roughlyAt)
+	t.RemindAt = nullStr(remindAt)
 
 	if tagsJSON != "" && tagsJSON != "[]" {
 		_ = json.Unmarshal([]byte(tagsJSON), &t.Tags)
@@ -285,6 +288,7 @@ func (s *TaskStore) Update(ctx context.Context, t Task) (Task, error) {
 			scheduled_start       = ?,
 			scheduled_end         = ?,
 			roughly_at            = ?,
+			remind_at             = ?,
 			updated_at            = datetime('now')
 		WHERE id = ?
 		RETURNING `+taskCols,
@@ -293,7 +297,7 @@ func (s *TaskStore) Update(ctx context.Context, t Task) (Task, error) {
 		t.TimeEstimateMinutes, t.TimeActualMinutes,
 		t.WeeklyObjectiveID, t.CompletedAt,
 		string(tagsJSON), isCustomized,
-		t.ScheduledStart, t.ScheduledEnd, t.RoughlyAt,
+		t.ScheduledStart, t.ScheduledEnd, t.RoughlyAt, t.RemindAt,
 		t.ID,
 	)
 	updated, err := scanTask(row)
@@ -301,6 +305,59 @@ func (s *TaskStore) Update(ctx context.Context, t Task) (Task, error) {
 		return Task{}, ErrNotFound
 	}
 	return updated, err
+}
+
+// ListDueReminders returns tasks whose hard reminder is now due and not yet
+// dispatched (reminder_sent_at IS NULL), excluding finished tasks. SQLite's
+// datetime() normalizes both the stored value and "now" to UTC, so the
+// comparison is correct whether remind_at was written as ISO8601 ("...T..Z")
+// by the client or as "YYYY-MM-DD HH:MM:SS".
+func (s *TaskStore) ListDueReminders(ctx context.Context) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+taskCols+` FROM tasks
+		 WHERE remind_at IS NOT NULL
+		   AND reminder_sent_at IS NULL
+		   AND datetime(remind_at) <= datetime('now')
+		   AND status NOT IN ('done', 'cancelled')
+		 ORDER BY remind_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectTasks(rows)
+}
+
+// MarkReminderSent stamps reminder_sent_at so a fired reminder is not re-sent.
+func (s *TaskStore) MarkReminderSent(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE tasks SET reminder_sent_at = datetime('now') WHERE id = ?`, id)
+	return err
+}
+
+// ClearReminderSent re-arms a task's reminder (e.g. after its remind_at was
+// changed) so the loop dispatches it again at the new time.
+func (s *TaskStore) ClearReminderSent(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE tasks SET reminder_sent_at = NULL WHERE id = ?`, id)
+	return err
+}
+
+// SnoozeReminder pushes a task's reminder out by the given minutes and re-arms it
+// (clears reminder_sent_at) so the reminder loop fires again at the new time.
+func (s *TaskStore) SnoozeReminder(ctx context.Context, id string, minutes int) (Task, error) {
+	row := s.db.QueryRowContext(ctx,
+		`UPDATE tasks
+		    SET remind_at = datetime('now', ?),
+		        reminder_sent_at = NULL,
+		        updated_at = datetime('now')
+		  WHERE id = ?
+		  RETURNING `+taskCols,
+		fmt.Sprintf("+%d minutes", minutes), id)
+	t, err := scanTask(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, ErrNotFound
+	}
+	return t, err
 }
 
 func (s *TaskStore) ListByParent(ctx context.Context, parentID string) ([]Task, error) {

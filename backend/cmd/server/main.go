@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/clevercode/sempa/internal/api"
 	"github.com/clevercode/sempa/internal/backup"
@@ -46,7 +49,16 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	handler := api.NewRouter(database, cfg, blobs)
+	// Web Push (VAPID) key pair — generated once and persisted in the DB so the
+	// browser's stored subscriptions stay valid across restarts.
+	configStore := db.NewIntegrationConfigStore(database)
+	vapidKeys, err := loadOrCreateVAPID(ctx, configStore)
+	if err != nil {
+		slog.Error("vapid keys", "err", err)
+		os.Exit(1)
+	}
+
+	handler := api.NewRouter(database, cfg, blobs, vapidKeys.Public)
 
 	// Inbound SMTP server.
 	if cfg.SMTPPort != "" {
@@ -70,9 +82,12 @@ func main() {
 		slog.Info("inbox poller started", "interval", interval)
 	}
 
-	// Push notification reminders.
-	notifySvc := notify.New(db.NewDeviceTokenStore(database), cfg.FCMKeyPath)
-	go notify.StartReminders(ctx, db.NewTaskStore(database), notifySvc)
+	// Push notification reminders. The dispatcher fans messages out to Web Push,
+	// FCM and the generic webhook, honoring the user's channel toggles.
+	fcmSvc := notify.New(db.NewDeviceTokenStore(database), cfg.FCMKeyPath)
+	webPush := notify.NewWebPushSender(vapidKeys, cfg.VAPIDSubject)
+	dispatcher := notify.NewDispatcher(configStore, db.NewPushSubStore(database), webPush, fcmSvc, cfg.AppURL)
+	go notify.StartReminders(ctx, db.NewTaskStore(database), dispatcher, configStore)
 
 	// Daily backup scheduler.
 	backupSvc := backup.NewService(database, cfg.DBPath, blobs.Dir())
@@ -110,4 +125,26 @@ func main() {
 		slog.Error("shutdown error", "err", err)
 	}
 	slog.Info("stopped")
+}
+
+// loadOrCreateVAPID returns the persisted VAPID key pair, generating and saving
+// a new one on first boot. Stored in integration_configs(type='webpush_vapid').
+func loadOrCreateVAPID(ctx context.Context, store *db.IntegrationConfigStore) (notify.VAPIDKeys, error) {
+	const vapidType = "webpush_vapid"
+	if cfg, err := store.Get(ctx, vapidType); err == nil && cfg.Config != "" {
+		var keys notify.VAPIDKeys
+		if json.Unmarshal([]byte(cfg.Config), &keys) == nil && keys.Public != "" && keys.Private != "" {
+			return keys, nil
+		}
+	}
+	keys, err := notify.GenerateVAPIDKeys()
+	if err != nil {
+		return notify.VAPIDKeys{}, err
+	}
+	raw, _ := json.Marshal(keys)
+	if _, err := store.Upsert(ctx, uuid.New().String(), vapidType, string(raw)); err != nil {
+		return notify.VAPIDKeys{}, err
+	}
+	slog.Info("notify: generated new VAPID key pair")
+	return keys, nil
 }

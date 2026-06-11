@@ -44,8 +44,10 @@ func (s *Service) Enabled() bool {
 	return s.keyPath != "" && s.projectID != ""
 }
 
-// SendToAll sends a notification to all registered devices.
-func (s *Service) SendToAll(title, body string, data map[string]string) {
+// SendToAll sends a notification to all registered devices. sound is the chosen
+// tone's slug (e.g. "piano"); empty means the default channel with no custom
+// sound. The matching res/raw/<sound>.mp3 must be bundled on the Android side.
+func (s *Service) SendToAll(title, body string, data map[string]string, sound string) {
 	if !s.Enabled() {
 		return
 	}
@@ -57,7 +59,7 @@ func (s *Service) SendToAll(title, body string, data map[string]string) {
 	}
 
 	for _, d := range devices {
-		if err := s.send(d.Token, title, body, data); err != nil {
+		if err := s.send(d.Token, title, body, data, sound); err != nil {
 			slog.Warn("notify: send failed", "token", d.Token[:12]+"...", "err", err)
 			// If the token is invalid, remove it
 			if isTokenInvalid(err) {
@@ -68,10 +70,19 @@ func (s *Service) SendToAll(title, body string, data map[string]string) {
 	}
 }
 
-func (s *Service) send(token, title, body string, data map[string]string) error {
+func (s *Service) send(token, title, body string, data map[string]string, sound string) error {
 	accessToken, err := s.getAccessToken()
 	if err != nil {
 		return fmt.Errorf("get access token: %w", err)
+	}
+
+	androidNotif := &fcmAndroidNotification{ChannelID: "reminders"}
+	if sound != "" {
+		// Each sound maps to its own Android channel (sound is immutable once a
+		// channel is created), with the matching res/raw/<sound>.mp3 asset. The
+		// app creates "snd_<sound>" channels on demand.
+		androidNotif.ChannelID = "snd_" + sound
+		androidNotif.Sound = sound
 	}
 
 	msg := fcmMessage{
@@ -82,10 +93,8 @@ func (s *Service) send(token, title, body string, data map[string]string) error 
 				Body:  body,
 			},
 			Android: &fcmAndroid{
-				Priority: "high",
-				Notification: &fcmAndroidNotification{
-					ChannelID: "reminders",
-				},
+				Priority:     "high",
+				Notification: androidNotif,
 			},
 			Data: data,
 		},
@@ -185,10 +194,10 @@ type fcmMessage struct {
 }
 
 type fcmPayload struct {
-	Token        string               `json:"token"`
-	Notification *fcmNotification     `json:"notification,omitempty"`
-	Android      *fcmAndroid          `json:"android,omitempty"`
-	Data         map[string]string    `json:"data,omitempty"`
+	Token        string            `json:"token"`
+	Notification *fcmNotification  `json:"notification,omitempty"`
+	Android      *fcmAndroid       `json:"android,omitempty"`
+	Data         map[string]string `json:"data,omitempty"`
 }
 
 type fcmNotification struct {
@@ -197,10 +206,11 @@ type fcmNotification struct {
 }
 
 type fcmAndroid struct {
-	Priority     string                    `json:"priority,omitempty"`
-	Notification *fcmAndroidNotification   `json:"notification,omitempty"`
+	Priority     string                  `json:"priority,omitempty"`
+	Notification *fcmAndroidNotification `json:"notification,omitempty"`
 }
 
 type fcmAndroidNotification struct {
 	ChannelID string `json:"channel_id,omitempty"`
+	Sound     string `json:"sound,omitempty"`
 }

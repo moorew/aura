@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     scheduled_start TEXT,
     scheduled_end TEXT,
     roughly_at TEXT,
+    remind_at TEXT,
     UNIQUE(source, source_id)
 );
 
