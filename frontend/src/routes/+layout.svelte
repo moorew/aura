@@ -17,6 +17,8 @@
   import { initLocalReminders, syncLocalReminders } from '$lib/localReminders';
   import RoutineBanner from '$lib/components/RoutineBanner.svelte';
   import ReminderBanner from '$lib/components/ReminderBanner.svelte';
+  import { reminderAlerts } from '$lib/stores/reminderAlerts.svelte';
+  import { initDesktopReminderPopup, syncDesktopPopup } from '$lib/desktopReminderPopup';
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
@@ -43,6 +45,9 @@
 
   let isLoginPage      = $derived(($page.url.pathname as string) === '/login');
   let isSetupPage      = $derived(($page.url.pathname as string) === '/setup');
+  // The reminder popup is a separate, chromeless Tauri window (top-right floating
+  // card). It must NOT render the app shell or run the heavy auth/sync onMount.
+  let isReminderPopup  = $derived(($page.url.pathname as string) === '/reminder-popup');
   let shortcutsOpen      = $state(false);
   let userEmail          = $state<string | undefined>(undefined);
 
@@ -100,9 +105,17 @@
 
   onMount(async () => {
     theme.init();
+    // The reminder popup is a chromeless side window: it needs the theme tokens
+    // but must NOT start sync/realtime/auth (those belong to the main window).
+    if (isReminderPopup) return;
+
     prefs.init();
     mobile.init();
     viewport.init();
+
+    // Desktop floating reminder card (Tauri only; self-guards). Binds the popup
+    // window's action listeners once, in the main window.
+    void initDesktopReminderPopup((url) => goto(url));
 
     // Tray "Sync Now" → run a sync cycle. Listener lives for the app's lifetime.
     if (isTauri()) {
@@ -238,6 +251,14 @@
     }
   });
 
+  // Keep the desktop floating reminder card in sync with fired reminders. Runs
+  // in the main window only (the popup window short-circuits onMount), and
+  // self-guards to Tauri inside syncDesktopPopup.
+  $effect(() => {
+    if (isReminderPopup) return;
+    void syncDesktopPopup(reminderAlerts.alerts);
+  });
+
   // Re-load tags from server when a tag:change SSE event arrives
   $effect(() => {
     const ev = realtime.lastEvent;
@@ -300,7 +321,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if isLoginPage || isSetupPage}
+{#if isLoginPage || isSetupPage || isReminderPopup}
   {@render children()}
 {:else}
 <div class="flex flex-col h-screen overflow-hidden" style="background: var(--sempa-bg-main);">

@@ -106,6 +106,8 @@ pub fn run() {
             commands::get_server_url,
             commands::set_server_url,
             commands::create_widget_window,
+            commands::show_reminder_popup,
+            commands::close_reminder_popup,
             commands::create_sticky_note,
             commands::close_sticky_note,
             commands::save_sticky_positions,

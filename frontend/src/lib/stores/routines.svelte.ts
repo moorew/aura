@@ -14,8 +14,10 @@
  *     through a trigger catches up the moment it wakes.
  *
  * On Tauri desktop (which can't receive Web Push), the same timer doubles as a
- * lightweight reminder check: due task reminders fire a native OS notification
- * via @tauri-apps/plugin-notification while the app is running.
+ * lightweight reminder check: due task reminders are pushed to the shared
+ * reminderAlerts store, which surfaces a Granola-style floating card in a
+ * separate always-on-top window (see $lib/desktopReminderPopup), plus the
+ * chosen tone, while the app is running.
  */
 
 import { today, weekStart } from '$lib/utils';
@@ -180,32 +182,19 @@ function createRoutinesStore() {
       const fresh = due.filter((t) => !notified.has(`${t.id}|${t.remind_at}`));
       if (!fresh.length) return;
 
-      // In-app banner on every local-first platform — the reliable visual.
+      // Push to the shared alert list. On desktop this drives the floating
+      // top-right card (see $lib/desktopReminderPopup, wired from +layout); on
+      // web it drives the in-app banner; on Android the on-device OS alarm
+      // already fired, and the banner backs it up.
       for (const t of fresh) {
         reminderAlerts.push(t);
         notified.add(`${t.id}|${t.remind_at}`);
       }
 
-      // Desktop also raises a native OS notification. Android already fired its
-      // own on-device alarm (with the channel sound), so we don't double up there.
-      if (isTauri()) {
-        try {
-          const mod = await import('@tauri-apps/plugin-notification');
-          let granted = await mod.isPermissionGranted();
-          if (!granted) granted = (await mod.requestPermission()) === 'granted';
-          if (granted) {
-            for (const t of fresh) {
-              // Windows toasts can't carry a custom audio file, so when a sound
-              // is chosen we silence the toast and play the selected tone via the
-              // WebView audio instead (the app is running, so this works).
-              mod.sendNotification({ title: 'Reminder', body: t.title, silent: soundOn });
-            }
-          }
-        } catch {
-          /* notification plugin unavailable — in-app banner still covers it */
-        }
-        if (soundOn) playSound(soundId);
-      }
+      // Desktop: play the chosen tone as the audible cue for the floating card
+      // (the WebView is running, so custom audio works where a Windows toast
+      // couldn't). Android already played its channel sound with the OS alarm.
+      if (isTauri() && soundOn) playSound(soundId);
 
       // Keep the notified set bounded.
       localStorage.setItem(NOTIFIED_KEY, JSON.stringify([...notified].slice(-200)));

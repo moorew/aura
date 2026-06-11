@@ -9,7 +9,13 @@
    */
   import { goto } from '$app/navigation';
   import { reminderAlerts } from '$lib/stores/reminderAlerts.svelte';
+  import { isTauri } from '$lib/platform';
   import { Bell, X } from 'lucide-svelte';
+
+  // On desktop the same alerts surface as a floating top-right card outside the
+  // app window (see $lib/desktopReminderPopup), so suppress the in-app banner
+  // there to avoid showing the reminder twice. Web + Android keep the banner.
+  const show = $derived(reminderAlerts.alerts.length > 0 && !isTauri());
 
   function open(taskId: string) {
     reminderAlerts.dismiss(taskId);
@@ -17,7 +23,7 @@
   }
 </script>
 
-{#if reminderAlerts.alerts.length > 0}
+{#if show}
   <div class="mx-auto flex max-w-3xl flex-col gap-2" style="margin: 12px 16px 0;">
     {#each reminderAlerts.alerts as a (a.taskId)}
       <div class="flex items-center gap-3 rounded-xl border px-4 py-3"

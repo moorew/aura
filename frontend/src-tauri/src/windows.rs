@@ -45,6 +45,58 @@ pub fn create_widget(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
+/// Create the reminder popup — a Granola-style card that floats in the top-right
+/// of the desktop, above the app window and OUTSIDE it, so a fired reminder is
+/// visible even when Sempa is in the background. It never steals focus
+/// (WS_EX_NOACTIVATE) and persists until the user dismisses it. Card contents
+/// and the exact window height are driven from the webview via the
+/// `reminder:list` event; this just owns the floating, top-right-anchored shell.
+pub fn create_reminder_popup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    // Already open → ensure it's visible and on top; the webview refreshes its
+    // own contents from the latest event.
+    if let Some(win) = app.get_webview_window("reminder") {
+        let _ = win.show();
+        let _ = win.set_always_on_top(true);
+        return Ok(());
+    }
+
+    let width = 384.0;
+    let height = 140.0; // initial; the webview resizes to fit its cards
+
+    let mut builder = WebviewWindowBuilder::new(
+        app,
+        "reminder",
+        WebviewUrl::App("/reminder-popup".into()),
+    )
+    .title("sempa reminder")
+    .inner_size(width, height)
+    .resizable(false)
+    .decorations(false)
+    .always_on_top(true)
+    .transparent(true)
+    .skip_taskbar(true)
+    .visible(true);
+
+    // Anchor to the top-right corner (small margin). Growing the height later
+    // extends the window downward, keeping this corner fixed.
+    if let Ok(Some(monitor)) = app.primary_monitor() {
+        let size = monitor.size();
+        let scale = monitor.scale_factor();
+        let x = (size.width as f64 / scale) - width - 16.0;
+        let y = 16.0;
+        builder = builder.position(x, y);
+    }
+
+    let _window = builder.build()?;
+
+    #[cfg(target_os = "windows")]
+    {
+        apply_widget_window_flags(&_window);
+    }
+
+    Ok(())
+}
+
 #[cfg(target_os = "windows")]
 fn apply_widget_window_flags(window: &tauri::WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::*;
