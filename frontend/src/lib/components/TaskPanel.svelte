@@ -42,6 +42,17 @@
   ];
 
   const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  // Clock times for the reminder picker (15-min steps), styled like the rest of
+  // the form — avoids the Android native time wheel.
+  const REMIND_TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => {
+    const h = Math.floor(i / 4);
+    const m = (i % 4) * 15;
+    const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return { value, label: `${h12}:${String(m).padStart(2, '0')} ${ampm}` };
+  });
   const ordinal = (n: number) => {
     const s = ['th','st','nd','rd'], v = n % 100;
     return s[(v - 20) % 10] || s[v] || s[0];
@@ -335,9 +346,10 @@
          column a basis-0 child collapses to zero height in Chromium, so the body
          never filled and the sheet shrank to header+footer (Save unreachable).
          basis-auto lets content size propagate so the body fills and scrolls. -->
-    <div class="min-h-0 flex-[1_1_auto] overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
+    <div class="min-h-0 flex-[1_1_auto] overflow-y-auto overscroll-contain px-5 pt-4 space-y-4"
          data-sheet-scroll
-         style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;"
+         style="-webkit-overflow-scrolling: touch; scroll-padding-bottom: 96px;
+                padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);"
          onfocusin={keepInView}>
 
       <!-- Title -->
@@ -424,22 +436,22 @@
         </div>
       </div>
 
-      <!-- Reminder (remind_at) -->
+      <!-- Reminder (remind_at) — styled pickers, no native Android selectors -->
       <div>
         <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400" for="task-remind-date">
           Remind me
         </label>
         <div class="flex items-center gap-2">
-          <input id="task-remind-date" type="date" bind:value={remindDate}
-                 class="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm
-                        dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
-          <input type="time" bind:value={remindTime} aria-label="Reminder time"
-                 disabled={!remindDate}
-                 class="w-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm disabled:opacity-50
-                        dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
+          <div class="flex-1">
+            <SempaDatePicker id="task-remind-date" bind:value={remindDate} placeholder="No reminder"
+                             onchange={(v) => { if (v && !remindTime) remindTime = '09:00'; }} />
+          </div>
+          <div class="w-32">
+            <SempaSelect bind:value={remindTime} options={REMIND_TIME_OPTIONS} placeholder="Time" />
+          </div>
           {#if remindDate}
             <button type="button" onclick={() => { remindDate = ''; remindTime = ''; }}
-                    class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
+                    class="shrink-0 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
           {/if}
         </div>
       </div>
