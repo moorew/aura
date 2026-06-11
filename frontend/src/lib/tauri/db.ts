@@ -60,6 +60,69 @@ async function loadTauriDriver(): Promise<Driver> {
 // shared schema once on open. LOCAL_SCHEMA_SQL is idempotent (CREATE TABLE IF
 // NOT EXISTS) so re-applying on every launch is safe and cheap.
 
+// Columns added AFTER a table's first shipped shape. `CREATE TABLE IF NOT EXISTS`
+// cannot add columns to a table that already exists, and Capacitor has no
+// migration runner — so an Android install created before one of these columns
+// shipped is missing it, and any query touching it (e.g. saving a task with a
+// reminder → `UPDATE tasks SET remind_at = ?`) throws "no such column" and the
+// save silently fails. We reconcile by ADD COLUMN-ing whatever is missing. Each
+// entry must be nullable or carry a constant DEFAULT (ALTER ADD COLUMN can't add
+// a bare NOT NULL), and must mirror schema.ts. Re-running is a no-op (we skip
+// columns already present), so this is safe on every launch.
+const COLUMN_RECONCILE: Record<string, Array<[string, string]>> = {
+    tasks: [
+        ['time_estimate_minutes', 'INTEGER'],
+        ['time_actual_minutes', 'INTEGER'],
+        ['parent_task_id', 'TEXT'],
+        ['weekly_objective_id', 'TEXT'],
+        ['source', "TEXT DEFAULT 'manual'"],
+        ['source_id', 'TEXT'],
+        ['source_url', 'TEXT'],
+        ['source_metadata', 'TEXT'],
+        ['completed_at', 'TEXT'],
+        ['archived_at', 'TEXT'],
+        ['tags', "TEXT DEFAULT '[]'"],
+        ['recurrence_rule', 'TEXT'],
+        ['recurrence_origin_id', 'TEXT'],
+        ['is_customized', 'INTEGER NOT NULL DEFAULT 0'],
+        ['scheduled_start', 'TEXT'],
+        ['scheduled_end', 'TEXT'],
+        ['roughly_at', 'TEXT'],
+        ['remind_at', 'TEXT'],
+    ],
+    daily_plans: [
+        ['intention', 'TEXT'],
+        ['reflection', 'TEXT'],
+        ['wins', 'TEXT'],
+        ['shutdown_at', 'TEXT'],
+    ],
+};
+
+interface CapConn {
+    query(sql: string, params?: unknown[]): Promise<{ values?: unknown[] }>;
+    execute(sql: string): Promise<unknown>;
+}
+
+async function reconcileColumns(conn: CapConn): Promise<void> {
+    for (const [table, cols] of Object.entries(COLUMN_RECONCILE)) {
+        let existing: Set<string>;
+        try {
+            const info = await conn.query(`PRAGMA table_info(${table})`);
+            existing = new Set((info.values ?? []).map((r) => (r as { name: string }).name));
+        } catch {
+            continue; // table not present yet (created fresh by schema) — nothing to patch
+        }
+        for (const [name, type] of cols) {
+            if (existing.has(name)) continue;
+            try {
+                await conn.execute(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+            } catch {
+                /* raced / already added — ignore */
+            }
+        }
+    }
+}
+
 async function loadCapacitorDriver(): Promise<Driver> {
     const mod = await import('@capacitor-community/sqlite');
     const sqlite = new mod.SQLiteConnection(mod.CapacitorSQLite);
@@ -72,6 +135,8 @@ async function loadCapacitorDriver(): Promise<Driver> {
 
     await conn.open();
     await conn.execute(LOCAL_SCHEMA_SQL);
+    // Patch in any columns missing on installs that predate them (see above).
+    await reconcileColumns(conn as unknown as CapConn);
 
     return {
         execute: async (sql, params) => {

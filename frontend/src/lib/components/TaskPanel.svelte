@@ -327,6 +327,13 @@
           </button>
         </div>
       </div>
+      <!-- Save errors must surface next to the action bar: the body's own error
+           line sits far below the fold, so on mobile a failed save looked like
+           the button "did nothing". -->
+      {#if error}
+        <p class="shrink-0 border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600
+                  dark:border-red-950 dark:bg-red-950/60 dark:text-red-400">{error}</p>
+      {/if}
     {:else}
     <!-- Header -->
     <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-800">
