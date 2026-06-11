@@ -302,8 +302,8 @@ async function upsertTask(t: Record<string, unknown>): Promise<boolean> {
             time_estimate_minutes, time_actual_minutes, parent_task_id, weekly_objective_id,
             source, source_id, source_url, source_metadata, completed_at, archived_at,
             created_at, updated_at, tags, recurrence_rule, recurrence_origin_id, is_customized,
-            scheduled_start, scheduled_end, roughly_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            scheduled_start, scheduled_end, roughly_at, remind_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON CONFLICT(id) DO UPDATE SET
             title=excluded.title, description=excluded.description, planned_date=excluded.planned_date,
             week_start=excluded.week_start, status=excluded.status, position=excluded.position,
@@ -314,7 +314,8 @@ async function upsertTask(t: Record<string, unknown>): Promise<boolean> {
             archived_at=excluded.archived_at, updated_at=excluded.updated_at, tags=excluded.tags,
             recurrence_rule=excluded.recurrence_rule, recurrence_origin_id=excluded.recurrence_origin_id,
             is_customized=excluded.is_customized, scheduled_start=excluded.scheduled_start,
-            scheduled_end=excluded.scheduled_end, roughly_at=excluded.roughly_at`,
+            scheduled_end=excluded.scheduled_end, roughly_at=excluded.roughly_at,
+            remind_at=excluded.remind_at`,
         [
             t.id, t.title, t.description ?? null, t.planned_date ?? null, t.week_start ?? null,
             t.status, t.position ?? 0, t.time_estimate_minutes ?? null, t.time_actual_minutes ?? null,
@@ -322,7 +323,7 @@ async function upsertTask(t: Record<string, unknown>): Promise<boolean> {
             t.source_url ?? null, t.source_metadata ?? null, t.completed_at ?? null, t.archived_at ?? null,
             t.created_at ?? null, t.updated_at ?? null, JSON.stringify(t.tags ?? []),
             t.recurrence_rule ?? null, t.recurrence_origin_id ?? null, t.is_customized ? 1 : 0,
-            t.scheduled_start ?? null, t.scheduled_end ?? null, t.roughly_at ?? null,
+            t.scheduled_start ?? null, t.scheduled_end ?? null, t.roughly_at ?? null, t.remind_at ?? null,
         ],
     );
     return true;

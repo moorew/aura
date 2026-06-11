@@ -192,6 +192,17 @@ pub fn get_migrations() -> Vec<Migration> {
             "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            // Per-task hard reminders. Mirrors the server (migration 018) and the
+            // Capacitor schema (schema.ts) so a pulled task carrying remind_at
+            // doesn't break the sync upsert with "no column named remind_at".
+            version: 7,
+            description: "add remind_at to tasks",
+            sql: r#"
+                ALTER TABLE tasks ADD COLUMN remind_at TEXT;
+            "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

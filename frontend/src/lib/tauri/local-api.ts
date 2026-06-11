@@ -95,6 +95,18 @@ export const localApi = {
             if (rows.length === 0) throw new Error('Task not found');
             return parseTaskRow(rows[0]);
         },
+        // Tasks whose hard reminder is now due — used by the Tauri desktop shell
+        // to raise a native OS notification while the app is running.
+        dueReminders: async (): Promise<Task[]> => {
+            const rows = await query<Record<string, unknown>[]>(
+                `SELECT * FROM tasks
+                 WHERE remind_at IS NOT NULL
+                   AND datetime(remind_at) <= datetime('now')
+                   AND status NOT IN ('done', 'cancelled')
+                 ORDER BY remind_at ASC`,
+            );
+            return rows.map(parseTaskRow);
+        },
         create: async (input: CreateTaskInput): Promise<Task> => {
             const id = uuid();
             const ts = now();

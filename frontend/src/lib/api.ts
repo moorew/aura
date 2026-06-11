@@ -11,8 +11,10 @@ import type {
   GmailIntegrationConfig,
   JiraIntegrationConfig,
   LinkUnfurl,
+  NotificationSettings,
   Objective,
   SearchResults,
+  WebhookConfig,
   PomodoroSession,
   SyncResult,
   TagDefinition,
@@ -284,6 +286,19 @@ const httpApi = {
       req<any>('/api/v1/devices', { method: 'POST', body: body({ token, platform }) }),
     unregister: (token: string) =>
       req<void>('/api/v1/devices', { method: 'DELETE', body: body({ token }) }),
+  },
+
+  notifications: {
+    getSettings: () => req<NotificationSettings>('/api/v1/notifications/settings'),
+    putSettings: (s: NotificationSettings) =>
+      req<NotificationSettings>('/api/v1/notifications/settings', { method: 'PUT', body: body(s) }),
+    vapidPublicKey: () => req<{ key: string }>('/api/v1/notifications/vapid-public-key'),
+    subscribeWebPush: (sub: { endpoint: string; keys: { p256dh: string; auth: string }; platform: string }) =>
+      req<unknown>('/api/v1/notifications/webpush/subscribe', { method: 'POST', body: body(sub) }),
+    unsubscribeWebPush: (endpoint: string) =>
+      req<void>('/api/v1/notifications/webpush/subscribe', { method: 'DELETE', body: body({ endpoint }) }),
+    testWebhook: (cfg: WebhookConfig) =>
+      req<{ ok: boolean }>('/api/v1/notifications/webhook/test', { method: 'POST', body: body(cfg) }),
   },
 
   objectives: {

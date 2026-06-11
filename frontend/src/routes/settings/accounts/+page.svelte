@@ -1234,6 +1234,23 @@
         </svg>
       </a>
 
+      <a href="/settings/notifications"
+         class="flex items-center gap-3 rounded-xl border px-5 py-4 transition-colors"
+         style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
+          <svg class="h-4 w-4" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <p class="text-sm font-semibold" style="color: var(--sempa-text);">Notifications</p>
+          <p class="text-xs" style="color: var(--sempa-text-soft);">Reminders, push channels, sound, and routines</p>
+        </div>
+        <svg class="h-4 w-4" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
+        </svg>
+      </a>
+
       <a href="/settings/backup"
          class="flex items-center gap-3 rounded-xl border px-5 py-4 transition-colors"
          style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
