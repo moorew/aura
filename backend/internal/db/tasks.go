@@ -327,6 +327,21 @@ func (s *TaskStore) ListDueReminders(ctx context.Context) ([]Task, error) {
 	return collectTasks(rows)
 }
 
+// ListWithReminders returns all active tasks that carry a reminder timestamp,
+// soonest first. Powers the Reminders page (upcoming + recently fired).
+func (s *TaskStore) ListWithReminders(ctx context.Context) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+taskCols+` FROM tasks
+		 WHERE remind_at IS NOT NULL AND remind_at != ''
+		   AND status NOT IN ('done', 'cancelled')
+		 ORDER BY remind_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectTasks(rows)
+}
+
 // MarkReminderSent stamps reminder_sent_at so a fired reminder is not re-sent.
 func (s *TaskStore) MarkReminderSent(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx,

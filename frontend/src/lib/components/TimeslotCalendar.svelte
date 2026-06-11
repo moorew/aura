@@ -210,8 +210,9 @@
 <div class="flex h-full flex-col overflow-hidden">
   <div class="shrink-0 px-4 py-2 border-b border-gray-100 dark:border-gray-800/60">
     <div class="flex items-center justify-between gap-2">
-      <p class="text-[10.5px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-600">
-        Schedule — drag tasks to place them
+      <p class="text-[10.5px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-600"
+         title="Drag tasks here to place them on the timeline">
+        Schedule
       </p>
       <div class="flex shrink-0 items-center gap-1">
         {#if eventCalendars.length > 0}

@@ -19,10 +19,11 @@
  */
 
 import { today, weekStart } from '$lib/utils';
-import { isTauri } from '$lib/platform';
+import { isTauri, hasLocalDb } from '$lib/platform';
 import { localApi } from '$lib/tauri/local-api';
 import { playSound, DEFAULT_SOUND_ID } from '$lib/sounds';
 import { notificationSettings } from '$lib/stores/notificationSettings.svelte';
+import { reminderAlerts } from '$lib/stores/reminderAlerts.svelte';
 import type { NotificationSettings } from '$lib/types';
 
 const DEFAULTS: NotificationSettings['routines'] = {
@@ -42,9 +43,19 @@ const ONE_MINUTE = 60 * 1000;
 
 function createRoutinesStore() {
   let routines = $state<NotificationSettings['routines']>(DEFAULTS);
-  let masterEnabled = $state(true);
-  let soundEnabled = $state(true);
-  let soundId = $state(DEFAULT_SOUND_ID);
+
+  // Sound + master are read LIVE from notificationSettings at fire time (see
+  // liveSound()) rather than snapshotted: on desktop the settings store returns
+  // its cached copy instantly and reconciles with the server in the background,
+  // so a snapshot taken at startup would keep playing the stale default tone.
+  function liveSound() {
+    const s = notificationSettings.settings;
+    return {
+      master: s.master_enabled,
+      soundOn: s.master_enabled && s.sound_enabled,
+      soundId: s.sound_id || DEFAULT_SOUND_ID,
+    };
+  }
 
   let weeklyPlanDue = $state(false);
   let shutdownDue = $state(false);
@@ -74,7 +85,8 @@ function createRoutinesStore() {
 
   // ── Evaluate whether either prompt should currently be showing ─────────────
   function evaluate() {
-    if (!masterEnabled) {
+    const { master, soundOn, soundId } = liveSound();
+    if (!master) {
       weeklyPlanDue = false;
       shutdownDue = false;
       return;
@@ -101,11 +113,13 @@ function createRoutinesStore() {
       localStorage.getItem(shutdownDismissKey(td)) !== '1';
 
     // Rising edge: a banner just appeared → gentle audible cue (foreground only).
-    if (!wasDue && (weeklyPlanDue || shutdownDue) && soundEnabled) {
+    if (!wasDue && (weeklyPlanDue || shutdownDue) && soundOn) {
       playSound(soundId);
     }
 
-    if (isTauri()) void checkTauriReminders();
+    // Surface due task reminders in-app (and natively on desktop). Runs on any
+    // local-first client (Tauri desktop + Android), which both have the local DB.
+    if (hasLocalDb()) void checkDueReminders();
   }
 
   // ── Compute the soonest upcoming trigger so we can arm an exact timeout ─────
@@ -133,9 +147,10 @@ function createRoutinesStore() {
     }
 
     const soonest = candidates.length ? Math.min(...candidates) : SIX_HOURS;
-    // On Tauri the timer also drives the reminder poll, so check at least once a
-    // minute; otherwise cap at 6h so an idle app re-evaluates periodically.
-    const cap = isTauri() ? ONE_MINUTE : SIX_HOURS;
+    // On local-first clients the timer also drives the due-reminder poll, so
+    // check at least once a minute; otherwise cap at 6h so an idle app
+    // re-evaluates periodically.
+    const cap = hasLocalDb() ? ONE_MINUTE : SIX_HOURS;
     return Math.max(1000, Math.min(soonest, cap));
   }
 
@@ -147,28 +162,51 @@ function createRoutinesStore() {
     }, msUntilNextTrigger());
   }
 
-  // ── Tauri desktop: fire native OS notifications for due task reminders ──────
-  async function checkTauriReminders() {
+  // ── Local-first: surface due task reminders in-app + natively (desktop) ─────
+  async function checkDueReminders() {
     try {
+      const { master, soundOn, soundId } = liveSound();
+      if (!master) return;
+
       const due = await localApi.tasks.dueReminders();
       if (!due.length) return;
+
+      // Dedup keyed by task + its remind_at, so editing/snoozing a reminder
+      // (which moves remind_at) legitimately re-fires, but the same firing
+      // doesn't repeat every minute.
       const notified = new Set<string>(
         JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '[]'),
       );
-      const mod = await import('@tauri-apps/plugin-notification');
-      let granted = await mod.isPermissionGranted();
-      if (!granted) granted = (await mod.requestPermission()) === 'granted';
-      if (!granted) return;
+      const fresh = due.filter((t) => !notified.has(`${t.id}|${t.remind_at}`));
+      if (!fresh.length) return;
 
-      for (const t of due) {
-        if (notified.has(t.id)) continue;
-        // Windows toasts can't carry a custom audio file, so when a sound is
-        // chosen we silence the toast and play the selected tone via the
-        // WebView's audio instead (the app is running, so this works).
-        mod.sendNotification({ title: 'Reminder', body: t.title, silent: soundEnabled });
-        if (soundEnabled) playSound(soundId);
-        notified.add(t.id);
+      // In-app banner on every local-first platform — the reliable visual.
+      for (const t of fresh) {
+        reminderAlerts.push(t);
+        notified.add(`${t.id}|${t.remind_at}`);
       }
+
+      // Desktop also raises a native OS notification. Android already fired its
+      // own on-device alarm (with the channel sound), so we don't double up there.
+      if (isTauri()) {
+        try {
+          const mod = await import('@tauri-apps/plugin-notification');
+          let granted = await mod.isPermissionGranted();
+          if (!granted) granted = (await mod.requestPermission()) === 'granted';
+          if (granted) {
+            for (const t of fresh) {
+              // Windows toasts can't carry a custom audio file, so when a sound
+              // is chosen we silence the toast and play the selected tone via the
+              // WebView audio instead (the app is running, so this works).
+              mod.sendNotification({ title: 'Reminder', body: t.title, silent: soundOn });
+            }
+          }
+        } catch {
+          /* notification plugin unavailable — in-app banner still covers it */
+        }
+        if (soundOn) playSound(soundId);
+      }
+
       // Keep the notified set bounded.
       localStorage.setItem(NOTIFIED_KEY, JSON.stringify([...notified].slice(-200)));
     } catch {
@@ -178,12 +216,10 @@ function createRoutinesStore() {
 
   async function loadSettings() {
     // Read from the local-first settings store so routines work offline too.
+    // Only the routine schedule is snapshotted here (it drives the timer); sound
+    // + master are read live at fire time via liveSound().
     await notificationSettings.init();
-    const s = notificationSettings.settings;
-    routines = s.routines ?? DEFAULTS;
-    masterEnabled = s.master_enabled;
-    soundEnabled = s.sound_enabled;
-    soundId = s.sound_id || DEFAULT_SOUND_ID;
+    routines = notificationSettings.settings.routines ?? DEFAULTS;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
