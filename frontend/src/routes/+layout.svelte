@@ -14,6 +14,7 @@
   import { initPushNotifications } from '$lib/push';
   import { registerServiceWorker, enableWebPush, listenForPushNavigation, isWebPushSupported, notificationPermission } from '$lib/webpush';
   import { routines } from '$lib/stores/routines.svelte';
+  import { initLocalReminders, syncLocalReminders } from '$lib/localReminders';
   import RoutineBanner from '$lib/components/RoutineBanner.svelte';
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
@@ -230,6 +231,9 @@
       // Arm the in-app routine scheduler (weekly planning / daily shutdown
       // prompts). Idempotent: re-calling on every authenticated landing is safe.
       routines.init((url) => goto(url));
+      // Schedule on-device OS alarms for upcoming reminders (Android only —
+      // fires even with no server/internet). Coalesced + diff-based.
+      initLocalReminders((url) => goto(url));
     }
   });
 
@@ -255,6 +259,8 @@
     lastRevision = rev;
     tagStore.reload();
     realtime.emitLocal('task:change');
+    // New/changed tasks may carry reminders — reschedule on-device alarms.
+    void syncLocalReminders();
   });
 
   function isActive(prefix: string): boolean {

@@ -18,11 +18,11 @@
  * via @tauri-apps/plugin-notification while the app is running.
  */
 
-import { api } from '$lib/api';
 import { today, weekStart } from '$lib/utils';
 import { isTauri } from '$lib/platform';
 import { localApi } from '$lib/tauri/local-api';
 import { playSound, DEFAULT_SOUND_ID } from '$lib/sounds';
+import { notificationSettings } from '$lib/stores/notificationSettings.svelte';
 import type { NotificationSettings } from '$lib/types';
 
 const DEFAULTS: NotificationSettings['routines'] = {
@@ -177,19 +177,13 @@ function createRoutinesStore() {
   }
 
   async function loadSettings() {
-    try {
-      const s = await api.notifications.getSettings();
-      routines = s.routines ?? DEFAULTS;
-      masterEnabled = s.master_enabled;
-      soundEnabled = s.sound_enabled;
-      soundId = s.sound_id || DEFAULT_SOUND_ID;
-    } catch {
-      // Offline / no server — fall back to defaults so prompts still work.
-      routines = DEFAULTS;
-      masterEnabled = true;
-      soundEnabled = true;
-      soundId = DEFAULT_SOUND_ID;
-    }
+    // Read from the local-first settings store so routines work offline too.
+    await notificationSettings.init();
+    const s = notificationSettings.settings;
+    routines = s.routines ?? DEFAULTS;
+    masterEnabled = s.master_enabled;
+    soundEnabled = s.sound_enabled;
+    soundId = s.sound_id || DEFAULT_SOUND_ID;
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 {
   "name": "sempa-frontend",
-  "version": "1.0.89",
+  "version": "1.0.90",
   "private": true,
   "type": "module",
   "scripts": {
@@ -39,6 +39,7 @@
     "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
+    "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/splash-screen": "^8.0.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "^2",

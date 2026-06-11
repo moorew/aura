@@ -107,6 +107,17 @@ export const localApi = {
             );
             return rows.map(parseTaskRow);
         },
+        // All active tasks that carry a reminder timestamp — used to (re)schedule
+        // on-device OS alarms (Android local notifications) from the local DB.
+        withReminders: async (): Promise<Task[]> => {
+            const rows = await query<Record<string, unknown>[]>(
+                `SELECT * FROM tasks
+                 WHERE remind_at IS NOT NULL
+                   AND status NOT IN ('done', 'cancelled')
+                 ORDER BY remind_at ASC`,
+            );
+            return rows.map(parseTaskRow);
+        },
         create: async (input: CreateTaskInput): Promise<Task> => {
             const id = uuid();
             const ts = now();

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import { routines as routinesStore } from '$lib/stores/routines.svelte';
+  import { notificationSettings } from '$lib/stores/notificationSettings.svelte';
+  import { syncLocalReminders } from '$lib/localReminders';
   import {
     isWebPushSupported, enableWebPush, disableWebPush, isWebPushSubscribed, notificationPermission,
   } from '$lib/webpush';
@@ -31,24 +33,25 @@
 
   onMount(async () => {
     webPushSupported = isWebPushSupported();
-    const [s, sub] = await Promise.allSettled([
-      api.notifications.getSettings(),
-      isWebPushSubscribed(),
-    ]);
-    if (s.status === 'fulfilled') settings = s.value;
-    if (sub.status === 'fulfilled') webPushSubscribed = sub.value;
+    // Local-first: show cached settings immediately (works offline, never hangs).
+    // init() reconciles with the server in the background for next time.
+    await notificationSettings.init();
+    settings = structuredClone($state.snapshot(notificationSettings.settings));
     loading = false;
+    isWebPushSubscribed().then((v) => (webPushSubscribed = v)).catch(() => {});
   });
 
   async function save() {
     if (!settings) return;
     saving = true;
     try {
-      settings = await api.notifications.putSettings(settings);
+      await notificationSettings.save(settings);
+      settings = structuredClone($state.snapshot(notificationSettings.settings));
       savedFlash = true;
       setTimeout(() => (savedFlash = false), 1800);
-      // Re-arm the in-app routine scheduler with the new times.
+      // Re-arm the in-app routine scheduler + reschedule on-device alarms.
       void routinesStore.refresh();
+      void syncLocalReminders();
     } catch (e) {
       console.warn('save notification settings failed', e);
     } finally {
