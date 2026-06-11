@@ -94,6 +94,14 @@
   // Hard reminder (remind_at) — split date+time like the scheduled fields.
   let remindDate = $state('');
   let remindTime = $state('');
+  // True when this task's reminder time has already passed (it "rang") and the
+  // task is still open — so we can show that it fired rather than leaving the
+  // user guessing why the time looks stale.
+  const reminderFired = $derived.by(() => {
+    if (!isEdit || !task?.remind_at) return false;
+    const t = new Date(task.remind_at).getTime();
+    return !isNaN(t) && t <= Date.now() && task.status !== 'done' && task.status !== 'cancelled';
+  });
 
   let selectedObjectiveId = $state<string | null>(null);
   let weekObjectives = $state<Objective[]>([]);
@@ -119,9 +127,15 @@
   // FIX 4 helpers — split/combine for separate date+time inputs
   function splitFromISO(iso: string | null | undefined): { date: string; time: string } {
     if (!iso) return { date: '', time: '' };
-    const local = iso.substring(0, 16); // treat stored value as local-ish
-    const [date, time] = local.split('T');
-    return { date: date ?? '', time: time ?? '' };
+    // combineToISO stores UTC (via toISOString), so read it back as LOCAL wall
+    // time — otherwise a 09:30 reminder reappears shifted by the UTC offset.
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return { date: '', time: '' };
+    const p = (n: number) => String(n).padStart(2, '0');
+    return {
+      date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+      time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+    };
   }
   function combineToISO(date: string, time: string): string | null {
     if (!date) return null;
@@ -454,6 +468,15 @@
                     class="shrink-0 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
           {/if}
         </div>
+        {#if reminderFired}
+          <p class="mt-1.5 flex items-center gap-1.5 text-xs" style="color: var(--sempa-accent);">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>
+            </svg>
+            This reminder already rang — set a new time to be reminded again.
+          </p>
+        {/if}
       </div>
 
       <!-- Weekly objective -->

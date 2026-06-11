@@ -87,4 +87,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Exact alarms so task reminders fire at the precise minute on Android 13+.
+         Without these, @capacitor/local-notifications' exact (allowWhileIdle)
+         schedule is downgraded/blocked and the reminder never appears.
+         USE_EXACT_ALARM covers 13+ (granted at install for an alarm/reminder app);
+         SCHEDULE_EXACT_ALARM covers 12. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

@@ -237,6 +237,7 @@ const httpApi = {
     listByRecurrenceOrigin: (originId: string) => req<Task[]>(`/api/v1/tasks?recurrence_origin=${originId}`),
     listBySource: (source: string)      => req<Task[]>(`/api/v1/tasks?source=${source}`),
     listByParent: (parentId: string)    => req<Task[]>(`/api/v1/tasks?parent_id=${parentId}`),
+    listWithReminders: ()               => req<Task[]>('/api/v1/tasks?with_reminders=1'),
     get:          (id: string)        => req<Task>(`/api/v1/tasks/${id}`),
     create: (input: CreateTaskInput) =>
       req<Task>('/api/v1/tasks', { method: 'POST', body: body(input) }),

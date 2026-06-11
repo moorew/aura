@@ -16,6 +16,7 @@
   import { routines } from '$lib/stores/routines.svelte';
   import { initLocalReminders, syncLocalReminders } from '$lib/localReminders';
   import RoutineBanner from '$lib/components/RoutineBanner.svelte';
+  import ReminderBanner from '$lib/components/ReminderBanner.svelte';
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
@@ -32,7 +33,7 @@
   import {
     Sun, CalendarDays, ClipboardCheck, Mail, Moon, SlidersHorizontal,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
-    Target, Timer, Palette, Menu, Layers, BookOpen, Search,
+    Target, Timer, Palette, Menu, Layers, BookOpen, Search, Bell,
   } from 'lucide-svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -350,6 +351,7 @@
       {@render navItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
       {@render navItem('/email', 'Email', Mail)}
       {@render navItem('/backlog', 'Backlog', Layers)}
+      {@render navItem('/reminders', 'Reminders', Bell)}
       {@render navItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
       {@render navItem('/journal', 'Journal', BookOpen)}
 
@@ -423,6 +425,7 @@
   <!-- ── Main content ───────────────────────────────────────────────────── -->
   <div class="flex-1 overflow-auto" style="background: var(--sempa-bg-main);
        {mobile.value ? 'padding-bottom: 88px;' : ''}">
+    <ReminderBanner />
     <RoutineBanner />
     {#key $page.url.pathname}
       <div class="animate-page-in">{@render children()}</div>
@@ -493,6 +496,7 @@
       {/snippet}
 
       {@render moreItem('/search', 'Search', Search)}
+      {@render moreItem('/reminders', 'Reminders', Bell)}
       {@render moreItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
       {@render moreItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
       {@render moreItem('/email', 'Inbox', Mail)}

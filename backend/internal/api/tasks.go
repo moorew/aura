@@ -80,12 +80,15 @@ func (h *taskHandler) list(w http.ResponseWriter, r *http.Request) {
 	parentID := q.Get("parent_id")
 	source := q.Get("source")
 	recurrenceOrigin := q.Get("recurrence_origin")
+	withReminders := q.Get("with_reminders")
 
 	var (
 		tasks []db.Task
 		err   error
 	)
 	switch {
+	case withReminders != "":
+		tasks, err = h.store.ListWithReminders(r.Context())
 	case parentID != "":
 		tasks, err = h.store.ListByParent(r.Context(), parentID)
 	case recurrenceOrigin != "":

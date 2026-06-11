@@ -32,6 +32,8 @@
   let date      = $derived($page.params.date ?? today());
   let ws        = $derived(weekStart(date));
   let todayDate = $derived(today());
+  // Whether the anchored day is today — drives the always-present "Today" jump.
+  const onToday = $derived(isToday(date));
 
   let tasks   = $state<Task[]>([]);
   let loading = $state(true);
@@ -42,6 +44,7 @@
   let rolloverDismissed = $state(false);
 
   let kanbanScroll  = $state<HTMLElement | undefined>();
+  let weekGrid      = $state<HTMLElement | undefined>();
   let draggingId    = $state<string | null>(null);
   let dragOverDate  = $state<string | null>(null);
   let emailPanel    = $state<EmailPanel | undefined>(undefined);
@@ -254,7 +257,13 @@
     const newWs = offsetDate(ws, delta * 7);
     goto(`/day/${newWs}`);
   }
-  function goToday() { goto(`/day/${todayDate}`); }
+  // "Today" jump: if we're already on today's week just re-centre its column
+  // (one-click way back after scrolling around); otherwise navigate, and the
+  // auto-centre effect brings today into view once the new week loads.
+  function goToday() {
+    if (isToday(date)) centerColumn(todayDate, true);
+    else goto(`/day/${todayDate}`);
+  }
 
   function handleCalendarDateClick(d: string) {
     goto(`/day/${d}`);
@@ -265,16 +274,35 @@
     goto(`/day/${offsetDate(date, delta)}`);
   }
 
-  $effect(() => {
+  // Bring a day column to the centre of the horizontal board. The scrollable
+  // axis lives on the inner `data-weekgrid` flex row (NOT the outer <main>), so
+  // we must scroll that element; rect math keeps it correct regardless of which
+  // ancestor is the offset parent.
+  function centerColumn(d: string, smooth = true) {
     if (mobile.value) return;
-    const d = date;
     requestAnimationFrame(() => {
-      if (!kanbanScroll) return;
+      const grid = weekGrid;
       const el = document.getElementById(`day-col-${d}`) as HTMLElement | null;
-      if (!el) return;
-      const targetLeft = el.offsetLeft - (kanbanScroll.clientWidth / 2 - el.offsetWidth / 2);
-      kanbanScroll.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+      if (!grid || !el) return;
+      const gRect = grid.getBoundingClientRect();
+      const eRect = el.getBoundingClientRect();
+      const targetLeft =
+        grid.scrollLeft + (eRect.left - gRect.left) - (grid.clientWidth / 2 - el.offsetWidth / 2);
+      grid.scrollTo({ left: Math.max(0, targetLeft), behavior: smooth ? 'smooth' : 'auto' });
     });
+  }
+
+  // Auto-centre the anchored day (today on the default view) once columns have
+  // rendered, so "today" is front-and-centre instead of scrolled off the right.
+  // Only fire once per anchored date — never yank the scroll back on the
+  // background reloads triggered by realtime task changes.
+  let centeredFor = '';
+  $effect(() => {
+    const d = date;
+    const isLoading = loading;
+    if (mobile.value || isLoading || d === centeredFor) return;
+    centeredFor = d;
+    centerColumn(d, false);
   });
 
   // ── Drag & drop between days ───────────────────────────────────────────────
@@ -696,17 +724,22 @@
 
     <!-- Actions -->
     <div class="flex items-center gap-2">
-      {#if !isToday(date)}
-        <button onclick={goToday}
-                class="font-medium"
-                style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);
-                       background: transparent; border-radius: 9px; padding: 6px 12px;
-                       font-size: 12px; cursor: pointer; transition: all 150ms ease;"
-                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'}
-                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-          Today
-        </button>
-      {/if}
+      <!-- Always present: jump to (and centre) today. When already on this week
+           it re-centres today's column; otherwise it navigates to today. -->
+      <button onclick={goToday}
+              title={onToday ? 'Centre today' : 'Go to today'}
+              class="flex items-center gap-1.5 font-medium"
+              style="border: 1px solid {onToday ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
+                     color: {onToday ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};
+                     background: {onToday ? 'var(--sempa-accent-bg)' : 'transparent'};
+                     border-radius: 9px; padding: 6px 12px;
+                     font-size: 12px; cursor: pointer; transition: all 150ms ease;"
+              onmouseenter={(e) => { if (!onToday) (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'; }}
+              onmouseleave={(e) => { if (!onToday) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+        <span class="inline-flex h-1.5 w-1.5 rounded-full"
+              style="background: {onToday ? 'var(--sempa-accent)' : 'var(--sempa-text-dim)'};"></span>
+        Today
+      </button>
       <button onclick={() => openCreate(todayDate)}
               class="flex items-center gap-1.5 rounded-[9px] px-3 py-1.5 text-[13px] font-[500]
                      tracking-[-0.01em] transition-colors shadow-sm"
@@ -781,7 +814,7 @@
       <!-- overflow-x-auto: on a narrow window the fixed-width day columns scroll
            horizontally instead of being crushed. data-weekgrid lets the wheel/
            swipe navigation respect the edge (only flip weeks when fully scrolled). -->
-      <div class="flex items-start gap-3 pb-6 overflow-x-auto" data-weekgrid>
+      <div bind:this={weekGrid} class="flex items-start gap-3 pb-6 overflow-x-auto" data-weekgrid>
         <!-- Mon–Fri -->
         {#each weekDays.slice(0, 5) as day (day.date)}
           <div id="day-col-{day.date}" class="w-56 shrink-0">
