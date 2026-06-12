@@ -25,7 +25,7 @@
 
 {#if show}
   <div class="mx-auto flex max-w-3xl flex-col gap-2"
-       style="margin: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0;">
+       style="margin: max(40px, calc(env(safe-area-inset-top, 0px) + 12px)) 16px 0;">
     {#each reminderAlerts.alerts as a (a.taskId)}
       <div class="flex items-center gap-3 rounded-xl border px-4 py-3"
            style="border-color: var(--sempa-accent); background: var(--sempa-accent-bg);">
