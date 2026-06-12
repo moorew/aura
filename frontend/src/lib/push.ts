@@ -18,19 +18,24 @@ interface PushPlugin {
 }
 
 /**
- * Create one Android notification channel per sound. A channel's sound is
- * immutable once created, so each choice needs its own "snd_<id>" channel bound
- * to res/raw/<id>.mp3 — the backend targets these channel IDs in the FCM payload.
+ * Create one Android notification channel per sound. A channel's sound +
+ * importance are IMMUTABLE once created, so each choice needs its own channel
+ * bound to res/raw/<id>.mp3 — the backend targets these same channel IDs in the
+ * FCM payload. The channel id is versioned (must match localReminders.ts and the
+ * backend fcm.go) so the corrected sound reference replaces the old broken
+ * channel on existing installs. The sound must be the FULL filename, with
+ * extension, as the plugin resolves it relative to res/raw.
  */
+const CHANNEL_VERSION = 'v2';
 async function ensureSoundChannels(plugin: PushPlugin) {
   if (!plugin.createChannel) return;
   for (const snd of NOTIFICATION_SOUNDS) {
     try {
       await plugin.createChannel({
-        id: `snd_${snd.id}`,
+        id: `rem_${snd.id}_${CHANNEL_VERSION}`,
         name: `Reminder — ${snd.label}`,
         description: 'Sempa task reminders',
-        sound: snd.id, // res/raw resource name (no extension)
+        sound: `${snd.id}.mp3`, // res/raw filename WITH extension — required to resolve
         importance: 5, // IMPORTANCE_HIGH — heads-up + sound
         visibility: 1,
         vibration: true,

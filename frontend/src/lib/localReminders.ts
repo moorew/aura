@@ -25,6 +25,16 @@ import { DEFAULT_SOUND_ID, NOTIFICATION_SOUNDS } from '$lib/sounds';
 
 const MAP_KEY = 'sempa-local-reminder-map';
 
+// Android notification channels are IMMUTABLE once created — importance and
+// sound are frozen at first creation and silently ignored on later edits. Early
+// builds created `snd_<id>` channels with a broken sound reference (bare resource
+// name, no extension) which Android couldn't resolve, leaving the channel silent
+// and low-priority forever. Bumping this version forces a fresh, correct channel
+// on existing installs. Bump again if channel settings ever need to change.
+const CHANNEL_VERSION = 'v2';
+const soundChannelId = (soundId: string) => `rem_${soundId}_${CHANNEL_VERSION}`;
+const SILENT_CHANNEL_ID = `rem_silent_${CHANNEL_VERSION}`;
+
 interface ScheduledEntry {
   notifId: number;
   remindAt: string;
@@ -82,23 +92,47 @@ async function ensurePermission(LN: LocalNotif): Promise<boolean> {
   }
 }
 
-// Make sure the per-sound channel exists so the chosen tone plays.
-async function ensureChannel(LN: LocalNotif, soundId: string) {
-  if (!LN.createChannel) return;
-  const label = NOTIFICATION_SOUNDS.find((s) => s.id === soundId)?.label ?? soundId;
+// Ensure the channel the reminder will post to exists. Android freezes a
+// channel's sound + importance at creation, so we both (a) reference the sound
+// file by its FULL name including extension — `piano.mp3`, relative to res/raw,
+// as the plugin documents — and (b) version the channel id (see CHANNEL_VERSION)
+// so corrected settings actually take effect on devices that already had the
+// old, broken channel. Returns the channel id the schedule should target.
+async function ensureChannel(LN: LocalNotif, soundId: string, soundOn: boolean): Promise<string> {
+  if (soundOn) {
+    const label = NOTIFICATION_SOUNDS.find((s) => s.id === soundId)?.label ?? soundId;
+    const id = soundChannelId(soundId);
+    try {
+      await LN.createChannel?.({
+        id,
+        name: `Reminder — ${label}`,
+        description: 'Sempa task reminders',
+        sound: `${soundId}.mp3`, // res/raw filename WITH extension — required to resolve
+        importance: 5, // IMPORTANCE_HIGH — heads-up + sound
+        visibility: 1,
+        vibration: true,
+      });
+    } catch {
+      /* already exists / unsupported */
+    }
+    return id;
+  }
+  // Sound off: still post to a HIGH-importance channel so the reminder shows as
+  // a heads-up notification (just silent), rather than the default channel which
+  // may be collapsed/low.
   try {
-    await LN.createChannel({
-      id: `snd_${soundId}`,
-      name: `Reminder — ${label}`,
+    await LN.createChannel?.({
+      id: SILENT_CHANNEL_ID,
+      name: 'Reminders (silent)',
       description: 'Sempa task reminders',
-      sound: soundId, // res/raw resource name (no extension) — matches push.ts
-      importance: 5,
+      importance: 4,
       visibility: 1,
       vibration: true,
     });
   } catch {
     /* already exists / unsupported */
   }
+  return SILENT_CHANNEL_ID;
 }
 
 async function bindListeners(LN: LocalNotif) {
@@ -162,7 +196,9 @@ export async function syncLocalReminders(): Promise<void> {
 
     if (!(await ensurePermission(LN))) return;
     await bindListeners(LN);
-    if (soundOn) await ensureChannel(LN, soundId);
+    // Always post to one of our own channels (high importance) so reminders show
+    // as heads-up notifications; pick the per-sound one when sound is enabled.
+    const channelId = await ensureChannel(LN, soundId, soundOn);
 
     const prev = readMap();
     const next: ScheduleMap = {};
@@ -177,7 +213,9 @@ export async function syncLocalReminders(): Promise<void> {
         const when = new Date(t.remind_at).getTime();
         if (isNaN(when) || when <= now) continue; // past-due handled by server catch-up
         const notifId = notifIdFor(t.id);
-        const entry: ScheduledEntry = { notifId, remindAt: t.remind_at, title: t.title, soundId: soundOn ? soundId : '' };
+        // soundId field doubles as the channel-change key, so store the channel
+        // we'll actually post to — re-schedules if the user flips sound on/off.
+        const entry: ScheduledEntry = { notifId, remindAt: t.remind_at, title: t.title, soundId: channelId };
         next[t.id] = entry;
 
         const unchanged =
@@ -192,7 +230,7 @@ export async function syncLocalReminders(): Promise<void> {
           title: 'Reminder',
           body: t.title,
           schedule: { at: new Date(when), allowWhileIdle: true },
-          channelId: soundOn ? `snd_${soundId}` : undefined,
+          channelId,
           actionTypeId: 'REMINDER',
           extra: { taskId: t.id, url: `/focus/${t.id}` },
         });
@@ -216,6 +254,43 @@ export async function syncLocalReminders(): Promise<void> {
       rerunQueued = false;
       void syncLocalReminders();
     }
+  }
+}
+
+/**
+ * Fire a real on-device notification a couple of seconds from now so the user
+ * can verify the OS path (permission + channel + sound + heads-up) in isolation,
+ * independent of reminder timing/sync. Returns a human-readable result for the
+ * settings UI. Capacitor only.
+ */
+export async function sendTestReminder(): Promise<{ ok: boolean; message: string }> {
+  if (!isCapacitor()) return { ok: false, message: 'Test notifications only run on the Android app.' };
+  const LN = await loadPlugin();
+  if (!LN) return { ok: false, message: 'Notification plugin unavailable.' };
+  if (!(await ensurePermission(LN))) {
+    return { ok: false, message: 'Notifications are blocked. Enable them for Sempa in Android settings.' };
+  }
+  const st = notificationSettings.settings;
+  const soundOn = st.master_enabled && st.sound_enabled;
+  const soundId = st.sound_id || DEFAULT_SOUND_ID;
+  await bindListeners(LN);
+  const channelId = await ensureChannel(LN, soundId, soundOn);
+  try {
+    await LN.schedule({
+      notifications: [
+        {
+          id: 2000000001,
+          title: 'Sempa test reminder',
+          body: soundOn ? 'If you can hear this, reminders are working.' : 'Reminders are working (sound is off).',
+          schedule: { at: new Date(Date.now() + 3000), allowWhileIdle: true },
+          channelId,
+          extra: { url: '/settings/notifications' },
+        },
+      ],
+    });
+    return { ok: true, message: 'Test sent — it should appear in ~3 seconds.' };
+  } catch (e) {
+    return { ok: false, message: `Could not schedule: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 

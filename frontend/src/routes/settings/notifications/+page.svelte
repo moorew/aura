@@ -3,7 +3,8 @@
   import { api } from '$lib/api';
   import { routines as routinesStore } from '$lib/stores/routines.svelte';
   import { notificationSettings } from '$lib/stores/notificationSettings.svelte';
-  import { syncLocalReminders } from '$lib/localReminders';
+  import { syncLocalReminders, sendTestReminder } from '$lib/localReminders';
+  import { isCapacitor } from '$lib/platform';
   import {
     isWebPushSupported, enableWebPush, disableWebPush, isWebPushSubscribed, notificationPermission,
   } from '$lib/webpush';
@@ -25,6 +26,23 @@
   // Webhook test state
   let testState = $state<'idle' | 'sending' | 'ok' | 'error'>('idle');
   let testError = $state<string | null>(null);
+
+  // On-device (Android) test-notification state
+  const onAndroid = isCapacitor();
+  let deviceTestBusy = $state(false);
+  let deviceTestMsg = $state<{ ok: boolean; text: string } | null>(null);
+
+  async function sendDeviceTest() {
+    deviceTestBusy = true;
+    deviceTestMsg = null;
+    try {
+      const res = await sendTestReminder();
+      deviceTestMsg = { ok: res.ok, text: res.message };
+    } finally {
+      deviceTestBusy = false;
+      setTimeout(() => (deviceTestMsg = null), 6000);
+    }
+  }
 
   const DAYS = [
     { v: 1, label: 'Mon' }, { v: 2, label: 'Tue' }, { v: 3, label: 'Wed' },
@@ -225,6 +243,29 @@
         {@render toggleRow('Custom webhook (ntfy / Gotify)', 'POST notifications to a self-hosted service.',
           settings.webhook_enabled, (v) => { settings!.webhook_enabled = v; void save(); }, !settings.master_enabled)}
       </section>
+
+      <!-- ── On-device test (Android) ────────────────────────────────────── -->
+      {#if onAndroid}
+        <section class="mb-7 rounded-xl border px-4 py-4" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+          <p class="mb-1 font-semibold" style="font-size:13px; color: var(--sempa-text);">Test this device</p>
+          <p class="mb-3" style="font-size:11.5px; color: var(--sempa-text-soft);">
+            Fires a real notification in a few seconds so you can confirm sound and pop-up work on this phone.
+          </p>
+          <div class="flex items-center gap-3">
+            <button onclick={sendDeviceTest} disabled={deviceTestBusy}
+                    class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-opacity disabled:opacity-40"
+                    style="background: var(--sempa-btn-bg); color: var(--sempa-btn-fg);">
+              <Bell size={14} />
+              {deviceTestBusy ? 'Sending…' : 'Send test notification'}
+            </button>
+            {#if deviceTestMsg}
+              <span class="text-xs" style="color: {deviceTestMsg.ok ? 'var(--sempa-success, #2e7d32)' : 'var(--sempa-danger, #c0392b)'};">
+                {deviceTestMsg.text}
+              </span>
+            {/if}
+          </div>
+        </section>
+      {/if}
 
       <!-- ── Webhook config ──────────────────────────────────────────────── -->
       {#if settings.webhook_enabled}

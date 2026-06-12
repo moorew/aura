@@ -78,10 +78,12 @@ func (s *Service) send(token, title, body string, data map[string]string, sound 
 
 	androidNotif := &fcmAndroidNotification{ChannelID: "reminders"}
 	if sound != "" {
-		// Each sound maps to its own Android channel (sound is immutable once a
-		// channel is created), with the matching res/raw/<sound>.mp3 asset. The
-		// app creates "snd_<sound>" channels on demand.
-		androidNotif.ChannelID = "snd_" + sound
+		// Each sound maps to its own Android channel (sound + importance are
+		// immutable once a channel is created), bound to res/raw/<sound>.mp3. The
+		// app creates these "rem_<sound>_v2" channels on demand; the version suffix
+		// must stay in sync with push.ts / localReminders.ts so a corrected channel
+		// replaces the old broken one on existing installs.
+		androidNotif.ChannelID = "rem_" + sound + "_v2"
 		androidNotif.Sound = sound
 	}
 

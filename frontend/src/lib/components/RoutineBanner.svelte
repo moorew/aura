@@ -15,7 +15,7 @@
 
 {#if mode}
   <div class="mx-auto flex max-w-3xl items-center gap-3 rounded-xl border px-4 py-3"
-       style="margin: 12px 16px 0; border-color: var(--sempa-accent-bg);
+       style="margin: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0; border-color: var(--sempa-accent-bg);
               background: var(--sempa-accent-bg);">
     <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
          style="background: var(--sempa-bg-panel); color: var(--sempa-accent);">
