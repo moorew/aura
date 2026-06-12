@@ -128,16 +128,23 @@
 
 <svelte:head>
   <style>
-    body { background: transparent !important; overflow: hidden; }
+    /* Transparent, gap-free shell so only the card's single rounded shape shows
+       against the desktop — no window backdrop or shadow halo peeking out with a
+       mismatched corner radius. */
+    html, body { background: transparent !important; margin: 0; height: 100%; overflow: hidden; }
   </style>
 </svelte:head>
 
 <div class="widget">
-  <!-- Header (drag region) -->
+  <!-- Title bar — the primary drag handle. Tall + full-width with a visible grip
+       so it's easy to grab and reposition the window. -->
   <div class="widget-header" data-tauri-drag-region>
     <span class="widget-logo" data-tauri-drag-region>sempa</span>
+    <span class="drag-grip" data-tauri-drag-region aria-hidden="true">
+      <span></span><span></span><span></span>
+    </span>
     <div class="widget-header-right">
-      <span class="widget-progress">{progress}%</span>
+      <span class="widget-progress" data-tauri-drag-region>{progress}%</span>
       <button class="widget-close" onclick={closeWidget}
               title="Hide widget (re-open from the tray)" aria-label="Hide widget">
         <X size={12} strokeWidth={2.5} />
@@ -145,16 +152,16 @@
     </div>
   </div>
 
-  <!-- Progress bar -->
-  <div class="widget-bar">
+  <!-- Progress bar (also draggable — non-interactive surface) -->
+  <div class="widget-bar" data-tauri-drag-region>
     <div class="widget-bar-fill" style="width: {progress}%"></div>
   </div>
 
   <!-- Up Next -->
   {#if upNext}
-    <div class="up-next">
-      <span class="up-next-label">Up Next · {upNext.when}</span>
-      <span class="up-next-title">{upNext.title}</span>
+    <div class="up-next" data-tauri-drag-region>
+      <span class="up-next-label" data-tauri-drag-region>Up Next · {upNext.when}</span>
+      <span class="up-next-title" data-tauri-drag-region>{upNext.title}</span>
     </div>
   {/if}
 
@@ -213,7 +220,7 @@
       {/if}
     </form>
   {:else}
-    <div class="widget-footer">{doneCount}/{totalCount} tasks done today</div>
+    <div class="widget-footer" data-tauri-drag-region>{doneCount}/{totalCount} tasks done today</div>
   {/if}
 </div>
 
@@ -222,25 +229,46 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    width: 100vw;
     box-sizing: border-box;
-    padding: 12px;
+    padding: 0 12px 12px;
+    /* Single rounded shape; no shadow so there's no grey halo with a mismatched
+       radius bleeding into the transparent window corners. */
     border-radius: 12px;
     background: var(--sempa-bg-panel);
     border: 1px solid var(--sempa-border);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
     font-family: 'Plus Jakarta Sans', sans-serif;
     color: var(--sempa-text);
     overflow: hidden;
   }
 
+  /* Tall, full-width title bar = a big, obvious drag handle. */
   .widget-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    gap: 8px;
+    height: 38px;
+    margin: 0 -12px 8px;
+    padding: 0 12px;
     cursor: grab;
+    border-bottom: 1px solid var(--sempa-border);
   }
+  .widget-header:active { cursor: grabbing; }
   .widget-logo { font-size: 13px; font-weight: 600; letter-spacing: -0.02em; color: var(--sempa-accent); }
+
+  /* Centered grip dots signalling the bar is draggable. */
+  .drag-grip {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    height: 100%;
+  }
+  .drag-grip span {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--sempa-text-dim); opacity: 0.5;
+  }
   .widget-progress { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; color: var(--sempa-text-soft); }
   .widget-header-right { display: flex; align-items: center; gap: 6px; }
 

@@ -66,7 +66,7 @@
     mobileViewOpen = true;
   }
 
-  // Week days: Mon–Sun
+  // Week days: Mon–Sun (used by the mobile header's selected-day lookup).
   const weekDays = $derived(
     Array.from({ length: 7 }, (_, i) => {
       const d = offsetDate(ws, i);
@@ -82,6 +82,34 @@
       };
     })
   );
+
+  // Desktop board: a rolling 7-day window STARTING at the anchored date, so
+  // today (the default anchor) is always the left-most column with the future
+  // to its right — never centred or buried mid-week. Past days are reached by
+  // paging back. Spans up to two calendar weeks, so task loading covers both.
+  const BOARD_DAYS = 7;
+  const boardDays = $derived(
+    Array.from({ length: BOARD_DAYS }, (_, i) => {
+      const d = offsetDate(date, i);
+      const dt = new Date(d + 'T12:00:00');
+      return {
+        date: d,
+        dayName: dt.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNum: dt.toLocaleDateString('en-US', { day: 'numeric' }),
+        monthName: dt.toLocaleDateString('en-US', { month: 'short' }),
+        fullDayName: dt.toLocaleDateString('en-US', { weekday: 'long' }),
+        isToday: d === todayDate,
+        isWeekend: dt.getDay() === 0 || dt.getDay() === 6,
+      };
+    })
+  );
+  // The Mon–Sun weeks the board overlaps — loaded together so cross-week windows
+  // still get all their tasks.
+  const boardWeeks = $derived.by(() => {
+    const a = weekStart(date);
+    const b = weekStart(offsetDate(date, BOARD_DAYS - 1));
+    return a === b ? [a] : [a, b];
+  });
 
   // Mobile: current selected day info
   const selectedDay = $derived(weekDays.find(d => d.date === date) ?? weekDays[0]);
@@ -136,7 +164,14 @@
   // ── Load ──────────────────────────────────────────────────────────────────
   async function loadTasks() {
     loading = true; error = null;
-    try { tasks = await api.tasks.listByWeek(ws); }
+    try {
+      const lists = await Promise.all(boardWeeks.map(w => api.tasks.listByWeek(w)));
+      // Dedupe by id (the two weeks never overlap, but a task could shift between
+      // loads); a Map keeps the last-seen copy.
+      const byId = new Map<string, Task>();
+      for (const list of lists) for (const t of list) byId.set(t.id, t);
+      tasks = [...byId.values()];
+    }
     catch (e) { error = e instanceof Error ? e.message : 'Failed'; }
     finally { loading = false; }
   }
@@ -148,8 +183,10 @@
     } catch { /* ignore */ }
   }
 
-  onMount(() => { loadTasks(); loadRollover(); });
-  $effect(() => { ws; loadTasks(); });
+  onMount(() => { loadRollover(); });
+  // Re-load whenever the board's covering weeks change (i.e. as the anchored
+  // date pages forward/back). Joined so the dependency is reactive.
+  $effect(() => { boardWeeks.join(','); loadTasks(); });
 
   // Re-fetch when another platform broadcasts a change
   $effect(() => {
@@ -252,16 +289,16 @@
   const mobileDone      = $derived(mobileDayTasks.filter(t => t.status === 'done'));
   const mobileDayEstimate = $derived(mobileDayTasks.reduce((s, t) => s + (t.time_estimate_minutes ?? 0), 0));
 
-  // ── Week navigation ────────────────────────────────────────────────────────
+  // ── Board navigation ───────────────────────────────────────────────────────
+  // The board is a rolling window anchored at `date`, so paging shifts the
+  // anchor by a week and the new anchor day becomes the left-most column.
   function navigateWeek(delta: number) {
-    const newWs = offsetDate(ws, delta * 7);
-    goto(`/day/${newWs}`);
+    goto(`/day/${offsetDate(date, delta * 7)}`);
   }
-  // "Today" jump: if we're already on today's week just re-anchor its column
-  // (one-click way back after scrolling around); otherwise navigate, and the
-  // auto-anchor effect brings today into view once the new week loads.
+  // "Today" jump: re-anchor the board on today (which puts today back at the
+  // left). If already anchored on today, just snap the scroll back to the start.
   function goToday() {
-    if (isToday(date)) anchorColumnLeft(todayDate, true);
+    if (isToday(date)) resetBoardScroll(true);
     else goto(`/day/${todayDate}`);
   }
 
@@ -274,37 +311,20 @@
     goto(`/day/${offsetDate(date, delta)}`);
   }
 
-  // Anchor a day column to the LEFT edge of the horizontal board so the present
-  // and future read first; earlier days in the week stay just off-screen to the
-  // left, reachable by scrolling back. The scrollable axis lives on the inner
-  // `data-weekgrid` flex row (NOT the outer <main>), so we must scroll that
-  // element; rect math keeps it correct regardless of the offset parent.
-  const COL_LEFT_PAD = 4; // px gutter so the anchored column isn't flush to the edge
-  function anchorColumnLeft(d: string, smooth = true) {
+  // The anchored day is column 0, so "left-aligned today" just means the board's
+  // horizontal scroll sits at the start. Reset it when the anchor changes.
+  function resetBoardScroll(smooth = false) {
     if (mobile.value) return;
     requestAnimationFrame(() => {
-      const grid = weekGrid;
-      const el = document.getElementById(`day-col-${d}`) as HTMLElement | null;
-      if (!grid || !el) return;
-      const gRect = grid.getBoundingClientRect();
-      const eRect = el.getBoundingClientRect();
-      const targetLeft = grid.scrollLeft + (eRect.left - gRect.left) - COL_LEFT_PAD;
-      grid.scrollTo({ left: Math.max(0, targetLeft), behavior: smooth ? 'smooth' : 'auto' });
+      weekGrid?.scrollTo({ left: 0, behavior: smooth ? 'smooth' : 'auto' });
     });
   }
-
-  // Auto-anchor the day (today on the default view) to the left once columns
-  // have rendered, so "today" leads and future days follow to its right rather
-  // than today sitting mid-board with past days hogging the view. Only fire once
-  // per anchored date — never yank the scroll back on the background reloads
-  // triggered by realtime task changes.
-  let anchoredFor = '';
+  let scrolledFor = '';
   $effect(() => {
     const d = date;
-    const isLoading = loading;
-    if (mobile.value || isLoading || d === anchoredFor) return;
-    anchoredFor = d;
-    anchorColumnLeft(d, false);
+    if (mobile.value || loading || d === scrolledFor) return;
+    scrolledFor = d;
+    resetBoardScroll(false);
   });
 
   // ── Drag & drop between days ───────────────────────────────────────────────
@@ -328,7 +348,7 @@
     try {
       const updated = await api.tasks.update(id, {
         planned_date: targetDate,
-        week_start: ws,
+        week_start: weekStart(targetDate),
         position: newPos,
         status: task.status === 'backlog' ? 'planned' : task.status,
       });
@@ -431,7 +451,7 @@
     try {
       const task = await api.integrations.fastmail.toTask(emailData.id, emailData.subject);
       const updated = await api.tasks.update(task.id, {
-        planned_date: targetDate, week_start: ws, status: 'planned',
+        planned_date: targetDate, week_start: weekStart(targetDate), status: 'planned',
       });
       tasks = [...tasks, updated];
       emailPanel?.removeEmail(emailData.id);
@@ -456,11 +476,10 @@
     } catch { tasks = prev; }
   }
 
-  // Heading
+  // Heading — the visible rolling window (anchored date → +6 days).
   function weekLabel(): string {
-    const start = new Date(ws + 'T00:00:00');
-    const end   = offsetDate(ws, 6);
-    const endDt = new Date(end + 'T00:00:00');
+    const start = new Date(date + 'T00:00:00');
+    const endDt = new Date(offsetDate(date, BOARD_DAYS - 1) + 'T00:00:00');
     const mo = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' });
     const dy = (d: Date) => d.getDate();
     if (start.getMonth() === endDt.getMonth()) return `${mo(start)} ${dy(start)}–${dy(endDt)}`;
@@ -813,43 +832,16 @@
         {error} <button onclick={loadTasks} class="ml-2 underline">Retry</button>
       </div>
     {:else}
-      <!-- overflow-x-auto: on a narrow window the fixed-width day columns scroll
-           horizontally instead of being crushed. data-weekgrid lets the wheel/
-           swipe navigation respect the edge (only flip weeks when fully scrolled). -->
+      <!-- Rolling board: today (anchor) is the left-most column, future days to
+           the right. overflow-x-auto lets it scroll on narrow windows; the inner
+           data-weekgrid row owns the scroll axis (swipe/wheel paging respects the
+           edge). Weekend columns read a touch softer but keep date order. -->
       <div bind:this={weekGrid} class="flex items-start gap-3 pb-6 overflow-x-auto" data-weekgrid>
-        <!-- Mon–Fri -->
-        {#each weekDays.slice(0, 5) as day (day.date)}
-          <div id="day-col-{day.date}" class="w-56 shrink-0">
+        {#each boardDays as day (day.date)}
+          <div id="day-col-{day.date}" class="w-56 shrink-0" style={day.isWeekend ? 'opacity: 0.92;' : ''}>
             <WeekDayColumn
               date={day.date} dayName={day.dayName} dayNum={day.dayNum}
-              isToday={day.isToday} isWeekend={false}
-              tasks={dayTasks(day.date)}
-              isDragOver={dragOverDate === day.date}
-              onTaskDragStart={handleDragStart}
-              onTaskFocusClick={handleFocus}
-              onTaskFocusMode={handleFocusMode}
-              onTaskComplete={handleComplete}
-              onTaskTrash={handleTrashRequest}
-              onTaskClick={openEdit}
-              onTaskHover={handleTaskHover}
-              onDrop={handleDrop}
-              onEmailDrop={handleEmailDrop}
-              onDragOver={(d) => (dragOverDate = d)}
-              onDragLeave={() => (dragOverDate = null)}
-              onAddClick={openCreate}
-            />
-          </div>
-        {/each}
-
-        <!-- Thin divider before weekend -->
-        <div class="w-px self-stretch bg-gray-200 dark:bg-gray-700/50 mt-7 mb-2"></div>
-
-        <!-- Sat–Sun (narrower, visually softer) -->
-        {#each weekDays.slice(5) as day (day.date)}
-          <div id="day-col-{day.date}" class="w-44 shrink-0">
-            <WeekDayColumn
-              date={day.date} dayName={day.dayName} dayNum={day.dayNum}
-              isToday={day.isToday} isWeekend={true}
+              isToday={day.isToday} isWeekend={day.isWeekend}
               tasks={dayTasks(day.date)}
               isDragOver={dragOverDate === day.date}
               onTaskDragStart={handleDragStart}

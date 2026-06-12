@@ -11,21 +11,41 @@
 
   // Subscribed calendars (ICS feeds) — the per-calendar entities the schedule
   // colours and show/hide settings key off of (matching ev.subscription_id).
-  let subs    = $state<ICalSubscription[]>([]);
-  let loading = $state(true);
+  let subs        = $state<ICalSubscription[]>([]);
+  let subsLoading = $state(true);
+  let subsError   = $state('');
+  // Connected-accounts section loads independently so a slow/unavailable
+  // Google/Fastmail probe never blocks the feed list or the Add-feed button.
+  let accountsLoading = $state(true);
 
-  onMount(async () => {
-    const [g, f, fm, s] = await Promise.allSettled([
-      api.integrations.calendar.get(),
-      api.integrations.fastmail.calendar.get(),
-      api.integrations.fastmail.get(),
-      api.ical.listSubscriptions(),
-    ]);
-    if (g.status === 'fulfilled')  google   = g.value;
-    if (f.status === 'fulfilled')  fastmail = f.value;
-    if (fm.status === 'fulfilled') fmEmail  = (fm.value as { email?: string }).email;
-    if (s.status === 'fulfilled')  subs     = s.value;
-    loading = false;
+  async function loadSubs() {
+    subsLoading = true; subsError = '';
+    try {
+      subs = await api.ical.listSubscriptions() ?? [];
+    } catch (e) {
+      subsError = (e as Error).message || 'Could not load feeds.';
+    } finally {
+      subsLoading = false;
+    }
+  }
+
+  onMount(() => {
+    // Feeds first + on their own promise — this is what Add feed needs, and it
+    // must never wait on the account probes below.
+    void loadSubs();
+
+    // Accounts in the background; each settles independently.
+    void (async () => {
+      const [g, f, fm] = await Promise.allSettled([
+        api.integrations.calendar.get(),
+        api.integrations.fastmail.calendar.get(),
+        api.integrations.fastmail.get(),
+      ]);
+      if (g.status === 'fulfilled')  google   = g.value;
+      if (f.status === 'fulfilled')  fastmail = f.value;
+      if (fm.status === 'fulfilled') fmEmail  = (fm.value as { email?: string }).email;
+      accountsLoading = false;
+    })();
   });
 
   function fmtTime(s?: string | null) {
@@ -96,15 +116,17 @@
   </div>
 
   <div class="flex-1 overflow-y-auto px-5 py-6 pb-16">
-    {#if loading}
-      <p class="text-sm" style="color: var(--sempa-text-dim);">Loading calendars…</p>
-    {:else}
 
       <!-- ── Connected accounts ─────────────────────────────────────────── -->
       <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
          text-transform:uppercase; color:var(--sempa-text-dim)">Accounts</p>
 
-      {#if accounts.length === 0}
+      {#if accountsLoading}
+        <div class="mb-7 rounded-xl border px-4 py-4 text-sm"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text-dim);">
+          Loading accounts…
+        </div>
+      {:else if accounts.length === 0}
         <div class="mb-7 rounded-xl border px-4 py-4 text-sm"
              style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text-soft);">
           No calendar accounts connected yet.
@@ -147,7 +169,18 @@
         </button>
       </div>
 
-      {#if subs.length === 0}
+      {#if subsLoading}
+        <div class="mb-7 rounded-xl border px-4 py-4 text-sm"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text-dim);">
+          Loading feeds…
+        </div>
+      {:else if subsError}
+        <div class="mb-7 rounded-xl border px-4 py-4 text-sm"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text-soft);">
+          <span class="text-red-500 dark:text-red-400">{subsError}</span>
+          <button onclick={loadSubs} class="ml-1 underline" style="color: var(--sempa-accent);">Retry</button>
+        </div>
+      {:else if subs.length === 0}
         <div class="mb-7 rounded-xl border px-4 py-4 text-sm"
              style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text-soft);">
           No subscribed calendars yet.
@@ -211,7 +244,6 @@
         {/each}
       </section>
 
-    {/if}
   </div>
 </div>
 
