@@ -49,6 +49,14 @@
   // The reminder popup is a separate, chromeless Tauri window (top-right floating
   // card). It must NOT render the app shell or run the heavy auth/sync onMount.
   let isReminderPopup  = $derived(($page.url.pathname as string) === '/reminder-popup');
+  // The floating widget and sticky-note windows are likewise standalone, chromeless
+  // Tauri windows — they own their entire UI and must never render the app shell
+  // (sidebar / mobile bottom nav), which was bleeding into the narrow widget.
+  let isStandaloneWindow = $derived(
+    isReminderPopup ||
+    ($page.url.pathname as string) === '/widget' ||
+    ($page.url.pathname as string) === '/sticky'
+  );
   let shortcutsOpen      = $state(false);
   let userEmail          = $state<string | undefined>(undefined);
 
@@ -106,9 +114,10 @@
 
   onMount(async () => {
     theme.init();
-    // The reminder popup is a chromeless side window: it needs the theme tokens
-    // but must NOT start sync/realtime/auth (those belong to the main window).
-    if (isReminderPopup) return;
+    // Standalone side windows (reminder popup, widget, sticky) need the theme
+    // tokens but must NOT start sync/realtime/auth — those belong to the main
+    // window, and the widget queries the local DB directly.
+    if (isStandaloneWindow) return;
 
     prefs.init();
     mobile.init();
@@ -256,7 +265,7 @@
   // in the main window only (the popup window short-circuits onMount), and
   // self-guards to Tauri inside syncDesktopPopup.
   $effect(() => {
-    if (isReminderPopup) return;
+    if (isStandaloneWindow) return;
     void syncDesktopPopup(reminderAlerts.alerts);
   });
 
@@ -322,7 +331,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if isLoginPage || isSetupPage || isReminderPopup}
+{#if isLoginPage || isSetupPage || isStandaloneWindow}
   {@render children()}
 {:else}
 <div class="flex flex-col h-screen overflow-hidden" style="background: var(--sempa-bg-main);">
