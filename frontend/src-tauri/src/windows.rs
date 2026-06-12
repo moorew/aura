@@ -13,14 +13,17 @@ pub fn create_widget(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
         return Ok(());
     }
 
+    let win_w = 340.0;
+    let win_h = 480.0;
     let mut builder = WebviewWindowBuilder::new(
         app,
         "widget",
         WebviewUrl::App("/widget".into()),
     )
     .title("sempa widget")
-    .inner_size(320.0, 240.0)
-    .resizable(false)
+    .inner_size(win_w, win_h)
+    .min_inner_size(300.0, 280.0)
+    .resizable(true)
     .decorations(false)
     .always_on_top(true)
     .transparent(true)
@@ -32,8 +35,8 @@ pub fn create_widget(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> 
         if let Some(monitor) = monitor {
             let size = monitor.size();
             let scale = monitor.scale_factor();
-            let x = (size.width as f64 / scale) - 340.0;
-            let y = (size.height as f64 / scale) - 280.0;
+            let x = (size.width as f64 / scale) - win_w - 20.0;
+            let y = (size.height as f64 / scale) - win_h - 40.0;
             builder = builder.position(x, y);
         }
     }
