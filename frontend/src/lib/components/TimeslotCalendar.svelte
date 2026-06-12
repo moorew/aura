@@ -1,25 +1,31 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import type { ICalEvent, Task } from '$lib/types';
-  import { formatMinutes, today as getToday } from '$lib/utils';
+  import { formatMinutes, today as getToday, weekStart } from '$lib/utils';
   import { calendars, calFg, calBg } from '$lib/stores/calendars.svelte';
+  import { openExternal } from '$lib/external';
 
   let {
     date,
     tasks,
     onSchedule,  // (taskId, start ISO, end ISO) => void
     onUnschedule, // (taskId) => void
+    onOpenTask,   // (taskId) => void — open the task in the editor
+    onEventConverted, // (task) => void — a calendar event was imported as a task
   }: {
     date: string;
     tasks: Task[];
     onSchedule?: (taskId: string, start: string, end: string) => void;
     onUnschedule?: (taskId: string) => void;
+    onOpenTask?: (taskId: string) => void;
+    onEventConverted?: (task: Task) => void;
   } = $props();
 
   const START_HOUR = 6;
   const END_HOUR   = 22;
   const HOUR_PX    = 56;
   const TOTAL      = END_HOUR - START_HOUR;
+  const SNAP_MIN   = 5;
   const hours      = Array.from({ length: TOTAL }, (_, i) => START_HOUR + i);
 
   let containerEl = $state<HTMLElement | undefined>();
@@ -27,6 +33,7 @@
   let ghostHour   = $state<number | null>(null);
   let icalEvents  = $state<ICalEvent[]>([]);
   let nowPx       = $state<number | null>(null);
+  let nowLabel    = $state('');
 
   // ── Calendar show/hide ──────────────────────────────────────────────────────
   // Visibility + brand colour live in the shared `calendars` store (also driven
@@ -61,11 +68,12 @@
     const now = new Date();
     const h = now.getHours() + now.getMinutes() / 60;
     nowPx = (h >= START_HOUR && h < END_HOUR) ? (h - START_HOUR) * HOUR_PX : null;
+    nowLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
   $effect(() => {
     date; updateNow();
-    const id = setInterval(updateNow, 60_000);
+    const id = setInterval(updateNow, 30_000);
     return () => clearInterval(id);
   });
 
@@ -137,23 +145,34 @@
     return `left: calc(${pos.col * w}% + 2px); width: calc(${w}% - 4px);`;
   }
 
+  function minToTop(min: number): number {
+    return Math.max(0, (min / 60 - START_HOUR) * HOUR_PX);
+  }
+
   function blockStyle(task: Task): { top: string; height: string } | null {
     if (!task.scheduled_start) return null;
-    const s = new Date(task.scheduled_start);
-    const e = task.scheduled_end
-      ? new Date(task.scheduled_end)
-      : new Date(s.getTime() + 30 * 60000);
-
-    const startH = s.getHours() + s.getMinutes() / 60;
-    const endH   = e.getHours() + e.getMinutes() / 60;
-    const top    = Math.max(0, (startH - START_HOUR) * HOUR_PX);
-    const height = Math.max(20, (endH - startH) * HOUR_PX);
+    // While dragging this block, reflect the live preview position.
+    let sMin: number, eMin: number;
+    if (drag && drag.taskId === task.id) {
+      sMin = drag.curStartMin; eMin = drag.curEndMin;
+    } else {
+      sMin = minutesOf(task.scheduled_start);
+      eMin = task.scheduled_end ? minutesOf(task.scheduled_end) : sMin + 30;
+    }
+    const top    = minToTop(sMin);
+    const height = Math.max(20, ((eMin - sMin) / 60) * HOUR_PX);
     return { top: `${top}px`, height: `${height}px` };
   }
 
   function formatHour(h: number): string {
     if (h === 0 || h === 12) return h === 0 ? '12 AM' : '12 PM';
     return h < 12 ? `${h} AM` : `${h - 12} PM`;
+  }
+
+  function fmtClock(min: number): string {
+    const h = Math.floor(min / 60), m = min % 60;
+    const d = new Date(); d.setHours(h, m, 0, 0);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
   function snapToHalfHour(clientY: number): { hour: number; min: number } {
@@ -168,6 +187,9 @@
 
   function isoAt(h: number, m: number): string {
     return `${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+  }
+  function isoFromMin(min: number): string {
+    return isoAt(Math.floor(min / 60), min % 60);
   }
 
   function handleDragover(e: DragEvent) {
@@ -205,7 +227,139 @@
     const mm = String(s.getMinutes()).padStart(2,'0');
     return `${hh}:${mm} · ${task.title}`;
   }
+
+  // ── Drag-to-move / resize for scheduled task blocks ─────────────────────────
+  type DragState = {
+    taskId: string;
+    mode: 'move' | 'resize-start' | 'resize-end';
+    startClientY: number;
+    origStartMin: number;
+    origEndMin: number;
+    curStartMin: number;
+    curEndMin: number;
+    moved: boolean;
+  };
+  let drag = $state<DragState | null>(null);
+
+  function snap(m: number): number { return Math.round(m / SNAP_MIN) * SNAP_MIN; }
+
+  function startDrag(e: PointerEvent, task: Task, mode: DragState['mode']) {
+    if (e.button !== 0) return; // left button only
+    e.preventDefault(); e.stopPropagation();
+    closeOverlays();
+    const s = minutesOf(task.scheduled_start!);
+    const en = task.scheduled_end ? minutesOf(task.scheduled_end) : s + 30;
+    drag = { taskId: task.id, mode, startClientY: e.clientY, origStartMin: s, origEndMin: en, curStartMin: s, curEndMin: en, moved: false };
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', onDragEnd, { once: true });
+  }
+
+  function onDragMove(e: PointerEvent) {
+    if (!drag) return;
+    const dyMin = ((e.clientY - drag.startClientY) / HOUR_PX) * 60;
+    const moved = drag.moved || Math.abs(e.clientY - drag.startClientY) >= 4;
+    if (drag.mode === 'move') {
+      const dur = drag.origEndMin - drag.origStartMin;
+      let ns = snap(drag.origStartMin + dyMin);
+      ns = Math.max(START_HOUR * 60, Math.min(ns, END_HOUR * 60 - dur));
+      drag = { ...drag, curStartMin: ns, curEndMin: ns + dur, moved };
+    } else if (drag.mode === 'resize-end') {
+      let ne = snap(drag.origEndMin + dyMin);
+      ne = Math.max(drag.origStartMin + 15, Math.min(ne, END_HOUR * 60));
+      drag = { ...drag, curEndMin: ne, moved };
+    } else { // resize-start
+      let ns = snap(drag.origStartMin + dyMin);
+      ns = Math.min(drag.origEndMin - 15, Math.max(START_HOUR * 60, ns));
+      drag = { ...drag, curStartMin: ns, moved };
+    }
+  }
+
+  function onDragEnd(e: PointerEvent) {
+    window.removeEventListener('pointermove', onDragMove);
+    const d = drag;
+    drag = null;
+    if (!d) return;
+    if (d.moved) {
+      onSchedule?.(d.taskId, isoFromMin(d.curStartMin), isoFromMin(d.curEndMin));
+    } else {
+      // No meaningful movement → treat as a click and open the detail popover.
+      openPopover('task', d.taskId, e.clientX, e.clientY);
+    }
+  }
+
+  // ── Detail popover + context menu ───────────────────────────────────────────
+  type Overlay = { kind: 'event' | 'task'; id: string; x: number; y: number };
+  let popover = $state<Overlay | null>(null);
+  let ctxMenu = $state<Overlay | null>(null);
+  let converting = $state(false);
+
+  const popoverEvent = $derived(popover?.kind === 'event' ? icalEvents.find(e => e.id === popover!.id) ?? null : null);
+  const popoverTask  = $derived(popover?.kind === 'task'  ? tasks.find(t => t.id === popover!.id) ?? null : null);
+  const ctxEvent     = $derived(ctxMenu?.kind === 'event' ? icalEvents.find(e => e.id === ctxMenu!.id) ?? null : null);
+  const ctxTask      = $derived(ctxMenu?.kind === 'task'  ? tasks.find(t => t.id === ctxMenu!.id) ?? null : null);
+
+  // Clamp an overlay to the viewport so it never spills off the right/bottom.
+  function clampX(x: number, w = 248) { return Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - w - 8); }
+  function clampY(y: number, h = 180) { return Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : 9999) - h - 8); }
+
+  function openPopover(kind: Overlay['kind'], id: string, x: number, y: number) {
+    ctxMenu = null;
+    popover = { kind, id, x: clampX(x), y: clampY(y) };
+  }
+  function openContext(e: MouseEvent, kind: Overlay['kind'], id: string) {
+    e.preventDefault(); e.stopPropagation();
+    popover = null;
+    ctxMenu = { kind, id, x: clampX(e.clientX, 200), y: clampY(e.clientY, 160) };
+  }
+  function closeOverlays() { popover = null; ctxMenu = null; }
+
+  function eventTimeLabel(ev: ICalEvent): string {
+    const s = new Date(ev.start_time), en = new Date(ev.end_time);
+    const t = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `${t(s)} – ${t(en)}`;
+  }
+
+  async function convertEvent(ev: ICalEvent) {
+    if (converting) return;
+    converting = true;
+    try {
+      const descParts: string[] = [];
+      if (ev.location) descParts.push(`📍 ${ev.location}`);
+      if (ev.url) descParts.push(ev.url);
+      if (ev.description) descParts.push(ev.description);
+      const task = await api.tasks.create({
+        title: ev.summary || 'Calendar event',
+        description: descParts.join('\n\n') || undefined,
+        planned_date: date,
+        week_start: weekStart(date),
+        status: 'planned',
+        scheduled_start: ev.start_time,
+        scheduled_end: ev.end_time,
+      });
+      onEventConverted?.(task);
+      closeOverlays();
+    } catch {
+      /* surfaced via the parent's error handling on next reload */
+    } finally {
+      converting = false;
+    }
+  }
+
+  function openTaskFromOverlay(id: string) {
+    closeOverlays();
+    onOpenTask?.(id);
+  }
+  function unscheduleFromOverlay(id: string) {
+    closeOverlays();
+    onUnschedule?.(id);
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') closeOverlays();
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="flex h-full flex-col overflow-hidden">
   <div class="shrink-0 px-4 py-2 border-b border-gray-100 dark:border-gray-800/60">
@@ -294,12 +448,13 @@
              style="top: {nowPx}px;">
           <div class="shrink-0 rounded-full" style="width:7px; height:7px; margin-left:-3.5px; background: var(--sempa-accent);"></div>
           <div class="flex-1" style="height:1.5px; background: var(--sempa-accent);"></div>
+          <span class="absolute -left-10 w-9 text-right text-[9.5px] font-semibold leading-none select-none"
+                style="color: var(--sempa-accent); top: -4px;">{nowLabel}</span>
         </div>
       {/if}
 
-      <!-- ICS / external calendar events (read-only). On-brand left-border accent
-           + tinted background; concurrent events lay out side-by-side, hidden
-           calendars are filtered, past events dim when that pref is on. -->
+      <!-- ICS / external calendar events. Clickable → detail popover; right-click
+           → quick actions. They're read-only (no resize), but can be imported. -->
       {#each visibleEvents as ev (ev.id)}
         {@const s = new Date(ev.start_time)}
         {@const e = new Date(ev.end_time)}
@@ -308,28 +463,42 @@
         {@const top    = Math.max(0, (startH - START_HOUR) * HOUR_PX)}
         {@const height = Math.max(20, (endH - startH) * HOUR_PX)}
         {@const key    = calendars.colorKey(ev.subscription_id)}
-        <div class="cal-event absolute pointer-events-none overflow-hidden"
+        <button class="cal-event absolute text-left overflow-hidden cursor-pointer hover:brightness-95 transition-all"
              style="top:{top}px; height:{height}px; {colStyle('e:' + ev.id)} --cal-fg:{calFg(key)}; --cal-bg:{calBg(key)}; opacity:{isPast(ev.end_time) ? 0.5 : 1};"
-             title={ev.calendar ? ev.summary + ' · ' + ev.calendar : ev.summary}>
+             title={ev.calendar ? ev.summary + ' · ' + ev.calendar : ev.summary}
+             onclick={(ce) => openPopover('event', ev.id, ce.clientX, ce.clientY)}
+             oncontextmenu={(ce) => openContext(ce, 'event', ev.id)}>
           <p class="title leading-tight truncate">{ev.summary}</p>
-        </div>
+        </button>
       {/each}
 
-      <!-- Scheduled task blocks — on-brand terracotta / sage -->
+      <!-- Scheduled task blocks — draggable to move, edges resize, click opens
+           a popover, right-click opens quick actions. -->
       {#each scheduled as task (task.id)}
         {@const style = blockStyle(task)}
         {@const cal   = taskCal(task)}
         {#if style}
-          <button
-            class="cal-event absolute text-left overflow-hidden cursor-pointer hover:brightness-95 transition-all"
-            style="top: {style.top}; height: {style.height}; {colStyle('t:' + task.id)} --cal-fg:{cal.fg}; --cal-bg:{cal.bg}; opacity:{isPast(task.scheduled_end ?? task.scheduled_start!) ? 0.55 : 1};"
-            onclick={() => onUnschedule?.(task.id)}
-            title="Click to unschedule">
-            <p class="title leading-tight truncate">{blockLabel(task)}</p>
+          <div
+            class="cal-event absolute text-left overflow-hidden transition-[filter] hover:brightness-95"
+            style="top: {style.top}; height: {style.height}; {colStyle('t:' + task.id)} --cal-fg:{cal.fg}; --cal-bg:{cal.bg};
+                   opacity:{isPast(task.scheduled_end ?? task.scheduled_start!) ? 0.55 : 1};
+                   cursor: {drag?.taskId === task.id ? 'grabbing' : 'grab'}; touch-action: none;"
+            onpointerdown={(e) => startDrag(e, task, 'move')}
+            oncontextmenu={(e) => openContext(e, 'task', task.id)}
+            role="button" tabindex="-1">
+            <!-- top resize handle -->
+            <div class="absolute inset-x-0 top-0 h-1.5 cursor-ns-resize"
+                 onpointerdown={(e) => startDrag(e, task, 'resize-start')}
+                 role="separator" aria-label="Resize start"></div>
+            <p class="title leading-tight truncate pointer-events-none">{drag?.taskId === task.id ? `${fmtClock(drag.curStartMin)}–${fmtClock(drag.curEndMin)} · ${task.title}` : blockLabel(task)}</p>
             {#if task.time_estimate_minutes}
-              <p class="time">{formatMinutes(task.time_estimate_minutes)}</p>
+              <p class="time pointer-events-none">{formatMinutes(task.time_estimate_minutes)}</p>
             {/if}
-          </button>
+            <!-- bottom resize handle -->
+            <div class="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize"
+                 onpointerdown={(e) => startDrag(e, task, 'resize-end')}
+                 role="separator" aria-label="Resize end"></div>
+          </div>
         {/if}
       {/each}
     </div>
@@ -343,3 +512,97 @@
     </div>
   {/if}
 </div>
+
+<!-- ── Detail popover ─────────────────────────────────────────────────────── -->
+{#if popover}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="fixed inset-0 z-[70]" onclick={closeOverlays} oncontextmenu={(e) => { e.preventDefault(); closeOverlays(); }}></div>
+  <div class="fixed z-[71] w-60 rounded-xl p-3 shadow-2xl animate-scale-in"
+       style="left:{popover.x}px; top:{popover.y}px; background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);">
+    {#if popoverEvent}
+      <p class="text-[13px] font-semibold leading-snug" style="color: var(--sempa-text);">{popoverEvent.summary}</p>
+      <p class="mt-1 text-[11.5px]" style="color: var(--sempa-text-soft);">{eventTimeLabel(popoverEvent)}</p>
+      {#if popoverEvent.location}
+        <p class="mt-0.5 truncate text-[11px]" style="color: var(--sempa-text-dim);" title={popoverEvent.location}>📍 {popoverEvent.location}</p>
+      {/if}
+      {#if popoverEvent.calendar}
+        <p class="mt-0.5 text-[10.5px] uppercase tracking-wide" style="color: var(--sempa-text-dim);">{popoverEvent.calendar}</p>
+      {/if}
+      <div class="mt-2.5 flex flex-col gap-1.5">
+        {#if popoverEvent.url}
+          <button onclick={() => openExternal(popoverEvent!.url!)}
+                  class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+                  style="background: var(--sempa-accent);">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
+            </svg>
+            Open in browser
+          </button>
+        {/if}
+        <button onclick={() => convertEvent(popoverEvent!)} disabled={converting}
+                class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+                style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M12 5v14M5 12h14"/>
+          </svg>
+          {converting ? 'Adding…' : 'Convert to task'}
+        </button>
+      </div>
+    {:else if popoverTask}
+      <p class="text-[13px] font-semibold leading-snug" style="color: var(--sempa-text);">{popoverTask.title}</p>
+      {#if popoverTask.scheduled_start}
+        <p class="mt-1 text-[11.5px]" style="color: var(--sempa-text-soft);">
+          {fmtClock(minutesOf(popoverTask.scheduled_start))}{#if popoverTask.scheduled_end} – {fmtClock(minutesOf(popoverTask.scheduled_end))}{/if}
+        </p>
+      {/if}
+      <div class="mt-2.5 flex flex-col gap-1.5">
+        {#if onOpenTask}
+          <button onclick={() => openTaskFromOverlay(popoverTask!.id)}
+                  class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+                  style="background: var(--sempa-accent);">
+            Open task
+          </button>
+        {/if}
+        <button onclick={() => unscheduleFromOverlay(popoverTask!.id)}
+                class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors"
+                style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
+          Unschedule
+        </button>
+      </div>
+    {/if}
+  </div>
+{/if}
+
+<!-- ── Right-click context menu ───────────────────────────────────────────── -->
+{#if ctxMenu}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="fixed inset-0 z-[70]" onclick={closeOverlays} oncontextmenu={(e) => { e.preventDefault(); closeOverlays(); }}></div>
+  <div class="fixed z-[71] w-48 overflow-hidden rounded-lg py-1 shadow-2xl animate-scale-in"
+       style="left:{ctxMenu.x}px; top:{ctxMenu.y}px; background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);">
+    {#if ctxEvent}
+      {#if ctxEvent.url}
+        <button onclick={() => { const u = ctxEvent!.url!; closeOverlays(); openExternal(u); }} class="menu-item">Open in browser</button>
+      {/if}
+      <button onclick={() => convertEvent(ctxEvent!)} class="menu-item">Convert to task</button>
+      <button onclick={() => { const t = ctxEvent!.summary; closeOverlays(); navigator.clipboard?.writeText(t).catch(() => {}); }} class="menu-item">Copy title</button>
+    {:else if ctxTask}
+      {#if onOpenTask}
+        <button onclick={() => openTaskFromOverlay(ctxTask!.id)} class="menu-item">Open task</button>
+      {/if}
+      <button onclick={() => unscheduleFromOverlay(ctxTask!.id)} class="menu-item">Unschedule</button>
+    {/if}
+  </div>
+{/if}
+
+<style>
+  .menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    color: var(--sempa-text-soft);
+    transition: background-color 120ms ease;
+  }
+  .menu-item:hover { background: var(--sempa-accent-bg); color: var(--sempa-accent); }
+</style>

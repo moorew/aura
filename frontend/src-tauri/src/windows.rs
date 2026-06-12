@@ -4,8 +4,12 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 /// showing today's tasks at a glance. On Windows, this uses WS_EX_TOOLWINDOW
 /// and WS_EX_NOACTIVATE to sit above the desktop without stealing focus.
 pub fn create_widget(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    // Check if widget already exists
-    if app.get_webview_window("widget").is_some() {
+    // Already open → bring it forward instead of silently no-op'ing, so a second
+    // tray click re-summons the widget rather than appearing to do nothing.
+    if let Some(win) = app.get_webview_window("widget") {
+        let _ = win.show();
+        let _ = win.set_always_on_top(true);
+        let _ = win.set_focus();
         return Ok(());
     }
 

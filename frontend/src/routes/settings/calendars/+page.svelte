@@ -40,6 +40,45 @@
     if (fastmail.connected) out.push({ id: 'fastmail', name: 'Fastmail Calendar', email: fmEmail,        synced: fastmail.last_synced_at });
     return out;
   });
+
+  // ── Add feed modal ──────────────────────────────────────────────────────────
+  let showAddFeed = $state(false);
+  let feedUrl     = $state('');
+  let feedName    = $state('');
+  let feedError   = $state('');
+  let feedSaving  = $state(false);
+
+  function openAddFeed() {
+    feedUrl = ''; feedName = ''; feedError = ''; showAddFeed = true;
+  }
+
+  // Accept http/https/webcal only; webcal is just https for an ICS feed, so the
+  // backend (which fetches http(s)) gets a normalised URL.
+  function validFeedUrl(raw: string): boolean {
+    return /^(https?|webcal):\/\//i.test(raw.trim());
+  }
+
+  async function saveFeed() {
+    const raw = feedUrl.trim();
+    if (!validFeedUrl(raw)) {
+      feedError = 'Enter a URL starting with http, https, or webcal.';
+      return;
+    }
+    feedSaving = true; feedError = '';
+    try {
+      const normalizedUrl = raw.replace(/^webcal:\/\//i, 'https://');
+      const sub = await api.ical.createSubscription({
+        name: feedName.trim() || new URL(normalizedUrl).hostname,
+        url:  normalizedUrl,
+      });
+      subs = [...subs, sub];
+      showAddFeed = false;
+    } catch (e) {
+      feedError = (e as Error).message || 'Failed to add feed.';
+    } finally {
+      feedSaving = false;
+    }
+  }
 </script>
 
 <div class="mx-auto flex h-full max-w-xl flex-col" style="padding-top: env(safe-area-inset-top, 0px);">
@@ -98,14 +137,21 @@
       {/if}
 
       <!-- ── Subscribed calendars ───────────────────────────────────────── -->
-      <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
-         text-transform:uppercase; color:var(--sempa-text-dim)">Calendars</p>
+      <div class="mb-3 flex items-center justify-between">
+        <p style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
+           text-transform:uppercase; color:var(--sempa-text-dim)">Calendars</p>
+        <button onclick={openAddFeed}
+                class="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors"
+                style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+          + Add feed
+        </button>
+      </div>
 
       {#if subs.length === 0}
         <div class="mb-7 rounded-xl border px-4 py-4 text-sm"
              style="border-color: var(--sempa-border); background: var(--sempa-bg-panel); color: var(--sempa-text-soft);">
-          No subscribed calendars. Add an iCal feed in
-          <a href="/settings/accounts" style="color: var(--sempa-accent);">Integrations</a>.
+          No subscribed calendars yet.
+          <button onclick={openAddFeed} style="color: var(--sempa-accent);">Add an iCal or webcal feed →</button>
         </div>
       {:else}
         <section class="mb-2 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
@@ -168,3 +214,51 @@
     {/if}
   </div>
 </div>
+
+<!-- ── Add feed modal ─────────────────────────────────────────────────────── -->
+{#if showAddFeed}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 backdrop-blur-sm animate-fade-in"
+       onclick={() => (showAddFeed = false)}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-scale-in"
+         style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);"
+         onclick={(e) => e.stopPropagation()}>
+      <h3 class="mb-1 text-sm font-semibold" style="color: var(--sempa-text);">Add calendar feed</h3>
+      <p class="mb-4 text-xs" style="color: var(--sempa-text-dim);">Subscribe to a read-only ICS or webcal URL.</p>
+
+      <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="feed-url">
+        ICS / Webcal URL <span class="text-red-400">*</span>
+      </label>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input id="feed-url" type="url" inputmode="url" bind:value={feedUrl} autofocus
+             autocomplete="off" autocapitalize="none" spellcheck="false"
+             placeholder="https://example.com/calendar.ics  or  webcal://…"
+             onkeydown={(e) => { if (e.key === 'Enter') saveFeed(); }}
+             class="mb-3 w-full rounded-lg border px-3 py-2 text-sm outline-none"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+
+      <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="feed-name">Name (optional)</label>
+      <input id="feed-name" type="text" bind:value={feedName}
+             placeholder="Work calendar"
+             onkeydown={(e) => { if (e.key === 'Enter') saveFeed(); }}
+             class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+             style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+
+      {#if feedError}<p class="mt-3 text-sm text-red-600 dark:text-red-400">{feedError}</p>{/if}
+
+      <div class="mt-5 flex items-center justify-end gap-2">
+        <button onclick={() => (showAddFeed = false)}
+                class="rounded-lg border px-4 py-2 text-sm transition-colors"
+                style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+          Cancel
+        </button>
+        <button onclick={saveFeed} disabled={feedSaving || !feedUrl.trim()}
+                class="rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                style="background: var(--sempa-accent);">
+          {feedSaving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

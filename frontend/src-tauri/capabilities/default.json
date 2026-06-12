@@ -17,6 +17,7 @@
     "core:window:allow-hide",
     "core:window:allow-minimize",
     "shell:default",
+    "shell:allow-open",
     "notification:default",
     "notification:allow-notify",
     "notification:allow-request-permission",

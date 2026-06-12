@@ -18,6 +18,7 @@ type Event struct {
 	Summary     string
 	Description string
 	Location    string
+	URL         string // canonical link to the event (htmlLink etc.), if present
 	StartTime   string // ISO-8601
 	EndTime     string // ISO-8601
 	AllDay      bool
@@ -118,6 +119,8 @@ func Parse(r io.Reader) ([]Event, error) {
 			cur.Description = unescapeText(val)
 		case "LOCATION":
 			cur.Location = unescapeText(val)
+		case "URL":
+			cur.URL = strings.TrimSpace(val)
 		case "DTSTART":
 			cur.StartTime, cur.AllDay = parseICSTime(line)
 		case "DTEND", "DTEND;VALUE=DATE":
@@ -150,30 +153,101 @@ func unfold(r io.Reader) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-// parseICSTime handles date-only (YYYYMMDD) and datetime (YYYYMMDDTHHMMSSZ) values.
-// It returns an ISO-8601 string and whether the event is all-day.
+// parseICSTime handles date-only (YYYYMMDD) and datetime (YYYYMMDDTHHMMSS[Z])
+// values, honouring the DTSTART/DTEND TZID parameter so events keep their true
+// instant. It returns an ISO-8601 string and whether the event is all-day.
+//
+// Three cases, each emitting a representation the JS client can interpret
+// without drifting hours:
+//   - UTC ("…Z"):        RFC3339 with a Z → client converts to local correctly.
+//   - Zoned (TZID=…):    parsed in that zone, RFC3339 with the real offset.
+//   - Floating (neither): emitted WITHOUT a zone designator so the client reads
+//     it as local wall-clock time — never coerced to UTC (the old behaviour,
+//     which shifted every floating/zoned event by the viewer's offset).
 func parseICSTime(rawLine string) (string, bool) {
-	// Extract value after last ":"
-	_, val, _ := strings.Cut(rawLine, ":")
+	// Split "NAME;PARAM=…:VALUE" into its params and value halves.
+	head, val, _ := strings.Cut(rawLine, ":")
 	val = strings.TrimSpace(val)
+	tzid := paramValue(head, "TZID")
+	valueType := paramValue(head, "VALUE")
 
-	// All-day: YYYYMMDD
-	if len(val) == 8 {
+	// All-day: YYYYMMDD (or explicit VALUE=DATE).
+	if valueType == "DATE" || (len(val) == 8 && !strings.Contains(val, "T")) {
 		if t, err := time.Parse("20060102", val); err == nil {
 			return t.Format("2006-01-02"), true
 		}
 	}
-	// UTC datetime: YYYYMMDDTHHMMSSZ
+
+	// UTC datetime: YYYYMMDDTHHMMSSZ.
 	if strings.HasSuffix(val, "Z") {
 		if t, err := time.Parse("20060102T150405Z", val); err == nil {
 			return t.Format(time.RFC3339), false
 		}
 	}
-	// Local datetime: YYYYMMDDTHHMMSS (treat as UTC for simplicity)
+
+	// Zoned datetime: parse the wall-clock time *in its named zone* so the
+	// resulting RFC3339 carries the correct offset.
+	if tzid != "" {
+		if loc := loadLocation(tzid); loc != nil {
+			if t, err := time.ParseInLocation("20060102T150405", val, loc); err == nil {
+				return t.Format(time.RFC3339), false
+			}
+		}
+	}
+
+	// Floating local datetime: YYYYMMDDTHHMMSS with no zone. Emit it without a
+	// designator so the client treats it as its own local time.
 	if t, err := time.Parse("20060102T150405", val); err == nil {
-		return t.UTC().Format(time.RFC3339), false
+		return t.Format("2006-01-02T15:04:05"), false
 	}
 	return val, false
+}
+
+// paramValue extracts an iCalendar property parameter (e.g. TZID) from the
+// portion of a content line before the ":" — "DTSTART;TZID=America/New_York".
+func paramValue(head, name string) string {
+	parts := strings.Split(head, ";")
+	for _, p := range parts[1:] {
+		k, v, ok := strings.Cut(p, "=")
+		if ok && strings.EqualFold(strings.TrimSpace(k), name) {
+			return strings.Trim(strings.TrimSpace(v), `"`)
+		}
+	}
+	return ""
+}
+
+// loadLocation resolves a TZID to a *time.Location. It tries the IANA name
+// directly (covers Google/Apple/Fastmail feeds), then a small map of common
+// Windows zone names that Outlook emits. Unknown zones return nil so the caller
+// falls back to floating local time rather than guessing wrong.
+func loadLocation(tzid string) *time.Location {
+	if loc, err := time.LoadLocation(tzid); err == nil {
+		return loc
+	}
+	if iana, ok := windowsToIANA[tzid]; ok {
+		if loc, err := time.LoadLocation(iana); err == nil {
+			return loc
+		}
+	}
+	return nil
+}
+
+// windowsToIANA maps the most common Outlook/Windows TZID strings to IANA zones.
+var windowsToIANA = map[string]string{
+	"Eastern Standard Time":          "America/New_York",
+	"Central Standard Time":          "America/Chicago",
+	"Mountain Standard Time":         "America/Denver",
+	"Pacific Standard Time":          "America/Los_Angeles",
+	"GMT Standard Time":              "Europe/London",
+	"Greenwich Standard Time":        "Atlantic/Reykjavik",
+	"W. Europe Standard Time":        "Europe/Berlin",
+	"Central Europe Standard Time":   "Europe/Budapest",
+	"Romance Standard Time":          "Europe/Paris",
+	"Central European Standard Time": "Europe/Warsaw",
+	"AUS Eastern Standard Time":      "Australia/Sydney",
+	"India Standard Time":            "Asia/Kolkata",
+	"Tokyo Standard Time":            "Asia/Tokyo",
+	"China Standard Time":            "Asia/Shanghai",
 }
 
 func unescapeText(s string) string {

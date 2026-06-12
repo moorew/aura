@@ -257,11 +257,11 @@
     const newWs = offsetDate(ws, delta * 7);
     goto(`/day/${newWs}`);
   }
-  // "Today" jump: if we're already on today's week just re-centre its column
+  // "Today" jump: if we're already on today's week just re-anchor its column
   // (one-click way back after scrolling around); otherwise navigate, and the
-  // auto-centre effect brings today into view once the new week loads.
+  // auto-anchor effect brings today into view once the new week loads.
   function goToday() {
-    if (isToday(date)) centerColumn(todayDate, true);
+    if (isToday(date)) anchorColumnLeft(todayDate, true);
     else goto(`/day/${todayDate}`);
   }
 
@@ -274,11 +274,13 @@
     goto(`/day/${offsetDate(date, delta)}`);
   }
 
-  // Bring a day column to the centre of the horizontal board. The scrollable
-  // axis lives on the inner `data-weekgrid` flex row (NOT the outer <main>), so
-  // we must scroll that element; rect math keeps it correct regardless of which
-  // ancestor is the offset parent.
-  function centerColumn(d: string, smooth = true) {
+  // Anchor a day column to the LEFT edge of the horizontal board so the present
+  // and future read first; earlier days in the week stay just off-screen to the
+  // left, reachable by scrolling back. The scrollable axis lives on the inner
+  // `data-weekgrid` flex row (NOT the outer <main>), so we must scroll that
+  // element; rect math keeps it correct regardless of the offset parent.
+  const COL_LEFT_PAD = 4; // px gutter so the anchored column isn't flush to the edge
+  function anchorColumnLeft(d: string, smooth = true) {
     if (mobile.value) return;
     requestAnimationFrame(() => {
       const grid = weekGrid;
@@ -286,23 +288,23 @@
       if (!grid || !el) return;
       const gRect = grid.getBoundingClientRect();
       const eRect = el.getBoundingClientRect();
-      const targetLeft =
-        grid.scrollLeft + (eRect.left - gRect.left) - (grid.clientWidth / 2 - el.offsetWidth / 2);
+      const targetLeft = grid.scrollLeft + (eRect.left - gRect.left) - COL_LEFT_PAD;
       grid.scrollTo({ left: Math.max(0, targetLeft), behavior: smooth ? 'smooth' : 'auto' });
     });
   }
 
-  // Auto-centre the anchored day (today on the default view) once columns have
-  // rendered, so "today" is front-and-centre instead of scrolled off the right.
-  // Only fire once per anchored date — never yank the scroll back on the
-  // background reloads triggered by realtime task changes.
-  let centeredFor = '';
+  // Auto-anchor the day (today on the default view) to the left once columns
+  // have rendered, so "today" leads and future days follow to its right rather
+  // than today sitting mid-board with past days hogging the view. Only fire once
+  // per anchored date — never yank the scroll back on the background reloads
+  // triggered by realtime task changes.
+  let anchoredFor = '';
   $effect(() => {
     const d = date;
     const isLoading = loading;
-    if (mobile.value || isLoading || d === centeredFor) return;
-    centeredFor = d;
-    centerColumn(d, false);
+    if (mobile.value || isLoading || d === anchoredFor) return;
+    anchoredFor = d;
+    anchorColumnLeft(d, false);
   });
 
   // ── Drag & drop between days ───────────────────────────────────────────────
@@ -727,7 +729,7 @@
       <!-- Always present: jump to (and centre) today. When already on this week
            it re-centres today's column; otherwise it navigates to today. -->
       <button onclick={goToday}
-              title={onToday ? 'Centre today' : 'Go to today'}
+              title={onToday ? 'Jump to today' : 'Go to today'}
               class="flex items-center gap-1.5 font-medium"
               style="border: 1px solid {onToday ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
                      color: {onToday ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};
@@ -897,6 +899,8 @@
             tasks={tasks}
             onSchedule={handleSchedule}
             onUnschedule={handleUnschedule}
+            onOpenTask={(id) => { const t = tasks.find(t => t.id === id); if (t) openEdit(t); }}
+            onEventConverted={(t) => { tasks = [...tasks, t]; }}
           />
         {:else if rightPanel === 'mail'}
           <EmailPanel bind:this={emailPanel} onTaskCreated={(t) => { tasks = [...tasks, t]; }} />

@@ -152,6 +152,7 @@ func (h *icalHandler) syncOne(ctx context.Context, sub db.ICalSubscription) {
 			Summary:        ev.Summary,
 			Description:    ev.Description,
 			Location:       ev.Location,
+			URL:            ev.URL,
 			StartTime:      ev.StartTime,
 			EndTime:        ev.EndTime,
 			AllDay:         ev.AllDay,

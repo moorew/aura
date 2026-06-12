@@ -35,8 +35,9 @@
   import {
     Sun, CalendarDays, ClipboardCheck, Mail, Moon, SlidersHorizontal,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
-    Target, Timer, Palette, Menu, Layers, BookOpen, Search, Bell,
+    Target, Timer, Palette, Menu, Layers, BookOpen, Search, Bell, LayoutGrid,
   } from 'lucide-svelte';
+  import { createWidgetWindow } from '$lib/tauri/bridge';
 
   let { children }: { children: Snippet } = $props();
 
@@ -391,6 +392,18 @@
       <div class="mt-auto flex flex-col gap-0.5 pt-3"
            style="border-top: 1px solid var(--sempa-border);">
         {@render navItem('/settings/accounts', 'Settings', SlidersHorizontal)}
+
+        {#if isTauri()}
+          <button onclick={() => createWidgetWindow()}
+                  class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] tracking-[-0.01em] transition-colors"
+                  style="color: var(--sempa-text-soft);"
+                  title="Open the floating desktop widget"
+                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
+                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
+            <span class="shrink-0"><LayoutGrid size={16} strokeWidth={1.75} /></span>
+            Open Widget
+          </button>
+        {/if}
 
         <button onclick={theme.toggle}
                 class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] tracking-[-0.01em] transition-colors"
