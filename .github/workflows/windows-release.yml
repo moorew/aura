@@ -75,9 +75,9 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/sempa_*_x64-setup.exe
-            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/sempa_*_x64_en-US.msi
-            frontend/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/sempa_*_arm64-setup.exe
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Sempa_*_x64-setup.exe
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Sempa_*_x64_en-US.msi
+            frontend/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Sempa_*_arm64-setup.exe
 
       - name: Upload artifacts (manual runs)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}

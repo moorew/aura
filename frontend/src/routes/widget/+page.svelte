@@ -232,11 +232,13 @@
     width: 100vw;
     box-sizing: border-box;
     padding: 0 12px 12px;
-    /* Single rounded shape; no shadow so there's no grey halo with a mismatched
-       radius bleeding into the transparent window corners. */
-    border-radius: 12px;
+    /* Fill the window edge-to-edge with NO CSS corner radius. The previous 12px
+       radius left transparent cutouts at each corner where the window's own grey
+       backing showed through as a "box" with a mismatched radius. Painting every
+       pixel removes that entirely; the OS rounds the window itself (Win11 DWM),
+       so the widget still reads as a soft tile without the grey ring. */
+    border-radius: 0;
     background: var(--sempa-bg-panel);
-    border: 1px solid var(--sempa-border);
     font-family: 'Plus Jakarta Sans', sans-serif;
     color: var(--sempa-text);
     overflow: hidden;
