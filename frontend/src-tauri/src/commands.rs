@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_shell::ShellExt;
 
 use crate::sync::SyncStatus;
 
@@ -93,6 +94,20 @@ pub async fn set_server_url(url: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn create_widget_window(app: AppHandle) -> Result<(), String> {
     crate::windows::create_widget(&app).map_err(|e| e.to_string())
+}
+
+// ── Open a URL in the system default browser ────────────────────────────────
+
+#[tauri::command]
+pub async fn open_external(app: AppHandle, url: String) -> Result<(), String> {
+    // Only allow web links — never arbitrary schemes (file://, etc.).
+    let lower = url.to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return Err("only http(s) URLs may be opened".into());
+    }
+    app.shell()
+        .open(url, None)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

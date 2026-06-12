@@ -122,6 +122,7 @@ export interface ICalEvent {
   summary: string;
   description?: string;
   location?: string;
+  url?: string;
   start_time: string;
   end_time: string;
   all_day: boolean;

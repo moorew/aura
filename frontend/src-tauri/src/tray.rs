@@ -23,6 +23,10 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
         .menu(&menu)
+        // Left-click summons the widget; the menu opens on right-click. Without
+        // this the platform swallows left-clicks to show the menu and the widget
+        // toggle never fires.
+        .show_menu_on_left_click(false)
         .tooltip("sempa")
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "open" => {
@@ -57,12 +61,27 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::DoubleClick { .. } = event {
-                let app = tray.app_handle();
-                if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.set_focus();
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+            let app = tray.app_handle();
+            match event {
+                // Single left-click → summon (or focus) the floating widget.
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    if let Err(e) = crate::windows::create_widget(app) {
+                        eprintln!("widget creation failed: {e}");
+                    }
                 }
+                // Double-click → bring the main window forward.
+                TrayIconEvent::DoubleClick { .. } => {
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
+                }
+                _ => {}
             }
         })
         .build(app)?;

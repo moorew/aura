@@ -25,6 +25,7 @@ type ICalEvent struct {
 	Summary        string `json:"summary"`
 	Description    string `json:"description,omitempty"`
 	Location       string `json:"location,omitempty"`
+	URL            string `json:"url,omitempty"` // canonical link to the source event
 	StartTime      string `json:"start_time"`
 	EndTime        string `json:"end_time"`
 	AllDay         bool   `json:"all_day"`
@@ -89,14 +90,14 @@ func (s *ICalStore) UpsertEvents(ctx context.Context, subID string, events []ICa
 			allDay = 1
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO ical_events (id,subscription_id,uid,summary,description,location,start_time,end_time,all_day)
-			VALUES (?,?,?,?,?,?,?,?,?)
+			INSERT INTO ical_events (id,subscription_id,uid,summary,description,location,url,start_time,end_time,all_day)
+			VALUES (?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(subscription_id,uid) DO UPDATE SET
 				summary=excluded.summary, description=excluded.description,
-				location=excluded.location, start_time=excluded.start_time,
+				location=excluded.location, url=excluded.url, start_time=excluded.start_time,
 				end_time=excluded.end_time, all_day=excluded.all_day,
 				updated_at=datetime('now')`,
-			ev.ID, subID, ev.UID, ev.Summary, ev.Description, ev.Location,
+			ev.ID, subID, ev.UID, ev.Summary, ev.Description, ev.Location, ev.URL,
 			ev.StartTime, ev.EndTime, allDay,
 		); err != nil {
 			_ = tx.Rollback()
@@ -120,7 +121,7 @@ func (s *ICalStore) ListEventsForDate(ctx context.Context, date string) ([]ICalE
 	// Events where start_time date <= date < end_time date
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT e.id, e.subscription_id, e.uid, e.summary, e.description, e.location,
-		       e.start_time, e.end_time, e.all_day, s.color
+		       e.url, e.start_time, e.end_time, e.all_day, s.color
 		FROM ical_events e
 		JOIN ical_subscriptions s ON s.id = e.subscription_id
 		WHERE substr(e.start_time,1,10) <= ? AND substr(e.end_time,1,10) >= ?
@@ -132,14 +133,15 @@ func (s *ICalStore) ListEventsForDate(ctx context.Context, date string) ([]ICalE
 	var out []ICalEvent
 	for rows.Next() {
 		var ev ICalEvent
-		var desc, loc sql.NullString
+		var desc, loc, url sql.NullString
 		var allDay int
 		if err := rows.Scan(&ev.ID, &ev.SubscriptionID, &ev.UID, &ev.Summary,
-			&desc, &loc, &ev.StartTime, &ev.EndTime, &allDay, &ev.Color); err != nil {
+			&desc, &loc, &url, &ev.StartTime, &ev.EndTime, &allDay, &ev.Color); err != nil {
 			return nil, err
 		}
 		ev.Description = desc.String
 		ev.Location = loc.String
+		ev.URL = url.String
 		ev.AllDay = allDay == 1
 		out = append(out, ev)
 	}
