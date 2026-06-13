@@ -2,12 +2,11 @@
   import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { api, getServerUrl, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
-  import { theme, ACCENT_PRESETS, type AccentName } from '$lib/stores/theme.svelte';
+  import { theme } from '$lib/stores/theme.svelte';
   import { prefs } from '$lib/stores/prefs.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
   import { goto } from '$app/navigation';
-  import type { ICalSubscription } from '$lib/types';
 
   // ── Account / profile ──────────────────────────────────────────────────────
   let me = $state<{ authenticated: boolean; auth_enabled?: boolean; google_enabled?: boolean; email?: string }>({ authenticated: false });
@@ -84,16 +83,6 @@
   let syncing     = $state<Record<string, boolean>>({});
   let syncResults = $state<Record<string, string>>({});
 
-  // ICS subscriptions
-  let icalSubs      = $state<ICalSubscription[]>([]);
-  let icalUrl       = $state('');
-  let icalName      = $state('');
-  let icalColor     = $state('#6366f1');
-  let icalAdding    = $state(false);
-  let icalError     = $state('');
-  let showIcalForm  = $state(false);
-  let icalFormEl    = $state<HTMLElement | undefined>();
-
   // Sub-nav active section tracking
   let activeSection = $state('integrations');
   let scrollContainer = $state<HTMLElement | undefined>();
@@ -131,7 +120,6 @@
       api.integrations.fastmail.get(),
       api.integrations.fastmail.calendar.get(),
       api.integrations.taskInbox.get(),
-      api.ical.listSubscriptions(),
       api.integrations.jira.get(),
       api.integrations.caldav.get(),
     ]);
@@ -143,9 +131,8 @@
     fastmail  = val(2, { connected: false });
     fmCal     = val(3, { connected: false, enabled: false });
     taskInbox = val(4, { connected: false });
-    icalSubs  = val(5, []);
-    jira      = val(6, { connected: false });
-    caldav    = val(7, { connected: false });
+    jira      = val(5, { connected: false });
+    caldav    = val(6, { connected: false });
 
     serverUnreachable = results.every((r) => r.status === 'rejected');
 
@@ -180,52 +167,6 @@
   function scrollTo(id: string) {
     const el = document.getElementById(`settings-${id}`);
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  async function addIcalSub() {
-    if (!icalUrl.trim()) return;
-    icalAdding = true; icalError = '';
-    try {
-      // webcal:// is just https:// for an ICS feed. The backend only fetches
-      // http(s), so normalise the scheme on the URL we actually store/sync —
-      // previously only the hostname-parse was normalised and the raw
-      // webcal:// URL was sent, so the feed silently never synced.
-      const normalizedUrl = icalUrl.trim().replace(/^webcal:\/\//i, 'https://');
-      const sub = await api.ical.createSubscription({
-        name: icalName.trim() || new URL(normalizedUrl).hostname,
-        url:  normalizedUrl,
-        color: icalColor,
-      });
-      icalSubs = [...icalSubs, sub];
-      icalUrl = ''; icalName = ''; icalColor = '#6366f1'; showIcalForm = false;
-    } catch (e) { icalError = (e as Error).message; }
-    finally { icalAdding = false; }
-  }
-
-  let icalUrlInput = $state<HTMLInputElement | undefined>();
-
-  // Toggle the add-feed form. Clicking "+ Add feed" again closes it; opening it
-  // focuses the URL field so the click always has a visible effect.
-  async function openIcalForm() {
-    showIcalForm = !showIcalForm;
-    if (!showIcalForm) { icalError = ''; return; }
-    await tick();
-    icalFormEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    icalUrlInput?.focus();
-  }
-
-  async function removeIcalSub(id: string) {
-    await api.ical.deleteSubscription(id).catch(() => {});
-    icalSubs = icalSubs.filter(s => s.id !== id);
-  }
-
-  async function syncIcalSub(id: string) {
-    syncing['ical_' + id] = true;
-    try {
-      await api.ical.syncSubscription(id);
-      icalSubs = await api.ical.listSubscriptions();
-    } catch {}
-    finally { syncing['ical_' + id] = false; }
   }
 
   async function syncService(name: string, fn: () => Promise<{ new: number; updated: number; errors: number }>) {
@@ -404,7 +345,7 @@
   {#if id === 'profile'}{accountEmail ?? 'Signed in'} · sign out
   {:else if id === 'integrations'}Gmail, Fastmail, Jira, Calendars
   {:else if id === 'tasks'}Tags, recurring templates
-  {:else}Accent colour, text size, dark mode
+  {:else}Theme, text size, mode
   {/if}
 {/snippet}
 
@@ -609,16 +550,8 @@
     {/if}
 
     <!-- ── Email & Calendar ──────────────────────────────────────── -->
-    <div class="mb-3 flex items-center justify-between">
-      <p style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
-         text-transform:uppercase; color:var(--sempa-text-dim)">Email & Calendar</p>
-      <a href="/settings/calendars" class="flex items-center gap-1 text-xs font-medium transition-colors" style="color: var(--sempa-accent);">
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/>
-        </svg>
-        Manage calendars
-      </a>
-    </div>
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
+       text-transform:uppercase; color:var(--sempa-text-dim)">Email & Calendar</p>
 
     <!-- ── Gmail ─────────────────────────────────────────────────── -->
     <section class="mb-3 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
@@ -1048,115 +981,31 @@
       {/if}
     </section>
 
-    <!-- ── Calendar Feeds (ICS) ──────────────────────────────────── -->
-    <section class="mb-8 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
-      <!-- Header -->
-      <div class="flex items-center gap-3 px-5 py-4"
-           class:border-b={icalSubs.length > 0 || showIcalForm}
-           style="border-color: var(--sempa-border);">
-        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-             style="background: var(--sempa-cal-feed-bg, #1a2820);">
-          <svg class="h-4 w-4" style="color: var(--sempa-success);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold" style="color: var(--sempa-text);">Calendar Feeds</p>
-          <p class="text-xs" style="color: var(--sempa-text-dim);">Subscribe to ICS/webcal URLs</p>
-        </div>
-        <button onclick={openIcalForm}
-                class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-                style="border-color: var(--sempa-border); color: {showIcalForm ? 'var(--sempa-accent)' : 'var(--sempa-text-soft)'};">
-          {showIcalForm ? 'Close' : '+ Add feed'}
-        </button>
+    <!-- ── Calendars ─────────────────────────────────────────────────
+         Subscriptions (ICS/webcal feeds), per-calendar colours and the
+         connected Google/Fastmail accounts all live on the dedicated
+         /settings/calendars page (also reachable from the schedule sidebar),
+         so this is a single entry point rather than a second, divergent copy. -->
+    <a href="/settings/calendars"
+       class="mb-8 flex items-center gap-3 overflow-hidden rounded-xl border px-5 py-4 transition-colors"
+       style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+           style="background: var(--sempa-cal-feed-bg, #1a2820);">
+        <svg class="h-4 w-4" style="color: var(--sempa-success);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
       </div>
-
-      {#if icalSubs.length === 0 && !showIcalForm}
-        <div class="border-t px-5 py-3" style="border-color: var(--sempa-border);">
-          <p class="text-xs" style="color: var(--sempa-text-dim);">No feeds added yet.</p>
-        </div>
-      {/if}
-
-      {#each icalSubs as sub (sub.id)}
-        <div class="flex h-10 items-center gap-3 border-t px-5 text-xs"
-             style="border-color: var(--sempa-border);">
-          <div class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{sub.color}"></div>
-          <span class="flex-1 min-w-0 truncate" style="color: var(--sempa-text-soft);">{sub.name}</span>
-          {#if sub.error_msg}
-            <span class="text-red-500 dark:text-red-400 truncate max-w-[120px]" title={sub.error_msg}>Error</span>
-          {:else if sub.last_synced_at}
-            <span style="color: var(--sempa-text-dim);">{formatTime(sub.last_synced_at)}</span>
-          {/if}
-          <button onclick={() => syncIcalSub(sub.id)} disabled={syncing['ical_' + sub.id]}
-                  class="transition-colors disabled:opacity-40"
-                  style="color: var(--sempa-text-dim);">
-            {syncing['ical_' + sub.id] ? '...' : 'Sync'}
-          </button>
-          <button onclick={() => removeIcalSub(sub.id)} aria-label="Remove feed"
-                  class="transition-colors" style="color: var(--sempa-text-dim);">
-            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-      {/each}
-
-      {#if showIcalForm}
-        <div bind:this={icalFormEl}
-             class="border-t px-5 py-4 space-y-3" style="border-color: var(--sempa-border);">
-          <div>
-            <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-url">
-              ICS / Webcal URL <span class="text-red-400">*</span>
-            </label>
-            <input id="ical-url" type="url" inputmode="url" bind:value={icalUrl} bind:this={icalUrlInput}
-                   autocomplete="off" autocapitalize="none" spellcheck="false"
-                   placeholder="https://example.com/calendar.ics  or  webcal://..."
-                   class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                   style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-name">Name (optional)</label>
-              <input id="ical-name" type="text" bind:value={icalName}
-                     placeholder="Work calendar"
-                     class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                     style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ical-color">Colour</label>
-              <div class="flex flex-wrap items-center gap-2" id="ical-color">
-                {#each ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#cc6e3a','#b3592e','#6b7280','#f0ece4'] as swatch}
-                  {@const isSel = icalColor.toLowerCase() === swatch.toLowerCase()}
-                  <button type="button" onclick={() => icalColor = swatch}
-                          aria-label="Select colour {swatch}"
-                          class="h-7 w-7 rounded-full border-2 transition-transform hover:scale-110"
-                          style="background: {swatch}; border-color: {isSel ? 'var(--sempa-accent)' : 'transparent'};
-                                 {isSel ? 'outline: 2px solid var(--sempa-accent); outline-offset: 1px;' : ''}">
-                  </button>
-                {/each}
-              </div>
-              <span class="mt-1.5 block text-xs font-mono" style="color: var(--sempa-text-dim);">{icalColor}</span>
-            </div>
-          </div>
-          {#if icalError}<p class="text-sm text-red-600 dark:text-red-400">{icalError}</p>{/if}
-          <div class="flex gap-2">
-            <button onclick={addIcalSub} disabled={icalAdding || !icalUrl.trim()}
-                    class="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-colors"
-                    style="background: var(--sempa-accent);">
-              {icalAdding ? 'Adding...' : 'Subscribe'}
-            </button>
-            <button onclick={() => { showIcalForm = false; icalError = ''; }}
-                    class="rounded-lg border px-4 py-2 text-sm transition-colors"
-                    style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
-              Cancel
-            </button>
-          </div>
-        </div>
-      {/if}
-    </section>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold" style="color: var(--sempa-text);">Calendars</p>
+        <p class="text-xs" style="color: var(--sempa-text-dim);">Subscriptions, colours, and connected calendars</p>
+      </div>
+      <svg class="h-4 w-4 shrink-0" style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" d="m9 18 6-6-6-6"/>
+      </svg>
+    </a>
 
     <!-- ── Project Management ────────────────────────────────────── -->
     <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
@@ -1282,25 +1131,62 @@
     <section class="overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
       <div class="px-5 py-5 space-y-6">
 
-        <!-- Accent colour -->
+        <!-- Theme gallery -->
         <div>
-          <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Accent colour</p>
-          <div style="display:grid; grid-template-columns:repeat(auto-fill,28px); gap:8px;">
-            {#each Object.entries(ACCENT_PRESETS) as [name, preset]}
-              <button onclick={() => theme.setAccent(name as AccentName)}
-                      title={preset.label}
-                      class="transition-transform hover:scale-110"
-                      style="width:28px; height:28px; border-radius:14px; border:none; cursor:pointer;
-                             background: {preset.swatch};
-                             {theme.accent === name
-                               ? 'box-shadow: 0 0 0 2px var(--sempa-bg-panel), 0 0 0 4px var(--sempa-accent);'
-                               : ''}">
+          <p class="text-xs font-medium" style="color: var(--sempa-text);">Theme</p>
+          <p class="mb-3 mt-1 text-[11px] leading-relaxed" style="color: var(--sempa-text-dim);">
+            A full palette for the whole interface. Calm and refined — pick what feels right;
+            you can switch any time.
+          </p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;">
+            {#each theme.THEMES as t (t.id)}
+              {@const selected = theme.theme === t.id}
+              {@const previewDark = t.darkOnly || theme.dark}
+              <button onclick={() => theme.setTheme(t.id)}
+                      aria-pressed={selected}
+                      title={t.label}
+                      class="text-left transition-all"
+                      style="border-radius:12px; padding:10px; cursor:pointer; background: var(--sempa-bg-panel);
+                             border:1px solid {selected ? 'var(--sempa-accent)' : 'var(--sempa-border)'};
+                             {selected ? 'box-shadow:0 0 0 3px var(--sempa-accent-bg);' : ''}">
+                <!-- Live mini-preview rendered in THIS theme's tokens (data-theme
+                     re-declares the --sempa-* vars for this subtree). -->
+                <div data-theme={t.id} class:dark={previewDark}
+                     style="display:flex; gap:6px; height:54px; padding:8px; border-radius:8px;
+                            background: var(--sempa-bg-main); border:1px solid var(--sempa-border);">
+                  <div style="width:18px; border-radius:4px; background: var(--sempa-bg-nav);
+                              display:flex; flex-direction:column; align-items:center; padding-top:7px; gap:5px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--sempa-accent)"></span>
+                    <span style="width:9px;height:3px;border-radius:2px;background:var(--sempa-text-dim)"></span>
+                  </div>
+                  <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+                    {#each [0, 1] as _row}
+                      <div style="flex:1; display:flex; align-items:center; gap:4px; padding:0 5px;
+                                  border-radius:4px; background: var(--card-bg); border:1px solid var(--card-border);">
+                        <span style="width:6px;height:6px;border-radius:50%;background:var(--sempa-accent)"></span>
+                        <span style="flex:1;height:3px;border-radius:2px;background:var(--sempa-text-dim)"></span>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+                <div class="mt-2 flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <p style="font-size:13px; font-weight:600; color: var(--sempa-text);">{t.label}</p>
+                    <p style="font-size:11px; color: var(--sempa-text-dim);">{t.sublabel}</p>
+                  </div>
+                  {#if selected}
+                    <span aria-hidden="true"
+                          style="display:flex; align-items:center; justify-content:center; width:18px; height:18px;
+                                 border-radius:50%; background: var(--sempa-accent); color: var(--sempa-btn-fg); flex-shrink:0;">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </span>
+                  {/if}
+                </div>
               </button>
             {/each}
           </div>
-          <p class="mt-3 text-[10.5px]" style="color: var(--sempa-text-dim);">
-            Currently: <span class="font-medium" style="color: var(--sempa-text-soft);">{ACCENT_PRESETS[theme.accent].label}</span>
-          </p>
         </div>
 
         <!-- Text size -->
@@ -1322,12 +1208,14 @@
           </button>
         </div>
 
-        <!-- Mode: segmented pill -->
+        <!-- Mode: segmented pill (disabled for the dark-only OLED theme) -->
         <div>
           <p class="mb-3 text-xs font-medium" style="color: var(--sempa-text-soft);">Mode</p>
           <div style="display:flex; border-radius:9999px; border:1px solid var(--sempa-border);
-                      padding:3px; gap:2px; width:fit-content;">
+                      padding:3px; gap:2px; width:fit-content;
+                      {theme.darkOnly ? 'opacity:0.5; pointer-events:none;' : ''}">
             <button onclick={() => { if (theme.dark) theme.toggle(); }}
+                    disabled={theme.darkOnly} aria-disabled={theme.darkOnly}
                     class="transition-colors"
                     style="border-radius:9999px; padding:6px 16px; font-size:13px; border:none; cursor:pointer;
                            {!theme.dark
@@ -1336,6 +1224,7 @@
               Light
             </button>
             <button onclick={() => { if (!theme.dark) theme.toggle(); }}
+                    disabled={theme.darkOnly} aria-disabled={theme.darkOnly}
                     class="transition-colors"
                     style="border-radius:9999px; padding:6px 16px; font-size:13px; border:none; cursor:pointer;
                            {theme.dark
@@ -1344,6 +1233,9 @@
               Dark
             </button>
           </div>
+          {#if theme.darkOnly}
+            <p class="mt-2 text-[11px]" style="color: var(--sempa-text-dim);">OLED Black is a dark-only theme.</p>
+          {/if}
         </div>
 
         <!-- Contextual reflections toggle -->
