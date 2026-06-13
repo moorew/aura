@@ -74,6 +74,7 @@
     typeof localStorage !== 'undefined' ? (localStorage.getItem('sempa_account_picture') ?? undefined) : undefined,
   );
   let moreSheetOpen      = $state(false);
+  let acctMenuOpen       = $state(false); // desktop sidebar account popover
   let showIntroAnimation = $state(false);
   let introFadingOut     = $state(false);
 
@@ -402,67 +403,75 @@
         </div>
       {/if}
 
-      <!-- Bottom section -->
-      <div class="mt-auto flex flex-col gap-0.5 pt-3"
-           style="border-top: 1px solid var(--sempa-border);">
-        {@render navItem('/settings/accounts', 'Settings', SlidersHorizontal)}
+      <!-- Bottom section: compact icon rail (Settings · mode · widget) with the
+           account avatar pushed to the right. The avatar opens a small popover
+           holding the signed-in email + Sign out, so the footer stays one line. -->
+      <div class="mt-auto flex items-center gap-1 pt-3" style="border-top: 1px solid var(--sempa-border);">
+        <button onclick={() => goto('/settings/accounts')} title="Settings" aria-label="Settings"
+                class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
+                style={isActive('/settings') ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);' : 'color: var(--sempa-text-soft);'}
+                onmouseenter={(e) => { if (!isActive('/settings')) (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'; }}
+                onmouseleave={(e) => { if (!isActive('/settings')) (e.currentTarget as HTMLElement).style.background = ''; }}>
+          <SlidersHorizontal size={17} strokeWidth={1.75} />
+        </button>
 
-        {#if isTauri()}
-          <button onclick={() => createWidgetWindow()}
-                  class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] tracking-[-0.01em] transition-colors"
-                  style="color: var(--sempa-text-soft);"
-                  title="Open the floating desktop widget"
-                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
-                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
-            <span class="shrink-0"><LayoutGrid size={16} strokeWidth={1.75} /></span>
-            Open Widget
-          </button>
-        {/if}
-
-        <button onclick={theme.toggle}
-                class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] tracking-[-0.01em] transition-colors"
+        <button onclick={theme.toggle} title={theme.dark ? 'Light mode' : 'Dark mode'}
+                aria-label={theme.dark ? 'Switch to light mode' : 'Switch to dark mode'}
+                class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
                 style="color: var(--sempa-text-soft);"
                 onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
                 onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
-          <span class="shrink-0">
-            {#if theme.dark}
-              <Sun size={16} strokeWidth={1.75} />
-            {:else}
-              <Moon size={16} strokeWidth={1.75} />
-            {/if}
-          </span>
-          {theme.dark ? 'Light mode' : 'Dark mode'}
+          {#if theme.dark}<Sun size={17} strokeWidth={1.75} />{:else}<Moon size={17} strokeWidth={1.75} />{/if}
         </button>
 
-        <!-- Sync status (local-first platforms only) -->
-        <SyncIndicator />
+        {#if isTauri()}
+          <button onclick={() => createWidgetWindow()} title="Open Widget" aria-label="Open the floating desktop widget"
+                  class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
+                  style="color: var(--sempa-text-soft);"
+                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
+                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
+            <LayoutGrid size={17} strokeWidth={1.75} />
+          </button>
+        {/if}
 
-        <!-- Signed-in account + sign out: Google avatar (or letter fallback) ·
-             account email · Sign out. Never shows a device/platform name. -->
-        <div class="mt-1 flex items-center gap-2.5 px-3 py-2" style="border-top: 1px solid var(--sempa-border);">
-          {#if accountEmail}
-            {#if accountPicture}
-              <img src={accountPicture} alt="" referrerpolicy="no-referrer"
-                   class="h-[22px] w-[22px] shrink-0 rounded-full object-cover"
-                   style="border: 1px solid var(--sempa-border);" />
-            {:else}
-              <span class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full"
-                    style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);
-                           color: var(--sempa-accent); font-size: 10px; font-weight: 700;">
-                {accountEmail.charAt(0).toUpperCase()}
-              </span>
-            {/if}
-          {/if}
-          <div class="min-w-0 flex-1">
-            {#if accountEmail}
-              <p class="truncate" style="font-size: 11.5px; color: var(--sempa-text-soft);" title={accountEmail}>{accountEmail}</p>
-            {/if}
-            <button onclick={signOut}
-                    class="transition-colors" style="font-size: 11px; color: var(--sempa-text-dim);"
-                    onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'}
-                    onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}>
-              Sign out
+        <div class="ml-auto flex items-center gap-1">
+          <SyncIndicator />
+          <!-- Account avatar → popover (email + Sign out) -->
+          <div class="relative">
+            <button onclick={() => acctMenuOpen = !acctMenuOpen}
+                    title={accountEmail ?? 'Account'} aria-label="Account menu" aria-expanded={acctMenuOpen}
+                    class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
+                    onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
+                    onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
+              {#if accountPicture}
+                <img src={accountPicture} alt="" referrerpolicy="no-referrer"
+                     class="h-[26px] w-[26px] rounded-full object-cover" style="border: 1px solid var(--sempa-border);" />
+              {:else}
+                <span class="flex h-[26px] w-[26px] items-center justify-center rounded-full"
+                      style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);
+                             color: var(--sempa-accent); font-size: 11px; font-weight: 700;">
+                  {(accountEmail ?? '?').charAt(0).toUpperCase()}
+                </span>
+              {/if}
             </button>
+
+            {#if acctMenuOpen}
+              <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+              <div class="fixed inset-0 z-[55]" onclick={() => acctMenuOpen = false}></div>
+              <div class="absolute bottom-full right-0 z-[56] mb-2 w-56 rounded-xl p-3 shadow-lg"
+                   style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);">
+                {#if accountEmail}
+                  <p class="truncate text-xs" style="color: var(--sempa-text-soft);" title={accountEmail}>{accountEmail}</p>
+                {/if}
+                <button onclick={signOut}
+                        class="mt-2 w-full rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors"
+                        style="color: var(--sempa-text-soft); border: 1px solid var(--sempa-border);"
+                        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'}
+                        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
+                  Sign out
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -527,47 +536,68 @@
     </button>
   {/if}
 
-  <!-- "More" bottom sheet -->
+  <!-- "More" bottom sheet — sectioned: quick row, grouped destinations, account -->
   <BottomSheet open={moreSheetOpen} onClose={() => moreSheetOpen = false}>
     <div style="padding: 8px 16px 24px;">
-      {#snippet moreItem(href: string, label: string, Icon: any)}
+
+      {#snippet sheetTile(href: string, label: string, Icon: any)}
         {@const active = isActive(href)}
-        <a {href}
-           onclick={() => moreSheetOpen = false}
-           class="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors"
-           style={active
-             ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent); font-weight: 600;'
-             : 'color: var(--sempa-text-soft);'}>
-          <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-          <span style="font-size: 15px;">{label}</span>
+        <a {href} onclick={() => moreSheetOpen = false}
+           class="flex items-center gap-2.5 rounded-xl px-3 transition-colors"
+           style="min-height: 48px; background: var(--sempa-bg-nav);
+                  {active ? 'color: var(--sempa-accent); font-weight: 600;' : 'color: var(--sempa-text-soft);'}">
+          <Icon size={18} strokeWidth={active ? 2.25 : 1.75} />
+          <span style="font-size: 14px;">{label}</span>
         </a>
       {/snippet}
 
-      {@render moreItem('/search', 'Search', Search)}
-      {@render moreItem('/reminders', 'Reminders', Bell)}
-      {@render moreItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
-      {@render moreItem('/schedule', 'Schedule', CalendarClock)}
-      {@render moreItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
-      {@render moreItem('/email', 'Inbox', Mail)}
-      {@render moreItem('/jira', 'Jira', SquareKanban)}
-      {@render moreItem('/backlog', 'Backlog', Layers)}
-      {@render moreItem('/settings/accounts', 'Settings', SlidersHorizontal)}
-
-      <!-- Theme toggle -->
-      <button onclick={() => { theme.toggle(); }}
-              class="flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-colors"
-              style="color: var(--sempa-text-soft);">
-        {#if theme.dark}
-          <Sun size={20} strokeWidth={1.75} />
-        {:else}
-          <Moon size={20} strokeWidth={1.75} />
+      <!-- Quick row -->
+      <div class="flex gap-2">
+        <button onclick={() => { goto('/settings/accounts'); moreSheetOpen = false; }}
+                aria-label="Settings"
+                class="flex flex-1 flex-col items-center justify-center gap-1.5 rounded-xl py-3 transition-opacity active:opacity-80"
+                style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+          <SlidersHorizontal size={20} strokeWidth={1.9} />
+          <span style="font-size: 12.5px; font-weight: 600;">Settings</span>
+        </button>
+        <button onclick={() => theme.toggle()}
+                aria-label={theme.dark ? 'Switch to light mode' : 'Switch to dark mode'}
+                class="flex flex-1 flex-col items-center justify-center gap-1.5 rounded-xl py-3 transition-opacity active:opacity-80"
+                style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+          {#if theme.dark}<Sun size={20} strokeWidth={1.9} />{:else}<Moon size={20} strokeWidth={1.9} />{/if}
+          <span style="font-size: 12.5px; font-weight: 600;">{theme.dark ? 'Light mode' : 'Dark mode'}</span>
+        </button>
+        {#if isTauri()}
+          <button onclick={() => createWidgetWindow()} aria-label="Open widget"
+                  class="flex flex-1 flex-col items-center justify-center gap-1.5 rounded-xl py-3 transition-opacity active:opacity-80"
+                  style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+            <LayoutGrid size={20} strokeWidth={1.9} />
+            <span style="font-size: 12.5px; font-weight: 600;">Widget</span>
+          </button>
         {/if}
-        <span style="font-size: 15px;">{theme.dark ? 'Light mode' : 'Dark mode'}</span>
-      </button>
+      </div>
+
+      <!-- Plan -->
+      <p class="mb-2 mt-4 px-1 text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Plan</p>
+      <div class="grid grid-cols-2 gap-2">
+        {@render sheetTile(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
+        {@render sheetTile('/schedule', 'Schedule', CalendarClock)}
+        {@render sheetTile('/backlog', 'Backlog', Layers)}
+        {@render sheetTile('/search', 'Search', Search)}
+      </div>
+
+      <!-- Inbox -->
+      <p class="mb-2 mt-4 px-1 text-[10.5px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Inbox</p>
+      <div class="grid grid-cols-2 gap-2">
+        {@render sheetTile('/email', 'Email', Mail)}
+        {@render sheetTile('/reminders', 'Reminders', Bell)}
+        {@render sheetTile('/jira', 'Jira', SquareKanban)}
+        {@render sheetTile(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
+      </div>
 
       <!-- Pomodoro (if running) -->
       {#if pomodoro.taskId}
-        <div class="mt-2 rounded-xl px-4 py-3"
+        <div class="mt-4 rounded-xl px-4 py-3"
              style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
           <p class="text-[10.5px] font-semibold uppercase tracking-wider opacity-70">{pomodoro.phaseLabel}</p>
           <p class="font-mono text-xl font-bold">{pomodoro.display}</p>
@@ -575,18 +605,31 @@
       {/if}
 
       <!-- Sync status (local-first platforms only) -->
-      <div class="mt-2 px-1"><SyncIndicator /></div>
+      <div class="mt-3 px-1"><SyncIndicator /></div>
 
-      <!-- Sign out -->
-      {#if userEmail}
-        <div class="mt-3 px-4 pt-3" style="border-top: 1px solid var(--sempa-border);">
-          <p class="truncate text-xs" style="color: var(--sempa-text-dim);">{userEmail}</p>
-          <button onclick={signOut}
-                  class="mt-1 text-xs transition-colors" style="color: var(--sempa-text-dim);">
-            Sign out
-          </button>
+      <!-- Account -->
+      <div class="mt-3 flex items-center gap-3 rounded-xl px-3 py-3" style="border: 1px solid var(--sempa-border);">
+        {#if accountPicture}
+          <img src={accountPicture} alt="" referrerpolicy="no-referrer"
+               class="h-8 w-8 shrink-0 rounded-full object-cover" style="border: 1px solid var(--sempa-border);" />
+        {:else}
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);
+                       color: var(--sempa-accent); font-size: 12px; font-weight: 700;">
+            {(accountEmail ?? '?').charAt(0).toUpperCase()}
+          </span>
+        {/if}
+        <div class="min-w-0 flex-1">
+          {#if accountEmail}
+            <p class="truncate text-[13px]" style="color: var(--sempa-text-soft);" title={accountEmail}>{accountEmail}</p>
+          {/if}
         </div>
-      {/if}
+        <button onclick={signOut}
+                class="shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-opacity active:opacity-80"
+                style="color: var(--sempa-accent); background: var(--sempa-accent-bg);">
+          Sign out
+        </button>
+      </div>
     </div>
   </BottomSheet>
 {/if}

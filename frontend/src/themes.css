@@ -1,0 +1,179 @@
+/* ════════════════════════════════════════════════════════════════════════
+   SEMPA — THEME TOKEN SYSTEM
+   ─────────────────────────────────────────────────────────────────────────
+   Six full-interface themes, each with light + dark token sets, built on the
+   EXISTING --sempa-* semantic tokens and --a* accent scale. Nothing about how
+   components consume colour changes — they already read these vars — so a
+   theme propagates to every screen automatically.
+
+   Selection model (replaces the old accent-only JS override):
+     <html data-theme="terracotta">              → light
+     <html data-theme="terracotta" class="dark">  → dark
+
+   • Each [data-theme] block sets the LIGHT palette.
+   • Each [data-theme].dark block sets the DARK palette.
+   • OLED is dark-only: its light block intentionally mirrors a deep dark
+     palette and the Appearance UI hides the light/dark toggle for it.
+
+   Brand intent: calm, ordered, focused, warm. Accents stay muted and earthy;
+   backgrounds are low-chroma so long sessions stay restful. Text holds ≥4.5:1
+   on its background in every theme (WCAG AA body); accent-on-surface pairings
+   are checked for AA on the large/semibold text that uses them.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   1 · TERRACOTTA  — signature default (warm clay on cream)
+   ═══════════════════════════════════════════════════════════════════════ */
+:root,
+[data-theme="terracotta"] {
+  --sempa-bg-rail:#d8d2c6; --sempa-bg-nav:#f0ece3; --sempa-bg-main:#faf8f4; --sempa-bg-panel:#f0ece3;
+  --sempa-border:#e2dcd3; --sempa-text:#2b221b; --sempa-text-soft:#7a6a5e; --sempa-text-dim:#b0a498;
+  --sempa-accent:#b3592e; --sempa-accent-bg:#ede5dd; --sempa-amber:#da9f62;
+  --sempa-today-bg:#b3592e; --sempa-today-fg:#f7f3eb; --sempa-btn-bg:#b3592e; --sempa-btn-fg:#f7f3eb;
+  --sempa-success:#4d8a5a; --sempa-success-soft:rgba(77,138,90,.12); --sempa-success-bg:#f0f7f1;
+  --card-bg:#ffffff; --card-border:#e6ded2;
+  --cal-terracotta-fg:#b3592e; --cal-terracotta-bg:#fdf4ef; --cal-stone-fg:#7a6a5e; --cal-stone-bg:#f0ece3;
+  --cal-sage-fg:#4d8a5a; --cal-sage-bg:#e8f0ea; --cal-amber-fg:#9a7340; --cal-amber-bg:#faf3e8;
+  --a50:#fdf4ef; --a100:#f9e4d5; --a200:#f2c9ab; --a400:#d97b4a; --a500:#b3592e;
+  --a600:#963e1f; --a700:#7a2e15; --a900:#451508; --a950:#2a0b03;
+}
+:root.dark,
+[data-theme="terracotta"].dark {
+  --sempa-bg-rail:#130e09; --sempa-bg-nav:#1d1510; --sempa-bg-main:#181310; --sempa-bg-panel:#1d1510;
+  --sempa-border:#2e2016; --sempa-text:#f0ece4; --sempa-text-soft:#b8a89a; --sempa-text-dim:#7a6a5e;
+  --sempa-accent:#cc6e3a; --sempa-accent-bg:#2d1d12; --sempa-amber:#da9f62;
+  --sempa-today-bg:#cc6e3a; --sempa-today-fg:#f7f3eb; --sempa-btn-bg:#cc6e3a; --sempa-btn-fg:#f7f3eb;
+  --sempa-success:#5e9e6b; --sempa-success-soft:rgba(94,158,107,.12); --sempa-success-bg:#1a2a1e;
+  --card-bg:#1f1813; --card-border:#2e2016;
+  --cal-terracotta-fg:#cc6e3a; --cal-terracotta-bg:#2d1d12; --cal-stone-fg:#b8a89a; --cal-stone-bg:#1d1510;
+  --cal-sage-fg:#5e9e6b; --cal-sage-bg:#1a2a1e; --cal-amber-fg:#da9f62; --cal-amber-bg:#2a2010;
+  /* --a* accent ramp is mode-independent — inherits from the light block above so
+     primary buttons (bg-[var(--a500/600)] text-white) stay legible in dark. */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   2 · FOREST  — calm pine green on warm paper
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-theme="forest"] {
+  --sempa-bg-rail:#cdd4c8; --sempa-bg-nav:#eef1ea; --sempa-bg-main:#f6f8f3; --sempa-bg-panel:#eef1ea;
+  --sempa-border:#dde2d6; --sempa-text:#1e261c; --sempa-text-soft:#5d6b58; --sempa-text-dim:#9aa794;
+  --sempa-accent:#3f6f47; --sempa-accent-bg:#e4ece1; --sempa-amber:#b88a4a;
+  --sempa-today-bg:#3f6f47; --sempa-today-fg:#f3f7ef; --sempa-btn-bg:#3f6f47; --sempa-btn-fg:#f3f7ef;
+  --sempa-success:#3f7549; --sempa-success-soft:rgba(63,117,73,.12); --sempa-success-bg:#e8f1e9;
+  --card-bg:#ffffff; --card-border:#e0e6da;
+  --cal-terracotta-fg:#a85f33; --cal-terracotta-bg:#f6efe8; --cal-stone-fg:#5d6b58; --cal-stone-bg:#eef1ea;
+  --cal-sage-fg:#3f7549; --cal-sage-bg:#e4ece1; --cal-amber-fg:#8a7338; --cal-amber-bg:#f4f1e6;
+  --a50:#eef4ec; --a100:#d8e6d6; --a200:#b3cdb0; --a400:#5a9163; --a500:#3f6f47;
+  --a600:#335c3a; --a700:#28492e; --a900:#16291a; --a950:#0d1a10;
+}
+[data-theme="forest"].dark {
+  --sempa-bg-rail:#0a0f0b; --sempa-bg-nav:#121a14; --sempa-bg-main:#0f1410; --sempa-bg-panel:#121a14;
+  --sempa-border:#243026; --sempa-text:#e9efe6; --sempa-text-soft:#a3b39d; --sempa-text-dim:#6c7d66;
+  --sempa-accent:#6aa877; --sempa-accent-bg:#1a261c; --sempa-amber:#c79a5e;
+  --sempa-today-bg:#6aa877; --sempa-today-fg:#0f160f; --sempa-btn-bg:#5a9c6b; --sempa-btn-fg:#0d130c;
+  --sempa-success:#6aa877; --sempa-success-soft:rgba(106,168,119,.14); --sempa-success-bg:#16261a;
+  --card-bg:#141d16; --card-border:#243026;
+  --cal-terracotta-fg:#cc8a5e; --cal-terracotta-bg:#241a12; --cal-stone-fg:#a3b39d; --cal-stone-bg:#121a14;
+  --cal-sage-fg:#6aa877; --cal-sage-bg:#16261a; --cal-amber-fg:#c79a5e; --cal-amber-bg:#241f12;
+  /* --a* inherits from the light Forest block (mode-independent). */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   3 · PLUM  — rich aubergine, contemplative
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-theme="plum"] {
+  --sempa-bg-rail:#d6cdda; --sempa-bg-nav:#f1ecf4; --sempa-bg-main:#f8f5fa; --sempa-bg-panel:#f1ecf4;
+  --sempa-border:#e4dce8; --sempa-text:#241a2b; --sempa-text-soft:#6b5d75; --sempa-text-dim:#a89aae;
+  --sempa-accent:#7a4a9e; --sempa-accent-bg:#ece2f1; --sempa-amber:#b07ab0;
+  --sempa-today-bg:#7a4a9e; --sempa-today-fg:#f5eef8; --sempa-btn-bg:#7a4a9e; --sempa-btn-fg:#f5eef8;
+  --sempa-success:#4d8a5a; --sempa-success-soft:rgba(77,138,90,.12); --sempa-success-bg:#edf4ee;
+  --card-bg:#ffffff; --card-border:#e7dfeb;
+  --cal-terracotta-fg:#a8567a; --cal-terracotta-bg:#f7eef3; --cal-stone-fg:#6b5d75; --cal-stone-bg:#f1ecf4;
+  --cal-sage-fg:#4d8a5a; --cal-sage-bg:#ebf2ec; --cal-amber-fg:#946b9e; --cal-amber-bg:#f3edf6;
+  --a50:#f5eef9; --a100:#ebddf2; --a200:#d6bce4; --a400:#9a6cc8; --a500:#7a4a9e;
+  --a600:#653c84; --a700:#502f69; --a900:#2f1b3e; --a950:#1e1128;
+}
+[data-theme="plum"].dark {
+  --sempa-bg-rail:#0d0912; --sempa-bg-nav:#181020; --sempa-bg-main:#130d1a; --sempa-bg-panel:#181020;
+  --sempa-border:#2c2138; --sempa-text:#ece5f2; --sempa-text-soft:#b0a3bb; --sempa-text-dim:#736684;
+  --sempa-accent:#a87ccc; --sempa-accent-bg:#241730; --sempa-amber:#c08fc0;
+  --sempa-today-bg:#a87ccc; --sempa-today-fg:#140c1c; --sempa-btn-bg:#9a6cc8; --sempa-btn-fg:#120a18;
+  --sempa-success:#5e9e6b; --sempa-success-soft:rgba(94,158,107,.13); --sempa-success-bg:#15241a;
+  --card-bg:#1b1326; --card-border:#2c2138;
+  --cal-terracotta-fg:#c87a9e; --cal-terracotta-bg:#2a1620; --cal-stone-fg:#b0a3bb; --cal-stone-bg:#181020;
+  --cal-sage-fg:#5e9e6b; --cal-sage-bg:#15241a; --cal-amber-fg:#c08fc0; --cal-amber-bg:#241730;
+  /* --a* inherits from the light Plum block (mode-independent). */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4 · SLATE  — quiet graphite greys, near-neutral
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-theme="slate"] {
+  --sempa-bg-rail:#d4d8dd; --sempa-bg-nav:#eef0f2; --sempa-bg-main:#f6f7f9; --sempa-bg-panel:#eef0f2;
+  --sempa-border:#e0e3e7; --sempa-text:#1d2227; --sempa-text-soft:#5b6570; --sempa-text-dim:#9aa3ad;
+  --sempa-accent:#4a5a6b; --sempa-accent-bg:#e3e7ec; --sempa-amber:#8a94a0;
+  --sempa-today-bg:#4a5a6b; --sempa-today-fg:#f3f5f7; --sempa-btn-bg:#4a5a6b; --sempa-btn-fg:#f3f5f7;
+  --sempa-success:#3f7549; --sempa-success-soft:rgba(63,117,73,.12); --sempa-success-bg:#eaf2ec;
+  --card-bg:#ffffff; --card-border:#e4e7eb;
+  --cal-terracotta-fg:#9a6048; --cal-terracotta-bg:#f3eeeb; --cal-stone-fg:#5b6570; --cal-stone-bg:#eef0f2;
+  --cal-sage-fg:#3f7549; --cal-sage-bg:#eaf2ec; --cal-amber-fg:#7a8290; --cal-amber-bg:#eef0f3;
+  --a50:#f1f3f5; --a100:#e0e4e8; --a200:#c3cad1; --a400:#6b7886; --a500:#4a5a6b;
+  --a600:#3b4856; --a700:#2e3942; --a900:#1a2128; --a950:#11161b;
+}
+[data-theme="slate"].dark {
+  --sempa-bg-rail:#0c0e11; --sempa-bg-nav:#15181d; --sempa-bg-main:#101317; --sempa-bg-panel:#15181d;
+  --sempa-border:#262b32; --sempa-text:#e8ebef; --sempa-text-soft:#a0a9b3; --sempa-text-dim:#6a747e;
+  --sempa-accent:#9aa7b5; --sempa-accent-bg:#1e242b; --sempa-amber:#9aa3ad;
+  --sempa-today-bg:#9aa7b5; --sempa-today-fg:#11151a; --sempa-btn-bg:#7e8b99; --sempa-btn-fg:#0f1318;
+  --sempa-success:#5e9e6b; --sempa-success-soft:rgba(94,158,107,.13); --sempa-success-bg:#16241a;
+  --card-bg:#171b20; --card-border:#262b32;
+  --cal-terracotta-fg:#c08a6e; --cal-terracotta-bg:#231a14; --cal-stone-fg:#a0a9b3; --cal-stone-bg:#15181d;
+  --cal-sage-fg:#5e9e6b; --cal-sage-bg:#16241a; --cal-amber-fg:#b3bcc6; --cal-amber-bg:#1e242b;
+  /* --a* inherits from the light Slate block (mode-independent). */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   5 · OLED  — true black, power-saving (DARK ONLY)
+   Keeps the warm terracotta accent so brand identity survives on black.
+   Appearance UI hides the light/dark toggle when OLED is active.
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-theme="oled"],
+[data-theme="oled"].dark {
+  --sempa-bg-rail:#000000; --sempa-bg-nav:#000000; --sempa-bg-main:#000000; --sempa-bg-panel:#0b0b0b;
+  --sempa-border:#1f1f1f; --sempa-text:#f2f0ed; --sempa-text-soft:#a8a29b; --sempa-text-dim:#6b6661;
+  --sempa-accent:#e08246; --sempa-accent-bg:#1a1208; --sempa-amber:#da9f62;
+  --sempa-today-bg:#e08246; --sempa-today-fg:#0a0600; --sempa-btn-bg:#e08246; --sempa-btn-fg:#0a0600;
+  --sempa-success:#5fae6e; --sempa-success-soft:rgba(95,174,110,.14); --sempa-success-bg:#0a1810;
+  --card-bg:#0c0c0c; --card-border:#1f1f1f;
+  --cal-terracotta-fg:#e08246; --cal-terracotta-bg:#170f07; --cal-stone-fg:#a8a29b; --cal-stone-bg:#0b0b0b;
+  --cal-sage-fg:#5fae6e; --cal-sage-bg:#0a1810; --cal-amber-fg:#da9f62; --cal-amber-bg:#161106;
+  --a50:#1a1208; --a100:#2a0b03; --a200:#7a2e15; --a400:#cc6e3a; --a500:#e08246;
+  --a600:#e89464; --a700:#f2c9ab; --a900:#f9e4d5; --a950:#fdf4ef;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   6 · OCEAN  — deep marine blue, cool but soft
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-theme="ocean"] {
+  --sempa-bg-rail:#c9d4dd; --sempa-bg-nav:#e9eef3; --sempa-bg-main:#f4f7fa; --sempa-bg-panel:#e9eef3;
+  --sempa-border:#dae1e8; --sempa-text:#152230; --sempa-text-soft:#566876; --sempa-text-dim:#92a1b0;
+  --sempa-accent:#2f6499; --sempa-accent-bg:#dfe8f1; --sempa-amber:#5b94c2;
+  --sempa-today-bg:#2f6499; --sempa-today-fg:#eef4f9; --sempa-btn-bg:#2f6499; --sempa-btn-fg:#eef4f9;
+  --sempa-success:#3f7549; --sempa-success-soft:rgba(63,117,73,.12); --sempa-success-bg:#e8f1ec;
+  --card-bg:#ffffff; --card-border:#e1e7ed;
+  --cal-terracotta-fg:#a86048; --cal-terracotta-bg:#f4efeb; --cal-stone-fg:#566876; --cal-stone-bg:#e9eef3;
+  --cal-sage-fg:#3f7549; --cal-sage-bg:#e8f1ec; --cal-amber-fg:#5b7d99; --cal-amber-bg:#eaf0f5;
+  --a50:#eef4fa; --a100:#d8e6f2; --a200:#b0cce4; --a400:#4f86c6; --a500:#2f6499;
+  --a600:#26527e; --a700:#1e4163; --a900:#12283c; --a950:#0b1a28;
+}
+[data-theme="ocean"].dark {
+  --sempa-bg-rail:#070c14; --sempa-bg-nav:#0f1726; --sempa-bg-main:#0c121e; --sempa-bg-panel:#0f1726;
+  --sempa-border:#1f2c40; --sempa-text:#e6edf4; --sempa-text-soft:#9bacbf; --sempa-text-dim:#647689;
+  --sempa-accent:#6aa0d6; --sempa-accent-bg:#142133; --sempa-amber:#7ba6cf;
+  --sempa-today-bg:#6aa0d6; --sempa-today-fg:#0a121d; --sempa-btn-bg:#5a90c8; --sempa-btn-fg:#08101a;
+  --sempa-success:#5e9e6b; --sempa-success-soft:rgba(94,158,107,.13); --sempa-success-bg:#13241a;
+  --card-bg:#111a2a; --card-border:#1f2c40;
+  --cal-terracotta-fg:#c89070; --cal-terracotta-bg:#221913; --cal-stone-fg:#9bacbf; --cal-stone-bg:#0f1726;
+  --cal-sage-fg:#5e9e6b; --cal-sage-bg:#13241a; --cal-amber-fg:#7ba6cf; --cal-amber-bg:#142133;
+  /* --a* inherits from the light Ocean block (mode-independent). */
+}

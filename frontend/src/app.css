@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* ── Theme token system ──────────────────────────────────────────────────
+   Six full-interface themes (terracotta default + forest/plum/slate/oled/ocean),
+   each light + dark, selected via the `data-theme` attribute on <html>. Owns
+   every --sempa-* / --card-* / --cal-* / --a* colour token; the terracotta block
+   also binds to :root so there's a styled baseline before the head script sets
+   data-theme. See theme.svelte.ts for the selection/persistence logic. */
+@import "./themes.css";
+
 /* Class-based dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -8,20 +16,6 @@
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* ── Accent colour system (used by the existing --a* references) ─────────── */
-/* Terracotta scale (#b3592e) — overridden by JS when the user picks a colour */
-:root {
-  --a50:  #fdf4ef;
-  --a100: #f9e4d5;
-  --a200: #f2c9ab;
-  --a400: #d97b4a;
-  --a500: #b3592e;
-  --a600: #963e1f;
-  --a700: #7a2e15;
-  --a900: #451508;
-  --a950: #2a0b03;
 }
 
 /* ── Remap cold Tailwind scales to the Sempa terracotta brand ───────────── */
@@ -84,39 +78,9 @@
   --color-gray-700: #3d3028;
 }
 
-/* ── Sempa warm design tokens — light mode ───────────────────────────────── */
+/* ── Sempa type scale (theme-independent) ────────────────────────────────── */
 :root {
-  --sempa-bg-rail:   #d8d2c6;
-  --sempa-bg-nav:    #f0ece3;
-  --sempa-bg-main:   #faf8f4;
-  --sempa-bg-panel:  #f0ece3;
-  --sempa-border:    #e2dcd3;
-  --sempa-text:      #2b221b;
-  --sempa-text-soft: #7a6a5e;
-  --sempa-text-dim:  #b0a498;
-  --sempa-accent:    #b3592e;
-  --sempa-accent-bg: #ede5dd;
-  --sempa-amber:     #da9f62;
-  --sempa-today-bg:  #b3592e;
-  --sempa-today-fg:  #f7f3eb;
-  --sempa-btn-bg:    #b3592e;
-  --sempa-btn-fg:    #f7f3eb;
-  --sempa-success:      #4d8a5a;
-  --sempa-success-soft: rgba(77,138,90,0.12);
-  --sempa-success-bg:   #f0f7f1;
-
-  /* Task-card surface — neutral white body + hairline border in light mode, so
-     warmth comes from the accents (today pill, dots, badges), not the card fill. */
-  --card-bg:     #ffffff;
-  --card-border: #e6ded2;
-
-  /* Curated on-brand calendar/schedule event colours (left-border + tinted bg). */
-  --cal-terracotta-fg: #b3592e;  --cal-terracotta-bg: #fdf4ef;
-  --cal-stone-fg:      #7a6a5e;  --cal-stone-bg:      #f0ece3;
-  --cal-sage-fg:       #4d8a5a;  --cal-sage-bg:       #e8f0ea;
-  --cal-amber-fg:      #9a7340;  --cal-amber-bg:      #faf3e8;
-
-  /* ── Type scale (theme-independent) ──────────────────────────────────────
+  /* ── Type scale ──────────────────────────────────────────────────────────
    * One role per text element across every screen. See the .type-* utility
    * classes below, which bundle size + weight + spacing for each role. */
   --type-page:  20px;   /* page titles — weight 600, ls -.02em */
@@ -136,35 +100,6 @@
 .type-meta  { font-size: var(--type-meta);  font-weight: 400; }
 .type-label { font-size: var(--type-label); font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
 .type-badge { font-size: var(--type-badge); font-weight: 600; letter-spacing: .02em; }
-
-/* ── Sempa warm design tokens — dark mode ────────────────────────────────── */
-.dark {
-  --sempa-bg-rail:   #130e09;
-  --sempa-bg-nav:    #1d1510;
-  --sempa-bg-main:   #181310;
-  --sempa-bg-panel:  #1d1510;
-  --sempa-border:    #2e2016;
-  --sempa-text:      #f0ece4;
-  --sempa-text-soft: #b8a89a;
-  --sempa-text-dim:  #7a6a5e;
-  --sempa-accent:    #cc6e3a;
-  --sempa-accent-bg: #2d1d12;
-  --sempa-today-bg:  #cc6e3a;
-  --sempa-today-fg:  #f7f3eb;
-  --sempa-btn-bg:    #cc6e3a;
-  --sempa-btn-fg:    #f7f3eb;
-  --sempa-success:      #5e9e6b;
-  --sempa-success-soft: rgba(94,158,107,0.12);
-  --sempa-success-bg:   #1a2a1e;
-
-  --card-bg:     #1f1813;
-  --card-border: #2e2016;
-
-  --cal-terracotta-fg: #cc6e3a;  --cal-terracotta-bg: #2d1d12;
-  --cal-stone-fg:      #b8a89a;  --cal-stone-bg:      #1d1510;
-  --cal-sage-fg:       #5e9e6b;  --cal-sage-bg:       #1a2a1e;
-  --cal-amber-fg:      #da9f62;  --cal-amber-bg:      #2a2010;
-}
 
 /* ── Task card / day-bar / calendar-event primitives (FIX pass) ──────────── */
 .task-card {

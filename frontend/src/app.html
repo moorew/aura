@@ -18,6 +18,25 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Anti-FOUC: set the interface theme + light/dark + text size synchronously,
+         before first paint, so the page never flashes the default terracotta light
+         palette. Mirrors theme.svelte.ts; that store reconciles + persists on mount. -->
+    <script>
+      (function () {
+        try {
+          var valid = ['terracotta', 'forest', 'plum', 'slate', 'oled', 'ocean'];
+          var t = localStorage.getItem('sempa-theme-name');
+          if (valid.indexOf(t) === -1) t = 'terracotta'; // default + legacy-accent migration
+          document.documentElement.dataset.theme = t;
+          var d = localStorage.getItem('sempa-theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = t === 'oled' || d === 'dark' || (d === null && prefersDark);
+          document.documentElement.classList.toggle('dark', dark);
+          var s = localStorage.getItem('sempa-text-scale');
+          if (s) { var n = parseInt(s, 10); if (n >= 80 && n <= 130) document.documentElement.style.fontSize = n + '%'; }
+        } catch (e) {}
+      })();
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover"
