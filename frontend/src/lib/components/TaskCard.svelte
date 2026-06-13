@@ -29,6 +29,23 @@
   const isDone      = $derived(task.status === 'done');
   const isRecurring = $derived(!!task.recurrence_origin_id);
 
+  // Reminder marker — a clean bell + time on the card so you can see at a glance
+  // which tasks will ring, without opening them. Shown for any task with a
+  // reminder that hasn't been completed. Past-due reminders (already fired) read
+  // dimmer so upcoming ones stand out.
+  const hasReminder = $derived(!!task.remind_at && !isDone);
+  const remindLabel = $derived.by(() => {
+    if (!task.remind_at) return '';
+    const dt = new Date(task.remind_at);
+    if (isNaN(dt.getTime())) return '';
+    const ymd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const time = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    // Same day → just the time; another day → short date so it's unambiguous.
+    return ymd(dt) === todayStr ? time : `${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
+  });
+  const remindPast = $derived(!!task.remind_at && new Date(task.remind_at).getTime() < Date.now());
+
   const daysBehind = $derived.by(() => {
     if (!task.planned_date || task.status === 'done' || task.status === 'cancelled') return 0;
     if (task.planned_date >= todayStr) return 0;
@@ -39,7 +56,7 @@
 
   const hasFooter = $derived(
     !!(task.tags?.length || task.time_estimate_minutes ||
-       (task.source && task.source !== 'manual') || isRecurring || daysBehind > 0)
+       (task.source && task.source !== 'manual') || isRecurring || daysBehind > 0 || hasReminder)
   );
 
   // Streak: count consecutive done instances of this recurring task (most-recent first)
@@ -194,6 +211,19 @@
           {#each task.tags ?? [] as tag}
             <span class="shrink-0 rounded-full" style="width: 7px; height: 7px; background-color: {tagStore.colorFor(tag)};"></span>
           {/each}
+        </span>
+      {/if}
+      {#if hasReminder}
+        <span class="type-badge inline-flex items-center rounded"
+              style="gap: 3px; padding: 2px 7px;
+                     {remindPast
+                       ? 'background: color-mix(in srgb, var(--sempa-text) 6%, transparent); color: var(--sempa-text-dim);'
+                       : 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'}"
+              title={remindPast ? `Reminder was due ${remindLabel}` : `Reminder ${remindLabel}`}>
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" style="flex: 0 0 auto;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          {remindLabel}
         </span>
       {/if}
       {#if task.source && task.source !== 'manual'}

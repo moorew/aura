@@ -191,6 +191,16 @@ function createRoutinesStore() {
         notified.add(`${t.id}|${t.remind_at}`);
       }
 
+      // Desktop: fire a NATIVE OS notification too. This is the reliable channel
+      // — the in-WebView banner / floating card can silently fail to appear on
+      // Windows, but an OS toast shows even when Sempa is backgrounded and is
+      // exactly what the user expects. It's independent of the WebView surfaces,
+      // so a reminder is never reduced to "just a sound" again.
+      if (isTauri()) {
+        const { desktopNotify } = await import('$lib/desktopNotify');
+        for (const t of fresh) void desktopNotify('Reminder', t.title);
+      }
+
       // Desktop: play the chosen tone as the audible cue for the floating card
       // (the WebView is running, so custom audio works where a Windows toast
       // couldn't). Android already played its channel sound with the OS alarm.

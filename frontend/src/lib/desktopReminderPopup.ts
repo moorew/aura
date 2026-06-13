@@ -31,12 +31,32 @@ function toCards(alerts: ReminderAlert[]) {
   }));
 }
 
+/**
+ * Is the main app window currently in front of the user? When it is, the in-app
+ * ReminderBanner is visible and does the job, so we DON'T also pop the floating
+ * card (that would double up). The card exists for the background case — Sempa
+ * minimized / hidden to tray / behind other windows — where the banner can't be
+ * seen. `document.hidden` covers minimize/hide; `document.hasFocus()` covers
+ * "visible but behind another window".
+ */
+function appInForeground(): boolean {
+  if (typeof document === 'undefined') return true;
+  if (document.hidden) return false;
+  try {
+    return document.hasFocus();
+  } catch {
+    return !document.hidden;
+  }
+}
+
 /** Reconcile the popup window with the current alert list. Call on every change. */
 export async function syncDesktopPopup(alerts: ReminderAlert[]): Promise<void> {
   if (!isTauri()) return;
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    if (alerts.length === 0) {
+    // No alerts, or the app is foregrounded (the in-app banner has it) → ensure
+    // the floating card is closed.
+    if (alerts.length === 0 || appInForeground()) {
       await invoke('close_reminder_popup').catch(() => {});
       return;
     }
@@ -53,6 +73,18 @@ export async function initDesktopReminderPopup(navigate: (url: string) => void):
   if (!isTauri() || actionsBound) return;
   actionsBound = true;
   navigateFn = navigate;
+
+  // Foreground ⇄ background transitions flip which surface owns a pending
+  // reminder (in-app banner vs. floating card), so re-reconcile on every change.
+  // Without this, a reminder that fired while you were in-app would never pop the
+  // card after you switched away, and a card left up wouldn't close when you came
+  // back. Guard so the listeners are attached once.
+  if (typeof window !== 'undefined') {
+    const reconcile = () => void syncDesktopPopup(reminderAlerts.alerts);
+    window.addEventListener('focus', reconcile);
+    window.addEventListener('blur', reconcile);
+    document.addEventListener('visibilitychange', reconcile);
+  }
 
   try {
     const { listen, emit } = await import('@tauri-apps/api/event');

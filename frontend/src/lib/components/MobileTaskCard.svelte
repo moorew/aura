@@ -24,6 +24,19 @@
     gmail: 'Gmail', fastmail: 'Mail', jira: 'Jira', google_calendar: 'Cal',
   };
 
+  // Reminder marker — mirrors TaskCard so the planner shows at a glance which
+  // tasks will ring. Bell + short time; only while the task is still open.
+  const hasReminder = $derived(!!task.remind_at && !isDone);
+  const remindLabel = $derived.by(() => {
+    if (!task.remind_at) return '';
+    const dt = new Date(task.remind_at);
+    if (isNaN(dt.getTime())) return '';
+    const now = new Date();
+    const sameDay = dt.toDateString() === now.toDateString();
+    const time = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return sameDay ? time : `${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
+  });
+
   // Swipe state
   let startX = $state(0);
   let startY = $state(0);
@@ -140,7 +153,7 @@
       </p>
 
       <!-- Meta row -->
-      {#if task.tags?.length || task.time_estimate_minutes || (task.source && task.source !== 'manual') || isRecurring}
+      {#if task.tags?.length || task.time_estimate_minutes || (task.source && task.source !== 'manual') || isRecurring || hasReminder}
         <div class="flex flex-wrap gap-1 mt-1.5">
           {#if (task.tags ?? []).length}
             <!-- Tags as colour dots only (matches TaskCard) — names live in the
@@ -155,6 +168,16 @@
             <span class="rounded px-1.5 py-0.5 text-[10.5px] font-mono"
                   style="background: var(--sempa-accent-bg); color: var(--sempa-text-dim);">
               {formatMinutes(task.time_estimate_minutes)}
+            </span>
+          {/if}
+          {#if hasReminder}
+            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-[10.5px]"
+                  style="gap: 3px; background: var(--sempa-accent-bg); color: var(--sempa-accent);"
+                  title="Reminder {remindLabel}">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" style="flex: 0 0 auto;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {remindLabel}
             </span>
           {/if}
           {#if task.source && task.source !== 'manual'}

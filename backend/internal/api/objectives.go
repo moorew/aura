@@ -30,6 +30,9 @@ type updateObjectiveRequest struct {
 	Description *string  `json:"description"`
 	Status      *string  `json:"status"`
 	Position    *float64 `json:"position"`
+	// WeekStart lets an objective be re-planned into another week (e.g. carrying
+	// an unfinished objective forward to next week from the weekly review).
+	WeekStart *string `json:"week_start"`
 }
 
 func (h *objectiveHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +126,11 @@ func (h *objectiveHandler) update(w http.ResponseWriter, r *http.Request) {
 	if req.Position != nil {
 		obj.Position = *req.Position
 	}
+	// Remember the original week so a cross-week move refreshes BOTH weeks.
+	prevWeek := obj.WeekStart
+	if req.WeekStart != nil && *req.WeekStart != "" {
+		obj.WeekStart = *req.WeekStart
+	}
 
 	updated, err := h.store.Update(r.Context(), obj)
 	if err != nil {
@@ -130,6 +138,9 @@ func (h *objectiveHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.hub.Broadcast("objective:change", map[string]string{"week_start": updated.WeekStart})
+	if prevWeek != updated.WeekStart {
+		h.hub.Broadcast("objective:change", map[string]string{"week_start": prevWeek})
+	}
 	respond(w, http.StatusOK, updated)
 }
 

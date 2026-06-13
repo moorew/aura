@@ -5,6 +5,8 @@
   import { api } from '$lib/api';
   import type { Objective, Task, WeekReview } from '$lib/types';
   import { formatMinutes, formatWeekRange, today, weekStart as calcWeekStart } from '$lib/utils';
+  import { moveAllUnfinishedToNextWeek, unfinishedObjectives } from '$lib/objectives';
+  import { CalendarArrowDown } from 'lucide-svelte';
 
   let ws = $derived($page.params.weekStart ?? calcWeekStart(today()));
 
@@ -42,6 +44,27 @@
     }
   }
   onMount(load);
+
+  // ── Carry unfinished objectives forward to next week ─────────────────────────
+  const unfinished = $derived(unfinishedObjectives(objectives));
+  let carrying    = $state(false);
+  let carriedCount = $state<number | null>(null);
+
+  async function carryForward() {
+    if (carrying || unfinished.length === 0) return;
+    carrying = true;
+    const n = unfinished.length;
+    try {
+      await moveAllUnfinishedToNextWeek(objectives, tasks);
+      // Reflect the move locally so the prompt collapses into its done state.
+      objectives = objectives.filter(o => o.status === 'completed' || o.status === 'cancelled');
+      carriedCount = n;
+    } catch {
+      error = 'Could not move objectives — please try again.';
+    } finally {
+      carrying = false;
+    }
+  }
 
   // Stats
   const doneTasks  = $derived(tasks.filter(t => t.status === 'done'));
@@ -258,6 +281,37 @@
   {:else if step === 3}
     <div class="space-y-6">
       <h2 class="text-base font-semibold" style="color: var(--sempa-text);">Looking ahead</h2>
+
+      <!-- Carry unfinished objectives into next week -->
+      {#if carriedCount !== null}
+        <div class="flex items-center gap-2 rounded-xl px-4 py-3 text-sm"
+             style="border: 1px solid var(--sempa-success); background: var(--sempa-success-soft); color: var(--sempa-success);">
+          <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          Carried {carriedCount} {carriedCount === 1 ? 'objective' : 'objectives'} to next week.
+        </div>
+      {:else if unfinished.length > 0}
+        <div class="rounded-xl p-4" style="border: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
+          <p class="mb-2 text-sm font-medium" style="color: var(--sempa-text);">
+            {unfinished.length} unfinished {unfinished.length === 1 ? 'objective' : 'objectives'} this week
+          </p>
+          <ul class="mb-3 space-y-1">
+            {#each unfinished as o}
+              <li class="flex items-center gap-2 text-sm" style="color: var(--sempa-text-soft);">
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background: var(--sempa-accent);"></span>
+                <span class="truncate">{o.title}</span>
+              </li>
+            {/each}
+          </ul>
+          <button onclick={carryForward} disabled={carrying}
+                  class="flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-opacity disabled:opacity-50"
+                  style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+            <CalendarArrowDown size={15} />
+            {carrying ? 'Moving…' : 'Move them to next week'}
+          </button>
+        </div>
+      {/if}
 
       <div>
         <label class="mb-2 block text-sm font-medium" style="color: var(--sempa-text-soft);" for="next-focus">

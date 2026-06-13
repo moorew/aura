@@ -13,7 +13,8 @@
   import { swipeNavigate } from '$lib/actions/swipeNavigate';
   import { tagStore } from '$lib/stores/tags.svelte';
   import TagFilterBar from '$lib/components/TagFilterBar.svelte';
-  import { SlidersHorizontal } from 'lucide-svelte';
+  import { SlidersHorizontal, CalendarArrowDown } from 'lucide-svelte';
+  import { moveObjectiveToNextWeek, moveAllUnfinishedToNextWeek, unfinishedObjectives } from '$lib/objectives';
 
   let weekStartDate = $derived($page.params.weekStart ?? calcWeekStart(today()));
 
@@ -143,6 +144,26 @@
   async function deleteObjective(id: string) {
     objectives = objectives.filter(o => o.id !== id);
     await api.objectives.delete(id).catch(() => {});
+  }
+
+  // ── Re-plan: carry unfinished objectives forward to next week ────────────────
+  const unfinishedCount = $derived(unfinishedObjectives(objectives).length);
+  let replanning = $state(false);
+
+  async function replanObjective(obj: Objective) {
+    objectives = objectives.filter(o => o.id !== obj.id); // optimistic — it leaves this week
+    try { await moveObjectiveToNextWeek(obj, tasks); }
+    catch { await load(); }
+  }
+
+  async function replanAllUnfinished() {
+    if (replanning || unfinishedCount === 0) return;
+    replanning = true;
+    const snapshot = objectives.slice();
+    objectives = objectives.filter(o => o.status === 'completed' || o.status === 'cancelled');
+    try { await moveAllUnfinishedToNextWeek(snapshot, tasks); }
+    catch { /* fall through to reload */ }
+    finally { replanning = false; await load(); }
   }
 
   // ── Task actions ───────────────────────────────────────────────────────────
@@ -415,6 +436,18 @@
       </a>
     {/if}
 
+    <!-- Carry unfinished objectives forward to next week -->
+    {#if unfinishedCount > 0}
+      <button onclick={replanAllUnfinished} disabled={replanning}
+              class="mb-4 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-medium transition-colors disabled:opacity-50"
+              style="border: 1px dashed var(--sempa-border); color: var(--sempa-text-soft); background: transparent;"
+              onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'; (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'; }}
+              onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-soft)'; }}>
+        <CalendarArrowDown size={14} />
+        {replanning ? 'Moving…' : `Move ${unfinishedCount} unfinished ${unfinishedCount === 1 ? 'objective' : 'objectives'} to next week`}
+      </button>
+    {/if}
+
     <!-- Objectives list -->
     <div class="flex flex-col gap-3">
       {#each objectives as obj (obj.id)}
@@ -468,6 +501,16 @@
 
             <!-- Actions -->
             <div class="flex shrink-0 items-center gap-0.5">
+              {#if !isDone}
+                <button onclick={() => replanObjective(obj)} aria-label="Move to next week"
+                        title="Move to next week"
+                        class="rounded-lg p-1.5 transition-colors"
+                        style="color: var(--sempa-text-dim);"
+                        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-accent)'}
+                        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--sempa-text-dim)'}>
+                  <CalendarArrowDown size={15} />
+                </button>
+              {/if}
               <button onclick={() => expandedId = isExp ? null : obj.id}
                       class="rounded-lg p-1.5 transition-colors"
                       style="color: var(--sempa-text-dim);"

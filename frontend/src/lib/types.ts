@@ -201,6 +201,8 @@ export interface UpdateObjectiveInput {
   description?: string | null;
   status?: Objective['status'];
   position?: number;
+  // Re-plan an objective into another week (carry-forward to next week).
+  week_start?: string;
 }
 
 export interface UpsertPlanInput {
