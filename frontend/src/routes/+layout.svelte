@@ -19,6 +19,7 @@
   import ReminderBanner from '$lib/components/ReminderBanner.svelte';
   import { reminderAlerts } from '$lib/stores/reminderAlerts.svelte';
   import { initDesktopReminderPopup, syncDesktopPopup } from '$lib/desktopReminderPopup';
+  import { ensureDesktopNotifyPermission } from '$lib/desktopNotify';
   import { SplashScreen } from '@capacitor/splash-screen';
   import { Capacitor } from '@capacitor/core';
   import { api, getServerUrl, getTauriToken, clearTauriToken, clearNativeToken, resetApiResolver } from '$lib/api';
@@ -126,6 +127,9 @@
     // Desktop floating reminder card (Tauri only; self-guards). Binds the popup
     // window's action listeners once, in the main window.
     void initDesktopReminderPopup((url) => goto(url));
+    // Pre-warm native OS notification permission on desktop so the first fired
+    // reminder shows its toast immediately instead of racing a permission prompt.
+    void ensureDesktopNotifyPermission();
 
     // Tray "Sync Now" → run a sync cycle. Listener lives for the app's lifetime.
     if (isTauri()) {

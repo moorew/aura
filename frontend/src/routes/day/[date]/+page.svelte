@@ -777,13 +777,16 @@
 <!-- ── Body ───────────────────────────────────────────────────────────────── -->
 <div class="flex h-[calc(100vh-57px)] overflow-hidden">
 
-  <!-- Kanban area -->
-  <main bind:this={kanbanScroll} class="flex-1 overflow-auto px-4 py-5 animate-fade-in"
+  <!-- Kanban area. A flex COLUMN that fills the viewport height: the filter /
+       banner sit at the top (fixed), and the board below grows to fill the rest
+       so its horizontal scrollbar lands at the very BOTTOM of the page rather
+       than floating halfway up where the tallest column happens to end. -->
+  <main bind:this={kanbanScroll} class="flex-1 flex flex-col overflow-hidden px-4 pt-5 pb-2 animate-fade-in"
         use:swipeNavigate={{ onPrev: () => navigateWeek(-1), onNext: () => navigateWeek(1) }}>
 
     <!-- Tag filter (in-place) -->
     {#if tagStore.definitions.length}
-      <div class="mb-4 flex flex-wrap items-center gap-3">
+      <div class="mb-4 flex shrink-0 flex-wrap items-center gap-3">
         <button onclick={() => showFilter = !showFilter}
                 class="inline-flex items-center gap-1.5 rounded-full transition-colors"
                 style="font-size: 12px; padding: 4px 10px;
@@ -801,7 +804,7 @@
 
     <!-- Rollover banner -->
     {#if rolloverTasks.length > 0 && !rolloverDismissed}
-      <div class="mb-4 flex items-center gap-3 rounded-xl px-4 py-3 animate-slide-down"
+      <div class="mb-4 flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 animate-slide-down"
            style="border: 1px solid var(--sempa-amber); background: color-mix(in srgb, var(--sempa-amber) 8%, var(--sempa-bg-main));">
         <svg class="h-4 w-4 shrink-0" style="color: var(--sempa-amber);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -836,7 +839,7 @@
            the right. overflow-x-auto lets it scroll on narrow windows; the inner
            data-weekgrid row owns the scroll axis (swipe/wheel paging respects the
            edge). Weekend columns read a touch softer but keep date order. -->
-      <div bind:this={weekGrid} class="flex items-start gap-3 pb-6 overflow-x-auto" data-weekgrid>
+      <div bind:this={weekGrid} class="flex flex-1 min-h-0 items-start gap-3 overflow-auto" data-weekgrid>
         {#each boardDays as day (day.date)}
           <div id="day-col-{day.date}" class="w-56 shrink-0" style={day.isWeekend ? 'opacity: 0.92;' : ''}>
             <WeekDayColumn
@@ -876,7 +879,7 @@
 
     <!-- Always-visible: mini calendar + objectives -->
     <div class="shrink-0" style="border-bottom: 1px solid var(--sempa-border);">
-      <MiniCalendar {date} onDateClick={handleCalendarDateClick} />
+      <MiniCalendar {date} onDateClick={handleCalendarDateClick} onDateDrop={(d) => handleDrop(d)} dragActive={draggingId !== null} />
     </div>
     <WeeklyObjectivesWidget {date} />
 

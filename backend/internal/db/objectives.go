@@ -87,6 +87,7 @@ func (s *ObjectiveStore) Create(ctx context.Context, p CreateObjectiveParams) (O
 func (s *ObjectiveStore) Update(ctx context.Context, o Objective) (Objective, error) {
 	row := s.db.QueryRowContext(ctx, `
 		UPDATE weekly_objectives SET
+			week_start  = ?,
 			title       = ?,
 			description = ?,
 			status      = ?,
@@ -94,7 +95,7 @@ func (s *ObjectiveStore) Update(ctx context.Context, o Objective) (Objective, er
 			updated_at  = datetime('now')
 		WHERE id = ?
 		RETURNING `+objCols,
-		o.Title, o.Description, o.Status, o.Position, o.ID,
+		o.WeekStart, o.Title, o.Description, o.Status, o.Position, o.ID,
 	)
 	updated, err := scanObjective(row)
 	if errors.Is(err, sql.ErrNoRows) {

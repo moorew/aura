@@ -62,10 +62,14 @@ pub fn create_reminder_popup(app: &AppHandle) -> Result<(), Box<dyn std::error::
     // Already open → ensure it's visible and on top; the webview refreshes its
     // own contents from the latest event.
     if let Some(win) = app.get_webview_window("reminder") {
+        // Never set_focus here — the card is WS_EX_NOACTIVATE on purpose so it
+        // surfaces without stealing focus from whatever the user is doing.
         let _ = win.show();
         let _ = win.set_always_on_top(true);
         return Ok(());
     }
+
+    crate::startup_log("reminder popup: creating window");
 
     let width = 384.0;
     let height = 140.0; // initial; the webview resizes to fit its cards
@@ -94,13 +98,26 @@ pub fn create_reminder_popup(app: &AppHandle) -> Result<(), Box<dyn std::error::
         builder = builder.position(x, y);
     }
 
-    let _window = builder.build()?;
+    let _window = match builder.build() {
+        Ok(w) => w,
+        Err(e) => {
+            crate::startup_log(&format!("reminder popup: build FAILED: {e}"));
+            return Err(Box::new(e));
+        }
+    };
+
+    // The card never steals focus, but it must still be VISIBLE above other
+    // windows. WS_EX_NOACTIVATE keeps it from taking focus; always_on_top keeps
+    // it on top. Make doubly sure it's shown and raised.
+    let _ = _window.show();
+    let _ = _window.set_always_on_top(true);
 
     #[cfg(target_os = "windows")]
     {
         apply_widget_window_flags(&_window);
     }
 
+    crate::startup_log("reminder popup: window created");
     Ok(())
 }
 
@@ -109,8 +126,15 @@ fn apply_widget_window_flags(window: &tauri::WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::*;
     use windows::Win32::Foundation::HWND;
 
-    let hwnd = window.hwnd().unwrap();
-    let hwnd = HWND(hwnd.0 as *mut std::ffi::c_void);
+    // Never panic here: a failure to fetch the HWND must not take down window
+    // creation (the window is already built and shown by this point).
+    let hwnd = match window.hwnd() {
+        Ok(h) => HWND(h.0 as *mut std::ffi::c_void),
+        Err(e) => {
+            crate::startup_log(&format!("reminder popup: hwnd unavailable, skipping ex-style: {e}"));
+            return;
+        }
+    };
 
     unsafe {
         let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);

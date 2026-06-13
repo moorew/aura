@@ -10,7 +10,7 @@ use std::io::Write;
 /// Write a line to a startup log file in a location that's always writable,
 /// so a launch failure is never silent (Windows release builds have no console).
 /// Writes to the OS temp dir, which exists and is writable on every platform.
-fn startup_log(msg: &str) {
+pub(crate) fn startup_log(msg: &str) {
     let path = std::env::temp_dir().join("sempa-startup.log");
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)

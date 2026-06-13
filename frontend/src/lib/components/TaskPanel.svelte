@@ -2,10 +2,12 @@
   import type { Objective, PomodoroSession, Task, TaskStatus } from '$lib/types';
   import { tagStore } from '$lib/stores/tags.svelte';
   import { api } from '$lib/api';
-  import { weekStart as calcWeekStart, extractBareUrls } from '$lib/utils';
+  import { weekStart as calcWeekStart, extractBareUrls, formatMinutes, bareUrl, prettyUrl } from '$lib/utils';
   import SubTaskList from './SubTaskList.svelte';
   import AttachmentList from './AttachmentList.svelte';
   import LinkPreview from './LinkPreview.svelte';
+  import RichText from './RichText.svelte';
+  import { Pencil } from 'lucide-svelte';
   import SempaSelect from '$lib/components/ui/SempaSelect.svelte';
   import SempaDatePicker from '$lib/components/ui/SempaDatePicker.svelte';
   import { mobile } from '$lib/stores/mobile.svelte';
@@ -77,6 +79,53 @@
   } = $props();
 
   const isEdit = $derived(task !== null);
+
+  // View-first on desktop/web: opening an existing task shows a clean, readable
+  // SUMMARY (not a wall of input boxes), with an Edit pencil to switch into the
+  // form. Create mode and the mobile/inline variants always open straight to the
+  // form. Resets every time the panel opens or the task changes.
+  let viewMode = $state<'view' | 'edit'>('edit');
+  const canView = $derived(isEdit && !mobile.value && !inline);
+  $effect(() => {
+    if (!open) return;
+    viewMode = task && !mobile.value && !inline ? 'view' : 'edit';
+  });
+
+  function startEdit() {
+    viewMode = 'edit';
+    if (!mobile.value) setTimeout(() => titleInput?.focus(), 30);
+  }
+
+  // Toggle done straight from the read view, then hand the updated task up (the
+  // parent refreshes its board and closes the panel — matching the card's quick
+  // complete and the mobile task view).
+  async function toggleDoneFromView() {
+    if (!task) return;
+    const newStatus = task.status === 'done' ? 'planned' : 'done';
+    try {
+      const updated = await api.tasks.update(task.id, {
+        status: newStatus,
+        completed_at: newStatus === 'done' ? new Date().toISOString() : null,
+      });
+      onSave(updated);
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to update task';
+    }
+  }
+
+  // ── Read-view formatters ─────────────────────────────────────────────────────
+  function fmtDate(d: string): string {
+    return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function fmtTime(iso: string): string {
+    return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  function fmtRemind(iso: string): string {
+    const dt = new Date(iso);
+    const ymd = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return ymd(dt) === ymd(new Date()) ? time : `${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${time}`;
+  }
 
   // Form state
   let title = $state('');
@@ -288,6 +337,184 @@
     }, 250);
   }
 </script>
+
+{#snippet taskView()}
+  {#if task}
+    {@const isDone = task.status === 'done'}
+    {@const objTitle = weekObjectives.find(o => o.id === task!.weekly_objective_id)?.title}
+    <!-- Action bar -->
+    <div class="flex shrink-0 items-center gap-2 border-b px-5 py-3" style="border-color: var(--sempa-border);">
+      <h2 class="flex-1 text-xs font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">
+        {#if task.source && task.source !== 'manual'}From {sourceLabel[task.source] ?? task.source}{:else}Task{/if}
+      </h2>
+
+      <!-- Edit (primary affordance) -->
+      <button onclick={startEdit}
+              class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-opacity hover:opacity-90"
+              style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+        <Pencil size={14} /> Edit
+      </button>
+
+      <!-- Done / Undo -->
+      <button onclick={toggleDoneFromView}
+              class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors"
+              style={isDone
+                ? 'border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);'
+                : 'background: var(--sempa-success); color: white;'}>
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          {#if isDone}
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l-4-4m0 0l4-4m-4 4h15"/>
+          {:else}
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          {/if}
+        </svg>
+        {isDone ? 'Undo' : 'Done'}
+      </button>
+
+      <!-- Delete (inline confirm) -->
+      {#if deleteConfirm}
+        <button onclick={async () => { await api.tasks.delete(task!.id); onSave({ ...task!, status: 'cancelled' } as Task); }}
+                class="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-red-500"
+                style="background: color-mix(in srgb, #ef4444 12%, transparent);">Delete</button>
+        <button onclick={() => deleteConfirm = false} aria-label="Cancel delete"
+                class="rounded-lg p-1.5" style="color: var(--sempa-text-dim);">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      {:else}
+        <button onclick={() => deleteConfirm = true} aria-label="Delete task"
+                class="rounded-lg p-1.5 transition-colors hover:text-red-500" style="color: var(--sempa-text-dim);">
+          <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      {/if}
+
+      <!-- Close -->
+      <button onclick={onClose} aria-label="Close"
+              class="rounded-lg p-1.5 transition-colors" style="color: var(--sempa-text-dim);">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="min-h-0 flex-[1_1_auto] overflow-y-auto px-6 py-5">
+      <!-- Title + complete -->
+      <div class="flex items-start gap-3 pb-5" style="border-bottom: 1px solid var(--sempa-border);">
+        <button type="button" onclick={toggleDoneFromView}
+                class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-all
+                       {isDone ? 'border-green-500 bg-green-500' : ''}"
+                style={isDone ? '' : 'border-color: var(--sempa-border);'}
+                aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}>
+          {#if isDone}
+            <svg class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          {/if}
+        </button>
+        <h1 class="flex-1 min-w-0 text-xl font-semibold leading-snug {isDone ? 'line-through opacity-50' : ''}"
+            style="color: var(--sempa-text); overflow-wrap: anywhere; word-break: break-word;">
+          {#if bareUrl(task.title)}
+            <a href={task.title} target="_blank" rel="noopener noreferrer"
+               class="inline-flex max-w-full items-center gap-1.5 align-middle hover:underline" style="color: var(--sempa-accent);">
+              <svg class="h-4 w-4 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+              </svg>
+              <span class="truncate">{prettyUrl(bareUrl(task.title)!)}</span>
+            </a>
+          {:else}
+            {task.title}
+          {/if}
+        </h1>
+      </div>
+
+      <!-- Meta chips -->
+      <div class="flex flex-wrap gap-2 py-4" style="border-bottom: 1px solid var(--sempa-border);">
+        {#if task.status === 'in_progress'}
+          <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold" style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">● In progress</span>
+        {/if}
+        {#if task.planned_date}
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs" style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            {fmtDate(task.planned_date)}
+          </span>
+        {/if}
+        {#if task.scheduled_start}
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs" style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 3"/></svg>
+            {fmtTime(task.scheduled_start)}{task.scheduled_end ? ` – ${fmtTime(task.scheduled_end)}` : ''}
+          </span>
+        {/if}
+        {#if task.remind_at}
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
+                style={reminderFired
+                  ? 'background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-dim);'
+                  : 'background: var(--sempa-accent-bg); color: var(--sempa-accent);'}>
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            {fmtRemind(task.remind_at)}{reminderFired ? ' · rang' : ''}
+          </span>
+        {/if}
+        {#if task.time_estimate_minutes}
+          <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-mono" style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);">~{formatMinutes(task.time_estimate_minutes)}</span>
+        {/if}
+        {#if task.time_actual_minutes}
+          <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-mono" style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">{formatMinutes(task.time_actual_minutes)} logged</span>
+        {/if}
+        {#if task.recurrence_rule || task.recurrence_origin_id}
+          <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs" style="background: var(--sempa-bg-main); border: 1px solid var(--sempa-border); color: var(--sempa-text-dim);">↺ Recurring</span>
+        {/if}
+        {#if objTitle}
+          <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs" style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">🎯 {objTitle}</span>
+        {/if}
+        {#each (task.tags ?? []) as tag}
+          <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium text-white" style="background-color: {tagStore.colorFor(tag)}">{tag}</span>
+        {/each}
+      </div>
+
+      <!-- Notes -->
+      {#if task.description}
+        <div class="py-4" style="border-bottom: 1px solid var(--sempa-border);">
+          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">Notes</p>
+          <div class="text-sm leading-relaxed" style="color: var(--sempa-text-soft);">
+            <RichText text={task.description} />
+          </div>
+          {#if noteUrls.length > 0}
+            <div class="mt-3 flex flex-col gap-2">
+              {#each noteUrls as url (url)}<LinkPreview {url} />{/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Sub-tasks -->
+      <div class="py-4" style="border-bottom: 1px solid var(--sempa-border);">
+        <SubTaskList parentId={task.id} parentDate={task.planned_date ?? undefined} />
+      </div>
+
+      <!-- Attachments -->
+      <div class="py-4" style="border-bottom: 1px solid var(--sempa-border);">
+        <AttachmentList ownerType="task" ownerId={task.id} />
+      </div>
+
+      <!-- Focus sessions -->
+      {#if sessions.length > 0}
+        <div class="py-4">
+          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider" style="color: var(--sempa-text-dim);">
+            Focus sessions <span class="font-normal normal-case tracking-normal">· {sessions.reduce((s, p) => s + p.duration_minutes, 0)} min</span>
+          </p>
+          <div class="flex flex-col gap-1">
+            {#each sessions as session}
+              <div class="flex items-center justify-between rounded-lg px-3 py-1.5" style="background: var(--sempa-bg-main);">
+                <span class="text-[11px]" style="color: var(--sempa-text-dim);">
+                  {new Date(session.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  {new Date(session.started_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span class="font-mono text-[11px]" style="color: var(--sempa-text-dim);">{session.duration_minutes}m</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
 {#snippet panelContent()}
     {#if mobile.value && !inline}
@@ -763,9 +990,13 @@
          onclick={onClose}></div>
     <aside role="dialog" aria-modal="true"
            aria-label="{isEdit ? 'Edit task' : 'New task'}"
-           class="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col shadow-2xl animate-slide-right"
+           class="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col shadow-2xl animate-slide-right"
            style="border-left: 1px solid var(--sempa-border); background: var(--sempa-bg-panel);">
-      {@render panelContent()}
+      {#if canView && viewMode === 'view'}
+        {@render taskView()}
+      {:else}
+        {@render panelContent()}
+      {/if}
     </aside>
   {/if}
 {/if}

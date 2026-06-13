@@ -9,13 +9,15 @@
    */
   import { goto } from '$app/navigation';
   import { reminderAlerts } from '$lib/stores/reminderAlerts.svelte';
-  import { isTauri } from '$lib/platform';
   import { Bell, X } from 'lucide-svelte';
 
-  // On desktop the same alerts surface as a floating top-right card outside the
-  // app window (see $lib/desktopReminderPopup), so suppress the in-app banner
-  // there to avoid showing the reminder twice. Web + Android keep the banner.
-  const show = $derived(reminderAlerts.alerts.length > 0 && !isTauri());
+  // The in-app banner is the bulletproof, always-DOM visual: it CANNOT silently
+  // fail the way the native toast or the separate floating window can on Windows.
+  // So we now show it on every platform whenever a reminder is up. On desktop the
+  // floating Granola card additionally covers the case where Sempa is in the
+  // background (see $lib/desktopReminderPopup, which only opens the card when the
+  // app isn't foregrounded — so there's no double display while you're in-app).
+  const show = $derived(reminderAlerts.alerts.length > 0);
 
   function open(taskId: string) {
     reminderAlerts.dismiss(taskId);
