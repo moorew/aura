@@ -79,14 +79,16 @@
 
 <svelte:head><title>Inbox — Sempa</title></svelte:head>
 
-<div class="flex h-full flex-col">
-  <!-- Header -->
-  <header class="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4
-                 dark:border-gray-800 dark:bg-gray-900">
+<div class="flex h-full flex-col" style="background: var(--sempa-bg-main);">
+  <!-- Header — sticky + safe-area padding so the title clears the status bar
+       (clock) on mobile, matching the other full-page mobile headers. -->
+  <header class="sticky top-0 z-[40] flex items-center justify-between px-6 pb-4"
+          style="background: var(--sempa-bg-main); border-bottom: 1px solid var(--sempa-border);
+                 padding-top: max(16px, calc(env(safe-area-inset-top, 0px) + 12px));">
     <div>
-      <h1 class="text-base font-semibold text-gray-900 dark:text-gray-50">Fastmail inbox</h1>
+      <h1 class="text-base font-semibold" style="color: var(--sempa-text);">Fastmail inbox</h1>
       {#if !loading}
-        <p class="text-xs text-gray-400 dark:text-gray-600">{emails.length} message{emails.length !== 1 ? 's' : ''}</p>
+        <p class="text-xs" style="color: var(--sempa-text-dim);">{emails.length} message{emails.length !== 1 ? 's' : ''}</p>
       {/if}
     </div>
     <button onclick={load} disabled={loading}
