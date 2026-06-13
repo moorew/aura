@@ -1,6 +1,6 @@
 {
   "name": "sempa-frontend",
-  "version": "1.0.107",
+  "version": "1.0.108",
   "private": true,
   "type": "module",
   "scripts": {
