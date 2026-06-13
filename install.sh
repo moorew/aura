@@ -137,18 +137,40 @@ fi
 # ── Step 3: Optional ─────────────────────────────────────────────────────────
 step "3 / 4  —  Optional extras"
 echo ""
-dim "Press Enter to skip any of these."
+dim "All optional — press Enter to skip. Email, calendar, and Jira accounts are"
+dim "connected later inside the app (Settings), not here. AI task-title cleanup"
+dim "runs on the bundled local model — no API key needed."
 echo ""
 
-ANTHROPIC_KEY=""
-read -rp "    Anthropic API key (AI-powered task title cleanup, optional): " ANTHROPIC_KEY
-
+# Tailscale sidecar
+dim "Tailscale lets you reach Sempa securely from all your devices, with HTTPS"
+dim "and no port-forwarding. Key: https://login.tailscale.com/admin/settings/keys"
 TS_AUTHKEY=""
-read -rp "    Tailscale auth key (for Tailscale sidecar, optional): " TS_AUTHKEY
+read -rp "    Tailscale auth key (optional): " TS_AUTHKEY
 
-EMAIL_TOKEN=""
-read -rp "    Email forward token (Cloudflare email → task, optional): " EMAIL_TOKEN
-[[ -z "$EMAIL_TOKEN" ]] && EMAIL_TOKEN=$(rand_hex)
+# Email-to-task webhook (opt-in)
+echo ""
+dim "Email → task: forward mail to a Cloudflare Email Routing address to create"
+dim "tasks automatically. Enabling generates a webhook token for that worker."
+ask_yn "Enable email-to-task?" EMAIL_ENABLE
+EMAIL_TOKEN=""; SMTP_SENDERS=""
+if [[ "$EMAIL_ENABLE" == "y" ]]; then
+  EMAIL_TOKEN=$(rand_hex)
+  ok "Generated email-forward token"
+  dim "Restrict who can create tasks this way (comma-separated emails or @domain)."
+  dim "Leave blank to accept any sender."
+  read -rp "    Allowed senders (optional): " SMTP_SENDERS
+fi
+
+# Web Push contact (RFC 8292 `sub`). Derive a sensible default so browser/PWA
+# notifications work without asking — the VAPID keys themselves auto-generate.
+FIRST_EMAIL=$(echo "${ALLOWED_EMAILS}" | cut -d, -f1 | tr -d '[:space:]')
+if [[ -n "$FIRST_EMAIL" ]]; then
+  VAPID_SUBJECT="mailto:${FIRST_EMAIL}"
+else
+  HOST_ONLY=$(echo "$APP_URL" | sed -E 's#^https?://##; s#[:/].*$##')
+  VAPID_SUBJECT="mailto:admin@${HOST_ONLY:-localhost}"
+fi
 
 # ── Step 4: Write config ──────────────────────────────────────────────────────
 step "4 / 4  —  Writing config & starting Sempa"
@@ -170,9 +192,10 @@ ok "Written .env"
   [[ -n "$ALLOWED_EMAILS" ]]       && echo "SEMPA_ALLOWED_EMAILS=${ALLOWED_EMAILS}"
   [[ -n "$SEMPA_USERNAME" ]]       && echo "SEMPA_USERNAME=${SEMPA_USERNAME}"
   [[ -n "$SEMPA_PASSWORD" ]]       && echo "SEMPA_PASSWORD=${SEMPA_PASSWORD}"
-  [[ -n "$ANTHROPIC_KEY" ]]        && echo "ANTHROPIC_API_KEY=${ANTHROPIC_KEY}"
   [[ -n "$TS_AUTHKEY" ]]           && echo "TS_AUTHKEY=${TS_AUTHKEY}"
-  echo "EMAIL_FORWARD_TOKEN=${EMAIL_TOKEN}"
+  [[ -n "$EMAIL_TOKEN" ]]          && echo "EMAIL_FORWARD_TOKEN=${EMAIL_TOKEN}"
+  [[ -n "$SMTP_SENDERS" ]]         && echo "SMTP_ALLOWED_SENDERS=${SMTP_SENDERS}"
+  [[ -n "$VAPID_SUBJECT" ]]        && echo "VAPID_SUBJECT=${VAPID_SUBJECT}"
 } > .env.local
 ok "Written .env.local"
 
@@ -216,6 +239,20 @@ if [[ "$AUTH_CHOICE" == "1" && -n "$GOOGLE_CLIENT_ID" ]]; then
   echo "     ${APP_URL}/api/v1/auth/google/callback"
   echo ""
 fi
+
+echo "  Next steps — connect the rest inside the app (Settings):"
+dim "  • Gmail / Fastmail        import starred email as tasks"
+dim "  • Google / Fastmail cal   see events beside your tasks"
+dim "  • Calendar feeds (ICS)    subscribe to any .ics / webcal URL"
+dim "  • Jira                    import assigned issues as tasks"
+dim "  • Notifications           enable Web Push / Android / webhook + sounds"
+echo ""
+if [[ "$EMAIL_ENABLE" == "y" ]]; then
+  echo "  Email → task is enabled. Point a Cloudflare Email Worker at:"
+  dim "  ${APP_URL}/api/v1/tasks/from-email   (Authorization: Bearer <token in .env.local>)"
+  echo ""
+fi
+
 echo "  Useful commands:"
 dim "  docker compose logs -f      stream logs"
 dim "  docker compose stop         stop Sempa"

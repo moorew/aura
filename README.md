@@ -17,6 +17,7 @@ Plan your day, track focused work, and end each day with intention — with your
 - **Jira sync** — bi-directional: import assigned issues, mark done in Sempa to close the ticket
 - **Reminders & notifications** — per-task reminders delivered by Web Push, Android, or a webhook, with selectable alert sounds
 - **Recurring tasks** — daily, weekly, and monthly templates
+- **Six themes** — Terracotta, Forest, Plum, Slate, OLED Black, and Ocean, each in light + dark
 - **Keyboard shortcuts** — `n` new task, `t` today, `j/k` prev/next week, `?` help
 
 📖 **New here? Jump to the [User Guide](#user-guide) for how to use every feature.**
@@ -27,7 +28,7 @@ Plan your day, track focused work, and end each day with intention — with your
 |----------|--------------|
 | **Web** | Self-host with Docker (see below) |
 | **Android** | APK from [GitHub Releases](../../releases) or build from source |
-| **Windows** | `.msi` installer from [GitHub Releases](../../releases) (x64 + ARM64) |
+| **Windows** | Sempa-branded `.exe` setup (NSIS) or `.msi` from [GitHub Releases](../../releases) (x64 + ARM64) |
 | **PWA** | Install from your browser when visiting your Sempa instance |
 
 All apps connect to your self-hosted server — your data stays on your machine.
@@ -44,7 +45,7 @@ cd sempa
 bash install.sh
 ```
 
-The installer asks a few questions (URL, auth method, optional API keys), writes your config, builds the image, and starts the container. The whole process takes about 2 minutes.
+The installer asks a few questions (URL, auth method, and optional extras like Tailscale or email-to-task), writes your config, builds the image, and starts the container. The whole process takes about 2 minutes. Everything else — email, calendar, and Jira accounts — is connected later inside the app under **Settings**.
 
 Open the URL it prints and follow the in-app setup wizard to connect your email and calendar.
 
@@ -194,9 +195,12 @@ Generate one at [Tailscale Admin → Keys](https://login.tailscale.com/admin/set
 | Variable | Description |
 |----------|-------------|
 | `TS_AUTHKEY` | Auth key for the Tailscale sidecar container |
-| `ANTHROPIC_API_KEY` | Enables AI-powered task title cleanup when importing emails |
 | `EMAIL_FORWARD_TOKEN` | Secret token for the Cloudflare email-to-task webhook |
+| `SMTP_ALLOWED_SENDERS` | Restrict email-to-task senders (comma-separated emails or `@domain`; empty = accept all) |
 | `SMTP_PORT` | Port for the built-in inbound SMTP server (default: `2525`) |
+| `VAPID_SUBJECT` | Web Push contact address (e.g. `mailto:you@example.com`); the VAPID key pair auto-generates |
+| `FCM_KEY_PATH` | Path to a Firebase service-account JSON key for native Android push |
+| `OLLAMA_MODEL` | Local model for AI task-title cleanup (default: `qwen2.5:1.5b`, bundled — no API key) |
 | `INBOX_POLL_INTERVAL` | How often to poll the email inbox (default: `1m`) |
 | `CALENDAR_POLL_INTERVAL` | How often to refresh ICS subscriptions + the Fastmail calendar (default: `15m`; empty disables) |
 
@@ -243,8 +247,8 @@ After signing in, a short setup wizard helps you connect email and calendar (all
 
 ### Getting around
 
-- **Desktop / web:** a left sidebar with Today, Search, This Week, Plan Day, Email, Backlog, Shutdown, Journal, and Settings. A theme toggle (light/dark) sits at the bottom.
-- **Mobile:** a bottom tab bar — **Today**, **Week**, **Journal**, and **More** (which opens Search, Plan Day, Shutdown, Inbox, Backlog, and Settings). A **+** button creates a task on list screens.
+- **Desktop / web:** a left sidebar with Today, Search, This Week, Plan Day, Email, Backlog, Shutdown, Journal, and Jira. A compact **icon rail** at the bottom holds Settings, the light/dark toggle, the desktop Widget, and your account (avatar → email + sign out). The day view's right panel is a tabbed dock — **Schedule · Inbox · Jira · Goals** — under a mini-calendar.
+- **Mobile:** a bottom tab bar — **Today**, **Week**, **Journal**, and **More**. The **More** sheet is grouped: a quick row (Settings, light/dark, Widget), a **Plan** group (Plan Day, Schedule, Backlog, Search), an **Inbox** group (Email, Reminders, Jira, Shutdown), and your account row. A **+** button creates a task on list screens.
 
 ### Tasks
 
@@ -302,7 +306,7 @@ Create **daily, weekly, or monthly** templates (managed in **Settings → Recurr
 
 ### Calendars & schedule
 
-See calendar events beside your tasks in the **Schedule** panel:
+See calendar events beside your tasks in the **Schedule** tab of the day view's right-hand dock (alongside Inbox, Jira, and Goals):
 
 - **Google Calendar** and **Fastmail Calendar** — connect in **Settings → Integrations / Accounts**.
 - **CalDAV** — connect a CalDAV server and optionally push your time-blocks back to it.
@@ -316,7 +320,7 @@ Turn email into tasks several ways:
 
 - **Gmail / Fastmail:** star an email and it imports as a task (same OAuth app as sign-in for Gmail; an app password for Fastmail).
 - **Task inbox:** forward (or auto-forward) mail to a dedicated address to create tasks; allow-list senders in settings.
-- **AI title cleanup:** with `ANTHROPIC_API_KEY` set, imported subjects are tidied into clean task titles.
+- **AI title cleanup:** imported subjects are tidied into clean task titles by the bundled local model (the `ollama` service) — no API key needed.
 
 The **Email** screen lets you triage incoming mail and convert messages to tasks, with the original linked.
 
@@ -363,22 +367,34 @@ In **Settings → Backup & Restore**:
 
 Database migrations run automatically on startup, and your data lives in the `sempa_data` Docker volume.
 
+### Today board
+
+The **Today** view is a rolling board of day columns with today anchored at the left edge. Scroll left into the past and right into the future **continuously** — there are no week boundaries to page through. The ‹ › header buttons and the `j`/`k` keys jump a week at a time; **Today** re-anchors on the current day.
+
+### Desktop widget
+
+The Windows desktop app includes a floating **Widget** — a compact, always-on-top panel showing what's up next with quick checkboxes and a quick-add box. Open it from the sidebar icon rail (or a single click on the system-tray icon); the tray's double-click opens the main window.
+
 ### Offline & sync
 
 The desktop and Android apps are **local-first**: they keep a local copy of your data, so the app stays fully usable with no connection. Changes queue and **sync automatically** when the server is reachable again. A sync indicator shows status. Plain web (in a browser, not installed) talks directly to the server.
+
+### Themes & appearance
+
+In **Settings → Appearance** you pick from **six full-interface themes** — **Terracotta** (default), **Forest**, **Plum**, **Slate**, **OLED Black**, and **Ocean** — each with a live preview. Every theme has a light and a dark mode, except **OLED Black**, which is dark-only (the mode toggle hides for it). The same page has a **text-size** slider and the **contextual reflections** toggle. Your choice is remembered per device and applied before first paint (no flash on load).
 
 ### Settings overview
 
 | Section | What you configure |
 |---------|--------------------|
 | **Account** | Sign-in, profile |
-| **Integrations** | Gmail, Fastmail, Jira, CalDAV, task inbox, ICS feeds |
-| **Calendars** | Show/hide calendars, colours |
+| **Integrations** | Gmail, Fastmail, Jira, CalDAV, task inbox |
+| **Calendars** | Connected calendars, ICS/webcal feeds, show/hide, colours |
 | **Tags** | Create/rename/recolour tags |
 | **Recurring Tasks** | Daily/weekly/monthly templates |
 | **Notifications** | Reminders, delivery channels, sounds, routines |
 | **Backup & Restore** | Schedule, encryption, destinations |
-| **Appearance** | Light/dark theme, contextual reflections |
+| **Appearance** | Theme (six options), light/dark mode, text size, contextual reflections |
 
 ### Keyboard shortcuts
 
@@ -455,6 +471,7 @@ frontend/
       api.ts         Typed API client
   src-tauri/         Tauri (Windows/macOS/Linux) desktop app
   android/           Capacitor Android wrapper
+install.sh           Guided first-time setup (prereqs → config → build → start)
 deploy/
   update.sh          Pull + rebuild script
 ```
