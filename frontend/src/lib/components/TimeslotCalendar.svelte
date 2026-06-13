@@ -12,6 +12,7 @@
     onUnschedule, // (taskId) => void
     onOpenTask,   // (taskId) => void — open the task in the editor
     onEventConverted, // (task) => void — a calendar event was imported as a task
+    onSlotTap,    // (start ISO, end ISO) => void — tap an empty slot (touch entry point)
   }: {
     date: string;
     tasks: Task[];
@@ -19,6 +20,7 @@
     onUnschedule?: (taskId: string) => void;
     onOpenTask?: (taskId: string) => void;
     onEventConverted?: (task: Task) => void;
+    onSlotTap?: (start: string, end: string) => void;
   } = $props();
 
   const START_HOUR = 6;
@@ -211,6 +213,19 @@
     const end   = isoAt(hour, min + 30 <= 60 ? min + 30 : 30);
     onSchedule?.(taskId, start, end);
     ghostHour = null;
+  }
+
+  // Touch entry point: tapping the empty grid (not a block) offers to schedule a
+  // task at that time. Desktop leaves `onSlotTap` undefined, so this is inert and
+  // drag-to-schedule remains the path there.
+  function handleSlotClick(e: MouseEvent) {
+    if (!onSlotTap) return;
+    if (e.target !== e.currentTarget) return; // only the empty grid, not a block
+    closeOverlays();
+    const { hour, min } = snapToHalfHour(e.clientY);
+    const start = isoAt(hour, min);
+    const end   = isoAt(hour, min + 30 <= 60 ? min + 30 : 30);
+    onSlotTap(start, end);
   }
 
   // Scheduled task blocks take the on-brand terracotta; calendar-sourced ones use
@@ -421,13 +436,15 @@
        ondragleave={() => { dragOver = false; ghostHour = null; }}
        ondrop={handleDrop}>
 
+    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
     <div bind:this={containerEl}
          class="relative ml-10 mr-2"
-         style="height: {TOTAL * HOUR_PX}px;">
+         style="height: {TOTAL * HOUR_PX}px;"
+         onclick={handleSlotClick}>
 
       <!-- Hour grid lines + labels -->
       {#each hours as h}
-        <div class="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800/50"
+        <div class="pointer-events-none absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800/50"
              style="top: {(h - START_HOUR) * HOUR_PX}px;">
           <span class="absolute -left-10 -top-2 w-9 text-right text-[10.5px] text-gray-400 dark:text-gray-600 leading-none select-none">
             {formatHour(h)}

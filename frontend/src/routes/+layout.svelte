@@ -37,7 +37,7 @@
     Sun, CalendarDays, ClipboardCheck, Mail, Moon, SlidersHorizontal,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
     Target, Timer, Palette, Menu, Layers, BookOpen, Search, Bell, LayoutGrid,
-    SquareKanban,
+    SquareKanban, CalendarClock,
   } from 'lucide-svelte';
   import { createWidgetWindow } from '$lib/tauri/bridge';
 
@@ -546,6 +546,7 @@
       {@render moreItem('/search', 'Search', Search)}
       {@render moreItem('/reminders', 'Reminders', Bell)}
       {@render moreItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
+      {@render moreItem('/schedule', 'Schedule', CalendarClock)}
       {@render moreItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
       {@render moreItem('/email', 'Inbox', Mail)}
       {@render moreItem('/jira', 'Jira', SquareKanban)}
