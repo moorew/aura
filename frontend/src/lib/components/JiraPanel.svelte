@@ -1,6 +1,15 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import type { Task } from '$lib/types';
+  import {
+    parseJiraMeta as parseMeta,
+    applyJiraFilters,
+    JIRA_TOGGLE_DEFS,
+    JIRA_SELECT_DEFS,
+    optionsFor,
+    activeSelectCount,
+    defaultJiraFilterState,
+  } from '$lib/jira/filters';
 
   let {
     onTaskDragStart,
@@ -14,14 +23,16 @@
   type View = 'list' | 'card';
 
   let allTasks      = $state<Task[]>([]);
-  let allStatuses   = $state<{ id: string; name: string; statusCategory: { key: string } }[]>([]);
   let loading       = $state(true);
   let syncing       = $state(false);
   let connected     = $state(true);
   let error         = $state('');
   let sempaFilter   = $state<SempaFilter>('unplanned');
-  let statusFilter  = $state('');
   let view          = $state<View>('list');
+
+  // Modular Jira facet filters (Open, Assigned to me, Priority, Type, …).
+  let filterState   = $state(defaultJiraFilterState());
+  let showFilters   = $state(false);
 
   // Card view state
   let cardTask      = $state<Task | null>(null);
@@ -39,12 +50,7 @@
       const cfg = await api.integrations.jira.get() as any;
       connected = cfg.connected ?? false;
       if (!connected) { loading = false; return; }
-      const [tasks, statuses] = await Promise.all([
-        api.tasks.listBySource('jira'),
-        api.integrations.jira.getStatuses().catch(() => [] as any[]),
-      ]);
-      allTasks = tasks;
-      allStatuses = statuses;
+      allTasks = await api.tasks.listBySource('jira');
     } catch (e: any) {
       error = e.message ?? 'Failed';
     } finally { loading = false; }
@@ -61,16 +67,17 @@
   }
 
   const filteredTasks = $derived.by(() => {
-    return allTasks.filter(t => {
+    // 1) Sempa-side scope (planned/unplanned) — a local concept, not a Jira facet.
+    const scoped = allTasks.filter(t => {
       if (sempaFilter === 'unplanned' && t.status !== 'backlog') return false;
       if (sempaFilter === 'planned' && (t.status === 'backlog' || t.status === 'done')) return false;
-      if (statusFilter) {
-        const m = parseMeta(t.source_metadata);
-        if (m?.status !== statusFilter) return false;
-      }
       return true;
     });
+    // 2) Jira facet filters + fuzzy search, applied generically.
+    return applyJiraFilters(scoped, filterState);
   });
+
+  const activeFilters = $derived(activeSelectCount(filterState));
 
   async function openCard(task: Task) {
     const meta = parseMeta(task.source_metadata);
@@ -111,11 +118,6 @@
       }
     } catch (e: any) { cardError = e.message ?? 'Transition failed'; }
     finally { transitioning = false; }
-  }
-
-  function parseMeta(raw: string | null) {
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
   }
 
   function priorityDot(priority: string): string {
@@ -299,6 +301,27 @@
 
     <!-- Filters -->
     <div class="shrink-0 space-y-1.5 px-3 py-2" style="border-bottom: 1px solid var(--sempa-border);">
+
+      <!-- Quick fuzzy search (key or title) -->
+      <div class="relative">
+        <svg class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+             style="color: var(--sempa-text-dim);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
+        </svg>
+        <input bind:value={filterState.query} type="text" placeholder="Search key or title…"
+               class="w-full rounded border py-1 pl-7 pr-6"
+               style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+        {#if filterState.query}
+          <button onclick={() => filterState.query = ''} aria-label="Clear search"
+                  class="absolute right-1.5 top-1/2 -translate-y-1/2" style="color: var(--sempa-text-dim);">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        {/if}
+      </div>
+
+      <!-- Sempa-side scope -->
       <div class="flex gap-1">
         {#each [['unplanned', 'Unplanned'], ['planned', 'Planned'], ['all', 'All']] as [val, label]}
           <button onclick={() => sempaFilter = val as SempaFilter}
@@ -311,14 +334,50 @@
         {/each}
       </div>
 
-      <select bind:value={statusFilter}
-              class="w-full rounded border px-2 py-1"
-              style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);">
-        <option value="">All stages</option>
-        {#each allStatuses as s}
-          <option value={s.name}>{s.name}</option>
+      <!-- Default facet toggles (Open, Assigned to me, …) -->
+      <div class="flex flex-wrap items-center gap-1">
+        {#each JIRA_TOGGLE_DEFS as def (def.id)}
+          {@const on = filterState.toggles[def.id]}
+          <button onclick={() => filterState.toggles[def.id] = !on}
+                  aria-pressed={on}
+                  class="rounded-full border px-2 py-0.5 font-medium transition-colors"
+                  style={on
+                    ? 'border-color: transparent; background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                    : 'border-color: var(--sempa-border); color: var(--sempa-text-dim);'}>
+            {def.label}
+          </button>
         {/each}
-      </select>
+
+        <!-- More facet selects (Priority, Type, Status, Epic, Sprint) -->
+        <button onclick={() => showFilters = !showFilters}
+                class="ml-auto flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium transition-colors"
+                style={activeFilters > 0
+                  ? 'border-color: transparent; background: var(--sempa-accent-bg); color: var(--sempa-accent);'
+                  : 'border-color: var(--sempa-border); color: var(--sempa-text-dim);'}>
+          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M3 4h18M6 12h12M10 20h4"/>
+          </svg>
+          Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}
+        </button>
+      </div>
+
+      {#if showFilters}
+        <div class="space-y-1.5 pt-0.5">
+          {#each JIRA_SELECT_DEFS as def (def.id)}
+            {@const opts = optionsFor(def, allTasks)}
+            {#if opts.length}
+              <select bind:value={filterState.selects[def.id]}
+                      class="w-full rounded border px-2 py-1"
+                      style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);">
+                <option value="">{def.label}: any</option>
+                {#each opts as o}
+                  <option value={o}>{o}</option>
+                {/each}
+              </select>
+            {/if}
+          {/each}
+        </div>
+      {/if}
     </div>
 
     <!-- Count + sync -->

@@ -39,6 +39,19 @@ type IssueFields struct {
 	Status    Status     `json:"status"`
 	Priority  *Priority  `json:"priority"`
 	IssueType IssueType  `json:"issuetype"`
+	Assignee  *User      `json:"assignee"`
+	Parent    *Parent    `json:"parent"`
+}
+
+// Parent carries the epic/parent link (team-managed projects and sub-tasks).
+// Company-managed "Epic Link" lives in a per-instance custom field and is not
+// covered here; the sidebar filters degrade gracefully when it's absent.
+type Parent struct {
+	Key    string `json:"key"`
+	Fields struct {
+		Summary   string    `json:"summary"`
+		IssueType IssueType `json:"issuetype"`
+	} `json:"fields"`
 }
 
 type Status struct {
@@ -72,7 +85,8 @@ type SearchResult struct {
 // ── Detailed issue view ───────────────────────────────────────────────────────
 
 type User struct {
-	DisplayName string `json:"displayName"`
+	AccountID    string `json:"accountId"`
+	DisplayName  string `json:"displayName"`
 	EmailAddress string `json:"emailAddress"`
 }
 
@@ -137,7 +151,7 @@ func (c *Client) Search(ctx context.Context, nextPageToken string, maxResults in
 	reqBody := map[string]any{
 		"jql":        jql,
 		"maxResults": maxResults,
-		"fields":     []string{"summary", "status", "priority", "issuetype"},
+		"fields":     []string{"summary", "status", "priority", "issuetype", "assignee", "parent"},
 	}
 	if nextPageToken != "" {
 		reqBody["nextPageToken"] = nextPageToken
@@ -178,6 +192,33 @@ func (c *Client) Search(ctx context.Context, nextPageToken string, maxResults in
 func (c *Client) TestConnection(ctx context.Context) error {
 	_, err := c.Search(ctx, "", 1)
 	return err
+}
+
+// Myself returns the authenticated account, used to flag issues assigned to the
+// connected user (accountId comparison is reliable even when emails are hidden).
+func (c *Client) Myself(ctx context.Context) (User, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.Host+"/rest/api/2/myself", nil)
+	if err != nil {
+		return User{}, err
+	}
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return User{}, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return User{}, fmt.Errorf("jira returned HTTP %d: %s", resp.StatusCode, b)
+	}
+
+	var u User
+	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+		return User{}, fmt.Errorf("decode: %w", err)
+	}
+	return u, nil
 }
 
 // GetIssue fetches full details for a single Jira issue.

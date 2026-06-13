@@ -16,6 +16,13 @@ func Sync(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, 
 	var result db.SyncResult
 	nextPageToken := ""
 
+	// Resolve the connected account once so each issue can be flagged "mine".
+	// Best-effort: if this fails we simply omit the flag (filter stays inert).
+	myAccountID := ""
+	if me, err := client.Myself(ctx); err == nil {
+		myAccountID = me.AccountID
+	}
+
 	for {
 		sr, err := client.Search(ctx, nextPageToken, 50)
 		if err != nil {
@@ -23,7 +30,7 @@ func Sync(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, 
 		}
 
 		for i := range sr.Issues {
-			if err := syncIssue(ctx, &sr.Issues[i], cfg.Host, tasks, &result); err != nil {
+			if err := syncIssue(ctx, &sr.Issues[i], cfg.Host, myAccountID, tasks, &result); err != nil {
 				result.Errors++
 			}
 		}
@@ -37,15 +44,27 @@ func Sync(ctx context.Context, cfg Config, tasks *db.TaskStore) (db.SyncResult, 
 	return result, nil
 }
 
-func syncIssue(ctx context.Context, issue *Issue, host string, tasks *db.TaskStore, result *db.SyncResult) error {
+func syncIssue(ctx context.Context, issue *Issue, host, myAccountID string, tasks *db.TaskStore, result *db.SyncResult) error {
 	result.Total++
 
-	metaBytes, _ := json.Marshal(map[string]any{
-		"key":       issue.Key,
-		"status":    issue.Fields.Status.Name,
-		"issueType": issue.Fields.IssueType.Name,
-		"priority":  priorityName(issue.Fields.Priority),
-	})
+	metaMap := map[string]any{
+		"key":            issue.Key,
+		"status":         issue.Fields.Status.Name,
+		"statusCategory": issue.Fields.Status.StatusCategory.Key, // new | indeterminate | done
+		"issueType":      issue.Fields.IssueType.Name,
+		"priority":       priorityName(issue.Fields.Priority),
+	}
+	if issue.Fields.Assignee != nil {
+		metaMap["assignee"] = issue.Fields.Assignee.DisplayName
+		metaMap["mine"] = myAccountID != "" && issue.Fields.Assignee.AccountID == myAccountID
+	} else {
+		metaMap["mine"] = false
+	}
+	if issue.Fields.Parent != nil {
+		metaMap["epicKey"] = issue.Fields.Parent.Key
+		metaMap["epicName"] = issue.Fields.Parent.Fields.Summary
+	}
+	metaBytes, _ := json.Marshal(metaMap)
 	meta     := string(metaBytes)
 	source   := "jira"
 	sourceID := issue.Key
@@ -73,15 +92,18 @@ func syncIssue(ctx context.Context, issue *Issue, host string, tasks *db.TaskSto
 		return err
 	}
 
-	// Update if the title or metadata changed
+	// Update if the title OR the synced metadata changed. (Previously only a
+	// title change persisted, so status/assignee/priority drift was silently
+	// dropped — which also broke any metadata-driven sidebar filtering.)
 	titleChanged := existing.Title != issue.Fields.Summary
+	metaChanged := existing.SourceMetadata == nil || *existing.SourceMetadata != meta
 	if titleChanged {
 		existing.Title = issue.Fields.Summary
 	}
 	existing.SourceMetadata = &meta
 	existing.SourceURL = &sourceURL
 
-	if titleChanged {
+	if titleChanged || metaChanged {
 		if _, updateErr := tasks.Update(ctx, existing); updateErr != nil {
 			return updateErr
 		}
