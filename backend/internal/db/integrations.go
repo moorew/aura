@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 )
 
@@ -100,4 +101,38 @@ func (s *IntegrationConfigStore) Delete(ctx context.Context, typ string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// AITitleType is the integration_configs key for the AI task-title cleanup
+// settings (local Ollama model that tidies imported email subjects).
+const AITitleType = "ai_title"
+
+// AITitleConfig is the effective AI task-title cleanup configuration. The
+// stored config JSON carries base_url + model; on/off uses the enabled column.
+type AITitleConfig struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+}
+
+// ResolveAITitle returns the effective settings: the DB-stored config if the
+// user has saved one, otherwise the env defaults (enabled when an Ollama base
+// URL is configured via OLLAMA_BASE_URL). Empty stored fields fall back to env.
+func (s *IntegrationConfigStore) ResolveAITitle(ctx context.Context, envBaseURL, envModel string) AITitleConfig {
+	cfg := AITitleConfig{Enabled: envBaseURL != "", BaseURL: envBaseURL, Model: envModel}
+	rec, err := s.Get(ctx, AITitleType)
+	if err != nil {
+		return cfg
+	}
+	cfg.Enabled = rec.Enabled
+	var stored AITitleConfig
+	if json.Unmarshal([]byte(rec.Config), &stored) == nil {
+		if stored.BaseURL != "" {
+			cfg.BaseURL = stored.BaseURL
+		}
+		if stored.Model != "" {
+			cfg.Model = stored.Model
+		}
+	}
+	return cfg
 }

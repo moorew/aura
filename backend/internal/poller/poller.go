@@ -45,8 +45,14 @@ func pollInbox(ctx context.Context, database *sql.DB, ollamaBaseURL, ollamaModel
 		slog.Error("inbox poller: bad config", "err", err)
 		return
 	}
-	inboxCfg.OllamaBaseURL = ollamaBaseURL
-	inboxCfg.OllamaModel = ollamaModel
+	// Effective AI task-title cleanup config (DB override, else env). When
+	// disabled, leave the base URL empty so ImproveTitle keeps the raw subject.
+	ai := configs.ResolveAITitle(ctx, ollamaBaseURL, ollamaModel)
+	inboxCfg.OllamaBaseURL = ""
+	if ai.Enabled {
+		inboxCfg.OllamaBaseURL = ai.BaseURL
+	}
+	inboxCfg.OllamaModel = ai.Model
 
 	result, err := fastmail.SyncTaskInbox(ctx, inboxCfg, tasks)
 	if err != nil {

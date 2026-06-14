@@ -313,6 +313,11 @@ func NewRouter(database *sql.DB, cfg config.Config, blobs *blob.Store, vapidPubl
 					r.Post("/sync", integrations.taskInboxSync)
 					r.Delete("/", integrations.taskInboxDelete)
 				})
+				r.Route("/ai-title", func(r chi.Router) {
+					r.Get("/", integrations.aiTitleGet)
+					r.Put("/", integrations.aiTitleUpdate)
+					r.Post("/test", integrations.aiTitleTest)
+				})
 			})
 		})
 	})

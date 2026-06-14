@@ -396,6 +396,20 @@ const httpApi = {
       delete: () => req<void>('/api/v1/integrations/gmail', { method: 'DELETE' }),
     },
 
+    // AI task-title cleanup via a local Ollama model (tidies imported email
+    // subjects into task titles; nothing leaves the server).
+    aiTitle: {
+      get: () =>
+        req<{ enabled: boolean; base_url: string; model: string; reachable: boolean; available_models: string[] }>(
+          '/api/v1/integrations/ai-title'),
+      save: (cfg: { enabled: boolean; base_url: string; model: string }) =>
+        req<{ enabled: boolean; base_url: string; model: string; reachable: boolean; available_models: string[] }>(
+          '/api/v1/integrations/ai-title', { method: 'PUT', body: body(cfg) }),
+      test: (base_url: string) =>
+        req<{ reachable: boolean; models: string[]; error?: string }>(
+          '/api/v1/integrations/ai-title/test', { method: 'POST', body: body({ base_url }) }),
+    },
+
     calendar: {
       get: () => req<{ connected: boolean; email?: string; calendar_ids?: string[]; last_synced_at?: string }>('/api/v1/integrations/calendar'),
       toggle: (enabled: boolean, calendarIds?: string[]) =>

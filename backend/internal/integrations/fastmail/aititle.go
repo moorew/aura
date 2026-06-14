@@ -11,6 +11,41 @@ import (
 	"time"
 )
 
+// ListModels returns the model names available on the Ollama instance at
+// baseURL. It doubles as a reachability check (used by the settings UI's
+// "Test" button). A short timeout keeps the settings page responsive.
+func ListModels(ctx context.Context, baseURL string) ([]string, error) {
+	if baseURL == "" {
+		return nil, fmt.Errorf("ollama base URL not set")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/tags", nil)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama returned status %d", resp.StatusCode)
+	}
+	var out struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(out.Models))
+	for _, m := range out.Models {
+		names = append(names, m.Name)
+	}
+	return names, nil
+}
+
 // ImproveTitle uses a local Ollama model to turn an email subject into a
 // concise action-oriented task title. Falls back to the stripped subject on
 // any error or if Ollama is not configured.

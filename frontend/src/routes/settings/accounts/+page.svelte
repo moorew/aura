@@ -61,6 +61,13 @@
     allowed_senders?: string[]; last_synced_at?: string;
   }>({ connected: false });
 
+  // AI task-title cleanup (local Ollama model — tidies imported email subjects)
+  let aiTitle = $state<{ enabled: boolean; base_url: string; model: string; reachable: boolean; available_models: string[] }>(
+    { enabled: false, base_url: '', model: '', reachable: false, available_models: [] });
+  let aiSaving = $state(false);
+  let aiTesting = $state(false);
+  let aiError = $state('');
+
   // Fastmail connect form
   let fmEmail = $state('');
   let fmPassword = $state('');
@@ -122,6 +129,7 @@
       api.integrations.taskInbox.get(),
       api.integrations.jira.get(),
       api.integrations.caldav.get(),
+      api.integrations.aiTitle.get(),
     ]);
     const val = <T,>(i: number, fallback: T): T =>
       results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<T>).value : fallback;
@@ -133,6 +141,7 @@
     taskInbox = val(4, { connected: false });
     jira      = val(5, { connected: false });
     caldav    = val(6, { connected: false });
+    aiTitle   = val(7, { enabled: false, base_url: '', model: '', reachable: false, available_models: [] });
 
     serverUnreachable = results.every((r) => r.status === 'rejected');
 
@@ -308,6 +317,37 @@
     if (!confirm('Remove email inbox? Imported tasks will be kept.')) return;
     await api.integrations.taskInbox.delete();
     taskInbox = { connected: false };
+  }
+
+  // ── AI task-title cleanup ──────────────────────────────────────────────────
+  async function saveAiTitle() {
+    aiSaving = true;
+    aiError = '';
+    try {
+      aiTitle = await api.integrations.aiTitle.save({
+        enabled: aiTitle.enabled,
+        base_url: aiTitle.base_url.trim(),
+        model: aiTitle.model.trim(),
+      });
+    } catch (e) {
+      aiError = e instanceof Error ? e.message : 'Failed to save';
+    } finally {
+      aiSaving = false;
+    }
+  }
+
+  async function testAiTitle() {
+    aiTesting = true;
+    aiError = '';
+    try {
+      const res = await api.integrations.aiTitle.test(aiTitle.base_url.trim());
+      aiTitle = { ...aiTitle, reachable: res.reachable, available_models: res.models ?? [] };
+      if (!res.reachable) aiError = res.error ? `Not reachable: ${res.error}` : 'Not reachable';
+    } catch (e) {
+      aiError = e instanceof Error ? e.message : 'Test failed';
+    } finally {
+      aiTesting = false;
+    }
   }
 
   function formatDate(s?: string | null) {
@@ -1037,6 +1077,90 @@
         {/if}
       </a>
     </div>
+
+    <!-- ── AI task-title cleanup (local Ollama) ──────────────────── -->
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
+     text-transform:uppercase; color:var(--sempa-text-dim)">AI</p>
+
+    <section class="mb-8 overflow-hidden rounded-xl border" style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);">
+      <div class="flex items-start gap-3 px-5 py-4">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background: var(--sempa-accent-bg);">
+          <svg class="h-4 w-4" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3z"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-semibold" style="color: var(--sempa-text);">AI task-title cleanup</p>
+            <button onclick={() => { aiTitle.enabled = !aiTitle.enabled; saveAiTitle(); }}
+                    disabled={aiSaving}
+                    aria-label="Toggle AI task-title cleanup"
+                    class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50"
+                    style="background: {aiTitle.enabled ? 'var(--sempa-accent)' : 'var(--sempa-border)'};">
+              <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                    style="transform: translateX({aiTitle.enabled ? '18px' : '3px'});"></span>
+            </button>
+          </div>
+          <p class="mt-0.5 text-xs" style="color: var(--sempa-text-dim);">
+            Tidies imported email subjects into concise task titles using a language model that
+            runs on your own server. Nothing is sent to any third party; if it's unavailable the
+            original subject is kept.
+          </p>
+
+          {#if aiTitle.enabled}
+            <div class="mt-3 flex flex-col gap-2.5">
+              <div class="flex items-center gap-2 text-xs">
+                <span class="h-1.5 w-1.5 rounded-full" style="background: {aiTitle.reachable ? '#22c55e' : '#f59e0b'};"></span>
+                <span style="color: var(--sempa-text-soft);">
+                  {aiTitle.reachable ? 'Model server reachable' : 'Not reachable — falls back to the raw subject'}
+                </span>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ai-model">Model</label>
+                {#if aiTitle.available_models.length > 0}
+                  <select id="ai-model" bind:value={aiTitle.model}
+                          class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                          style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);">
+                    {#each aiTitle.available_models as m}
+                      <option value={m}>{m}</option>
+                    {/each}
+                  </select>
+                {:else}
+                  <input id="ai-model" bind:value={aiTitle.model} placeholder="qwen2.5:1.5b"
+                         class="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                         style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+                {/if}
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-medium" style="color: var(--sempa-text-soft);" for="ai-url">Model server URL (Ollama)</label>
+                <input id="ai-url" bind:value={aiTitle.base_url} placeholder="http://ollama:11434" spellcheck="false"
+                       class="w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none"
+                       style="border-color: var(--sempa-border); background: var(--sempa-bg-main); color: var(--sempa-text);" />
+              </div>
+
+              {#if aiError}
+                <p class="text-xs" style="color: #ef4444;">{aiError}</p>
+              {/if}
+
+              <div class="flex items-center gap-2">
+                <button onclick={testAiTitle} disabled={aiTesting}
+                        class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                        style="border-color: var(--sempa-border); color: var(--sempa-text-soft);">
+                  {aiTesting ? 'Testing…' : 'Test connection'}
+                </button>
+                <button onclick={saveAiTitle} disabled={aiSaving}
+                        class="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-50"
+                        style="background: var(--sempa-accent);">
+                  {aiSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </section>
   </div>
 {/snippet}
 
