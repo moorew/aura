@@ -6,6 +6,24 @@ based on [Keep a Changelog](https://keepachangelog.com/), and Sempa follows
 (`vX.Y.Z`) with auto-generated notes on the
 [Releases page](https://github.com/moorew/sempa/releases).
 
+## [1.0.116] - 2026-06-14
+
+### Fixed
+- **More theme-aware highlights.** The right-panel docks weren't fully themed: the
+  Inbox/Email tab underline, unread dot and "→ Task" button, the Jira issue keys and
+  links, the Jira "Medium" priority marker, and the weekly Goals progress bar/dots used
+  fixed blue/yellow/amber that ignored the active theme. They now follow `--sempa-accent`
+  (and `--sempa-amber` for the Medium-priority marker), matching the rest of the UI.
+- **Local AI connection (deploy).** On the default compose, `OLLAMA_BASE_URL` resolved to
+  a bridge hostname the host-networked app container couldn't reach. Combined with the
+  1.0.115 compose change, the app now talks to Ollama over loopback; existing servers just
+  set `OLLAMA_BASE_URL=http://127.0.0.1:11434`.
+
+### Changed
+- **Email view restyled.** The full Inbox now renders each message as a themed card (like
+  the Reminders view) instead of a flat divider list, with inline "→ Task" / "Archive"
+  actions — all using the theme tokens.
+
 ## [1.0.115] - 2026-06-14
 
 ### Added
