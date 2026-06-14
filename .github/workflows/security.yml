@@ -1,0 +1,119 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly full sweep — catches newly-disclosed CVEs in unchanged code.
+    - cron: '27 6 * * 1'
+
+# Least privilege by default; jobs widen as needed.
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # SAST — CodeQL covers the Go backend and the SvelteKit/TS frontend.
+  # build-mode: none skips compilation (go.mod lives in backend/, not the root).
+  # ---------------------------------------------------------------------------
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ---------------------------------------------------------------------------
+  # Go dependency vulnerabilities — call-graph aware, so it only flags CVEs
+  # your code actually reaches. Very low false-positive rate.
+  # ---------------------------------------------------------------------------
+  govulncheck:
+    name: govulncheck (Go deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck
+        working-directory: backend
+        run: govulncheck ./...
+
+  # ---------------------------------------------------------------------------
+  # Trivy — one pass for npm/Go CVEs, Dockerfile + compose misconfig, and
+  # secrets. SARIF feeds the Security tab (degrades gracefully without GHAS);
+  # the second pass fails the build only on fixable HIGH/CRITICAL CVEs.
+  # ---------------------------------------------------------------------------
+  trivy:
+    name: Trivy (deps · IaC · secrets)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy scan (SARIF report)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '0'
+      - name: Upload SARIF to code scanning
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+      - name: Fail on fixable HIGH/CRITICAL CVEs
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: '1'
+
+  # ---------------------------------------------------------------------------
+  # Secret scanning across full history (fetch-depth: 0 = all commits).
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    name: gitleaks (secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

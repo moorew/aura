@@ -22,6 +22,9 @@ frontend/src-tauri/gen/
 # Allow example templates
 !.env.example
 !.env.local.example
+# Android signing material — CI injects this from secrets.KEYSTORE_BASE64
+*.keystore
+*.jks
 
 # Editor
 .vscode/
