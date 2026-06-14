@@ -1,0 +1,62 @@
+name: Tag release
+
+# Cuts a release tag automatically when the version in frontend/package.json is
+# bumped on main. A tag is created only when there's no matching v<version> tag
+# yet, so ordinary docs/CI merges don't trigger a release — bump the version to
+# ship one. The tag then kicks off the Windows + Android release builds.
+#
+# Note: tags pushed with the built-in GITHUB_TOKEN do NOT trigger other
+# workflows (GitHub blocks that to prevent loops). So instead of relying on the
+# tag's `push` event, we dispatch the release workflows explicitly with the tag
+# as their ref — which produces the same result (they create the GitHub Release
+# whenever github.ref is a tag) without needing a personal access token.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # create and push the tag
+  actions: write    # dispatch the release workflows
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag on version bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0   # need all tags to check whether this version exists
+
+      - name: Read version from package.json
+        id: ver
+        run: echo "v=v$(jq -r .version frontend/package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag if it is new
+        id: tag
+        env:
+          V: ${{ steps.ver.outputs.v }}
+        run: |
+          if git rev-parse "$V" >/dev/null 2>&1; then
+            echo "Tag $V already exists — nothing to release."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+          else
+            git tag "$V"
+            git push origin "$V"
+            echo "Created and pushed $V"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger release builds
+        if: steps.tag.outputs.created == 'true'
+        env:
+          V: ${{ steps.ver.outputs.v }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run windows-release.yml --ref "$V"
+          gh workflow run android-release.yml --ref "$V"
