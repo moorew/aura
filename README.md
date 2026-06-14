@@ -424,7 +424,7 @@ Database migrations run automatically on startup. Your data is in a Docker volum
 
 ## Development
 
-**Requirements:** Go 1.21+, Node.js 20+
+**Requirements:** Go 1.25+, Node.js 20+
 
 ```bash
 # Backend (runs on :9001)
@@ -497,6 +497,24 @@ deploy/
 
 ---
 
+## Contributing
+
+Bug reports, feature requests, and pull requests are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the process, coding standards, and how to
+run the tests. For security issues, please follow [SECURITY.md](SECURITY.md).
+
+---
+
 ## License
 
-MIT
+Sempa is free and open-source software, licensed under the **GNU Affero General
+Public License v3.0 or later** (AGPL-3.0-or-later) — see [LICENSE](LICENSE).
+
+Copyright (C) 2026 William Moore
+
+This program is free software: you can redistribute it and/or modify it under the
+terms of the GNU Affero General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU AGPL for more details.
