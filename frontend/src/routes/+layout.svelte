@@ -29,6 +29,8 @@
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';
   import SyncIndicator from '$lib/components/SyncIndicator.svelte';
+  import UpdateToast from '$lib/components/UpdateToast.svelte';
+  import { updates } from '$lib/stores/updates.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
   import type { Snippet } from 'svelte';
 
@@ -37,7 +39,7 @@
     Sun, CalendarDays, ClipboardCheck, Mail, Moon, SlidersHorizontal,
     ChevronLeft, ChevronRight, Plus, RefreshCw, X, Check,
     Target, Timer, Palette, Menu, Layers, BookOpen, Search, Bell, LayoutGrid,
-    SquareKanban, CalendarClock,
+    SquareKanban, CalendarClock, ArrowUpCircle,
   } from 'lucide-svelte';
   import { createWidgetWindow } from '$lib/tauri/bridge';
 
@@ -74,7 +76,6 @@
     typeof localStorage !== 'undefined' ? (localStorage.getItem('sempa_account_picture') ?? undefined) : undefined,
   );
   let moreSheetOpen      = $state(false);
-  let acctMenuOpen       = $state(false); // desktop sidebar account popover
   let showIntroAnimation = $state(false);
   let introFadingOut     = $state(false);
 
@@ -125,6 +126,10 @@
     prefs.init();
     mobile.init();
     viewport.init();
+
+    // Background check for a newer release (throttled to ~6h; honours the user's
+    // "Automatic checks" preference). Surfaces the rail indicator + update toast.
+    updates.maybeAutoCheck();
 
     // Desktop floating reminder card (Tauri only; self-guards). Binds the popup
     // window's action listeners once, in the main window.
@@ -305,6 +310,36 @@
     return $page.url.pathname.startsWith(prefix);
   }
 
+  // Desktop nav rail grouping. Items keep their routes/icons — only the order
+  // and grouping change, driven by the prefs store (Settings → Appearance).
+  // Recomputed via $derived so thisWeek/todayDate stay current across day rollover.
+  type NavEntry = [href: string, label: string, icon: any];
+  type NavGroup = { label: string | null; items: NavEntry[] };
+  const navGroups = $derived.by<NavGroup[]>(() => {
+    const schemes: Record<string, NavGroup[]> = {
+      spaces: [
+        { label: null,      items: [['/home', 'Today', CalendarDays], [`/week/${thisWeek}`, 'This Week', CalendarDays]] },
+        { label: 'Rituals', items: [[`/plan/${todayDate}`, 'Plan Day', ClipboardCheck], [`/shutdown/${todayDate}`, 'Shutdown', Moon]] },
+        { label: 'Inbox',   items: [['/email', 'Email', Mail], ['/reminders', 'Reminders', Bell]] },
+        { label: 'Library', items: [['/backlog', 'Backlog', Layers], ['/journal', 'Journal', BookOpen]] },
+      ],
+      rhythm: [
+        { label: 'Plan',   items: [[`/plan/${todayDate}`, 'Plan Day', ClipboardCheck], [`/week/${thisWeek}`, 'This Week', CalendarDays]] },
+        { label: 'Focus',  items: [['/home', 'Today', CalendarDays], ['/backlog', 'Backlog', Layers]] },
+        { label: 'Inbox',  items: [['/email', 'Email', Mail], ['/reminders', 'Reminders', Bell]] },
+        { label: 'Review', items: [[`/shutdown/${todayDate}`, 'Shutdown', Moon], ['/journal', 'Journal', BookOpen]] },
+      ],
+      flat: [
+        { label: null, items: [
+          ['/home', 'Today', CalendarDays], ['/search', 'Search', Search], [`/week/${thisWeek}`, 'This Week', CalendarDays],
+          [`/plan/${todayDate}`, 'Plan Day', ClipboardCheck], ['/email', 'Email', Mail], ['/backlog', 'Backlog', Layers],
+          ['/reminders', 'Reminders', Bell], [`/shutdown/${todayDate}`, 'Shutdown', Moon], ['/journal', 'Journal', BookOpen],
+        ] },
+      ],
+    };
+    return schemes[prefs.navGrouping] ?? schemes.spaces;
+  });
+
   // Sign out. Local-first: clear the stored token and leave for /login
   // IMMEDIATELY, then tell the server best-effort. The old handler awaited the
   // logout HTTP POST first, so on Android (or any time the server was slow/
@@ -382,15 +417,39 @@
         </a>
       {/snippet}
 
-      {@render navItem('/home', 'Today', CalendarDays)}
-      {@render navItem('/search', 'Search', Search)}
-      {@render navItem(`/week/${thisWeek}`, 'This Week', CalendarDays)}
-      {@render navItem(`/plan/${todayDate}`, 'Plan Day', ClipboardCheck)}
-      {@render navItem('/email', 'Email', Mail)}
-      {@render navItem('/backlog', 'Backlog', Layers)}
-      {@render navItem('/reminders', 'Reminders', Bell)}
-      {@render navItem(`/shutdown/${todayDate}`, 'Shutdown', Moon)}
-      {@render navItem('/journal', 'Journal', BookOpen)}
+      {#snippet navLabel(text: string)}
+        <div class="px-3 pb-1.5 pt-3.5 font-mono text-[10px] font-semibold uppercase tracking-[0.13em]"
+             style="color: var(--sempa-text-dim);">{text}</div>
+      {/snippet}
+
+      <!-- Pinned Search pill (grouped schemes only — in Flat, Search is a row). -->
+      {#if prefs.navGrouping !== 'flat'}
+        <button onclick={() => goto('/search')}
+                class="mb-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-colors"
+                style="background: var(--card-bg); border: 1px solid var(--sempa-border); color: var(--sempa-text-dim);"
+                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-text-dim)'}
+                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.borderColor = 'var(--sempa-border)'}>
+          <Search size={15} strokeWidth={1.75} />
+          <span>Search</span>
+          <kbd class="ml-auto rounded border px-1.5 font-mono text-[10.5px]"
+               style="border-color: var(--sempa-border);">⌘K</kbd>
+        </button>
+      {/if}
+
+      <!-- Sectioned nav (grouping + section style from Settings → Appearance). -->
+      {#each navGroups as group, gi}
+        <div class="flex flex-col gap-0.5" class:mt-3.5={gi > 0 && prefs.navSections === 'labels' && !!group.label}>
+          {#if prefs.navSections === 'dividers' && gi > 0}
+            <div class="mx-3 mb-2 mt-1.5 h-px" style="background: var(--sempa-border);"></div>
+          {/if}
+          {#if prefs.navSections === 'labels' && group.label}
+            {@render navLabel(group.label)}
+          {/if}
+          {#each group.items as [href, label, Icon]}
+            {@render navItem(href, label, Icon)}
+          {/each}
+        </div>
+      {/each}
 
       <!-- Pomodoro in-progress -->
       {#if pomodoro.taskId}
@@ -403,77 +462,75 @@
         </div>
       {/if}
 
-      <!-- Bottom section: compact icon rail (Settings · mode · widget) with the
-           account avatar pushed to the right. The avatar opens a small popover
-           holding the signed-in email + Sign out, so the footer stays one line. -->
-      <div class="mt-auto flex items-center gap-1 pt-3" style="border-top: 1px solid var(--sempa-border);">
-        <button onclick={() => goto('/settings/accounts')} title="Settings" aria-label="Settings"
-                class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
-                style={isActive('/settings') ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);' : 'color: var(--sempa-text-soft);'}
-                onmouseenter={(e) => { if (!isActive('/settings')) (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'; }}
-                onmouseleave={(e) => { if (!isActive('/settings')) (e.currentTarget as HTMLElement).style.background = ''; }}>
-          <SlidersHorizontal size={17} strokeWidth={1.75} />
-        </button>
-
-        <button onclick={theme.toggle} title={theme.dark ? 'Light mode' : 'Dark mode'}
-                aria-label={theme.dark ? 'Switch to light mode' : 'Switch to dark mode'}
-                class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
-                style="color: var(--sempa-text-soft);"
-                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
-                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
-          {#if theme.dark}<Sun size={17} strokeWidth={1.75} />{:else}<Moon size={17} strokeWidth={1.75} />{/if}
-        </button>
-
-        {#if isTauri()}
-          <button onclick={() => createWidgetWindow()} title="Open Widget" aria-label="Open the floating desktop widget"
-                  class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
-                  style="color: var(--sempa-text-soft);"
-                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
-                  onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
-            <LayoutGrid size={17} strokeWidth={1.75} />
-          </button>
-        {/if}
-
-        <div class="ml-auto flex items-center gap-1">
-          <SyncIndicator />
-          <!-- Account avatar → popover (email + Sign out) -->
-          <div class="relative">
-            <button onclick={() => acctMenuOpen = !acctMenuOpen}
-                    title={accountEmail ?? 'Account'} aria-label="Account menu" aria-expanded={acctMenuOpen}
-                    class="flex h-9 w-9 items-center justify-center rounded-[9px] transition-colors"
-                    onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'}
-                    onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
-              {#if accountPicture}
-                <img src={accountPicture} alt="" referrerpolicy="no-referrer"
-                     class="h-[26px] w-[26px] rounded-full object-cover" style="border: 1px solid var(--sempa-border);" />
-              {:else}
-                <span class="flex h-[26px] w-[26px] items-center justify-center rounded-full"
-                      style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);
-                             color: var(--sempa-accent); font-size: 11px; font-weight: 700;">
-                  {(accountEmail ?? '?').charAt(0).toUpperCase()}
-                </span>
-              {/if}
+      <!-- Rail footer: utility icons spread across the row, the sync status, and
+           a full-width account chip (avatar + email + Sign out). Spreading the
+           icons (justify-between) and giving sync + account their own rows keeps
+           everything legible — no cramped clump, no orphaned avatar. -->
+      <div class="mt-auto flex flex-col gap-3.5 pt-4" style="border-top: 1px solid var(--sempa-border);">
+        <!-- Utility icon row -->
+        <div class="flex items-center justify-between">
+          {#if updates.available}
+            <button onclick={() => goto('/settings/accounts')} title="Update available — open About"
+                    aria-label="Update available"
+                    class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors"
+                    style="background: var(--sempa-accent-bg); color: var(--sempa-accent);">
+              <ArrowUpCircle size={18} strokeWidth={1.9} />
             </button>
+          {/if}
+          <button onclick={() => goto('/settings/accounts')} title="Settings" aria-label="Settings"
+                  class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors"
+                  style={isActive('/settings') ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent);' : 'color: var(--sempa-text-dim);'}
+                  onmouseenter={(e) => { if (!isActive('/settings')) { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--sempa-accent-bg)'; t.style.color = 'var(--sempa-text-soft)'; } }}
+                  onmouseleave={(e) => { if (!isActive('/settings')) { const t = e.currentTarget as HTMLElement; t.style.background = ''; t.style.color = 'var(--sempa-text-dim)'; } }}>
+            <SlidersHorizontal size={18} strokeWidth={1.75} />
+          </button>
 
-            {#if acctMenuOpen}
-              <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-              <div class="fixed inset-0 z-[55]" onclick={() => acctMenuOpen = false}></div>
-              <div class="absolute bottom-full right-0 z-[56] mb-2 w-56 rounded-xl p-3 shadow-lg"
-                   style="background: var(--sempa-bg-panel); border: 1px solid var(--sempa-border);">
-                {#if accountEmail}
-                  <p class="truncate text-xs" style="color: var(--sempa-text-soft);" title={accountEmail}>{accountEmail}</p>
-                {/if}
-                <button onclick={signOut}
-                        class="mt-2 w-full rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors"
-                        style="color: var(--sempa-text-soft); border: 1px solid var(--sempa-border);"
-                        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'}
-                        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
-                  Sign out
-                </button>
-              </div>
-            {/if}
-          </div>
+          <button onclick={theme.toggle} title={theme.dark ? 'Light mode' : 'Dark mode'}
+                  aria-label={theme.dark ? 'Switch to light mode' : 'Switch to dark mode'}
+                  class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors"
+                  style="color: var(--sempa-text-dim);"
+                  onmouseenter={(e) => { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--sempa-accent-bg)'; t.style.color = 'var(--sempa-text-soft)'; }}
+                  onmouseleave={(e) => { const t = e.currentTarget as HTMLElement; t.style.background = ''; t.style.color = 'var(--sempa-text-dim)'; }}>
+            {#if theme.dark}<Sun size={18} strokeWidth={1.75} />{:else}<Moon size={18} strokeWidth={1.75} />{/if}
+          </button>
+
+          {#if isTauri()}
+            <button onclick={() => createWidgetWindow()} title="Open Widget" aria-label="Open the floating desktop widget"
+                    class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors"
+                    style="color: var(--sempa-text-dim);"
+                    onmouseenter={(e) => { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--sempa-accent-bg)'; t.style.color = 'var(--sempa-text-soft)'; }}
+                    onmouseleave={(e) => { const t = e.currentTarget as HTMLElement; t.style.background = ''; t.style.color = 'var(--sempa-text-dim)'; }}>
+              <LayoutGrid size={18} strokeWidth={1.75} />
+            </button>
+          {/if}
         </div>
+
+        <!-- Sync status (renders nothing on plain web). -->
+        <SyncIndicator />
+
+        <!-- Account chip — avatar + identity; the "Sign out" line is the affordance. -->
+        <button onclick={signOut} title={accountEmail ? `${accountEmail} — sign out` : 'Sign out'}
+                aria-label="Sign out"
+                class="flex w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-left transition-colors"
+                onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'}
+                onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = ''}>
+          {#if accountPicture}
+            <img src={accountPicture} alt="" referrerpolicy="no-referrer"
+                 class="h-7 w-7 shrink-0 rounded-full object-cover" style="border: 1px solid var(--sempa-border);" />
+          {:else}
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                  style="background: var(--sempa-accent-bg); border: 1px solid var(--sempa-border);
+                         color: var(--sempa-accent); font-size: 11.5px; font-weight: 700;">
+              {(accountEmail ?? '?').charAt(0).toUpperCase()}
+            </span>
+          {/if}
+          <span class="min-w-0 flex-1">
+            {#if accountEmail}
+              <span class="block truncate text-[12px]" style="color: var(--sempa-text-soft);">{accountEmail}</span>
+            {/if}
+            <span class="block text-[11px]" style="color: var(--sempa-text-dim);">Sign out</span>
+          </span>
+        </button>
       </div>
     </nav>
   </aside>
@@ -636,6 +693,11 @@
 
 {#if pomodoro.taskId}
   <PomodoroTimer />
+{/if}
+
+<!-- ── In-app update toast (main window only) ───────────────────────────── -->
+{#if !isStandaloneWindow}
+  <UpdateToast />
 {/if}
 
 <!-- ── Intro animation overlay ──────────────────────────────────────────── -->

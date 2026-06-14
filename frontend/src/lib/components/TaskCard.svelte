@@ -157,8 +157,8 @@
       {#if onFocusClick && !isDone}
         <button onclick={(e) => { e.stopPropagation(); onFocusClick?.(task.id, task.title); }}
                 class="{mobile.value ? 'h-[44px] w-[44px] flex items-center justify-center' : 'rounded p-1'}
-                       text-gray-300 hover:text-amber-500 transition-colors
-                       dark:text-gray-600 dark:hover:text-amber-400"
+                       text-gray-300 transition-colors hover:text-[var(--sempa-amber)]
+                       dark:text-gray-600 dark:hover:text-[var(--sempa-amber)]"
                 title="Start focus timer">
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 3"/>
@@ -243,8 +243,8 @@
         </span>
       {/if}
       {#if daysBehind > 0}
-        <span class="type-badge rounded bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"
-              style="padding: 2px 7px;"
+        <span class="type-badge rounded"
+              style="padding: 2px 7px; background: color-mix(in srgb, var(--sempa-amber) 16%, transparent); color: var(--sempa-amber);"
               title="{daysBehind} day{daysBehind !== 1 ? 's' : ''} overdue">
           +{daysBehind}d
         </span>

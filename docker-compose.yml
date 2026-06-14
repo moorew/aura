@@ -20,9 +20,20 @@ services:
     network_mode: host
     restart: unless-stopped
 
+  # Local AI for text processing (email-subject → task-title cleanup). Opt-in:
+  # only started when the "ai" Compose profile is active (install.sh sets
+  # COMPOSE_PROFILES=ai in .env when you choose local AI). It runs on the host
+  # network namespace — same as ts-sempa/sempa — and binds loopback only, so the
+  # sempa container reaches it at http://127.0.0.1:11434 while it stays off the
+  # LAN. (sempa uses network_mode: service:ts-sempa = host netns, where a
+  # bridge-network hostname like "ollama" would NOT resolve — hence host + loopback.)
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
+    profiles: ["ai"]
+    network_mode: host
+    environment:
+      OLLAMA_HOST: "127.0.0.1:11434"
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
@@ -40,7 +51,6 @@ services:
     network_mode: service:ts-sempa
     depends_on:
       - ts-sempa
-      - ollama
     environment:
       PORT: "9001"
       DB_PATH: "/data/sempa.db"
@@ -48,7 +58,9 @@ services:
       APP_URL: "${APP_URL:-https://sempa.clevercode.ts.net}"
       FRONTEND_URL: "${APP_URL:-https://sempa.clevercode.ts.net}"
       ENV: "production"
-      OLLAMA_BASE_URL: "http://ollama:11434"
+      # Empty unless local AI was enabled at install (keeps the AI feature off and
+      # the settings fields blank otherwise). install.sh writes the loopback URL.
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
       OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:1.5b}"
     env_file:
       - path: .env.local

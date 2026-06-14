@@ -14,6 +14,15 @@ jobs:
     name: Build & Release Windows (x64 + ARM64)
     runs-on: windows-latest
 
+    # Updater signing. These are SAFE no-ops until you add the secrets: Tauri only
+    # signs (and only emits the .sig / updater artifacts) when the private key is
+    # present AND bundle.createUpdaterArtifacts is enabled. See docs/UPDATER.md to
+    # turn on silent auto-update. Until then every step below behaves exactly as
+    # before and the release builds unsigned installers as it does today.
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -72,6 +81,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Build the Tauri updater manifest (latest.json) from the signed bundles so
+      # the desktop app can silently self-update. GUARDED: only runs once the
+      # signing key secret exists (until then .sig files aren't produced and this
+      # step is skipped entirely — zero effect on today's release). The endpoint
+      # consumed by the app is github.com/<repo>/releases/latest/download/latest.json.
+      # See docs/UPDATER.md.
+      - name: Generate updater manifest (latest.json)
+        if: ${{ startsWith(github.ref, 'refs/tags/') && env.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          $base = "frontend/src-tauri/target"
+          $x64Exe = Get-ChildItem "$base/x86_64-pc-windows-msvc/release/bundle/nsis/Sempa_*_x64-setup.exe" | Select-Object -First 1
+          $armExe = Get-ChildItem "$base/aarch64-pc-windows-msvc/release/bundle/nsis/Sempa_*_arm64-setup.exe" | Select-Object -First 1
+          $repo = "${{ github.repository }}"
+          $platforms = @{}
+          if ($x64Exe -and (Test-Path "$($x64Exe.FullName).sig")) {
+            $platforms["windows-x86_64"] = @{ signature = (Get-Content "$($x64Exe.FullName).sig" -Raw); url = "https://github.com/$repo/releases/download/${{ github.ref_name }}/$($x64Exe.Name)" }
+          }
+          if ($armExe -and (Test-Path "$($armExe.FullName).sig")) {
+            $platforms["windows-aarch64"] = @{ signature = (Get-Content "$($armExe.FullName).sig" -Raw); url = "https://github.com/$repo/releases/download/${{ github.ref_name }}/$($armExe.Name)" }
+          }
+          @{ version = $ver; pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); platforms = $platforms } |
+            ConvertTo-Json -Depth 5 | Out-File -FilePath "latest.json" -Encoding utf8
+          Get-Content latest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         if: startsWith(github.ref, 'refs/tags/')
@@ -81,6 +116,9 @@ jobs:
             frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Sempa_*_x64-setup.exe
             frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Sempa_*_x64_en-US.msi
             frontend/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Sempa_*_arm64-setup.exe
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Sempa_*_x64-setup.exe.sig
+            frontend/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Sempa_*_arm64-setup.exe.sig
+            latest.json
 
       - name: Upload artifacts (manual runs)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}

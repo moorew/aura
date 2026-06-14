@@ -61,8 +61,8 @@
   --sempa-today-bg:#3f6f47; --sempa-today-fg:#f3f7ef; --sempa-btn-bg:#3f6f47; --sempa-btn-fg:#f3f7ef;
   --sempa-success:#3f7549; --sempa-success-soft:rgba(63,117,73,.12); --sempa-success-bg:#e8f1e9;
   --card-bg:#ffffff; --card-border:#e0e6da;
-  --cal-terracotta-fg:#a85f33; --cal-terracotta-bg:#f6efe8; --cal-stone-fg:#5d6b58; --cal-stone-bg:#eef1ea;
-  --cal-sage-fg:#3f7549; --cal-sage-bg:#e4ece1; --cal-amber-fg:#8a7338; --cal-amber-bg:#f4f1e6;
+  --cal-terracotta-fg:#4f8a78; --cal-terracotta-bg:#e6f0ec; --cal-stone-fg:#5d6b58; --cal-stone-bg:#eef1ea;
+  --cal-sage-fg:#3f7549; --cal-sage-bg:#e4ece1; --cal-amber-fg:#9a7a45; --cal-amber-bg:#f4f1e6;
   --a50:#eef4ec; --a100:#d8e6d6; --a200:#b3cdb0; --a400:#5a9163; --a500:#3f6f47;
   --a600:#335c3a; --a700:#28492e; --a900:#16291a; --a950:#0d1a10;
 }
@@ -73,7 +73,7 @@
   --sempa-today-bg:#6aa877; --sempa-today-fg:#0f160f; --sempa-btn-bg:#5a9c6b; --sempa-btn-fg:#0d130c;
   --sempa-success:#6aa877; --sempa-success-soft:rgba(106,168,119,.14); --sempa-success-bg:#16261a;
   --card-bg:#141d16; --card-border:#243026;
-  --cal-terracotta-fg:#cc8a5e; --cal-terracotta-bg:#241a12; --cal-stone-fg:#a3b39d; --cal-stone-bg:#121a14;
+  --cal-terracotta-fg:#6fae9a; --cal-terracotta-bg:#16261f; --cal-stone-fg:#a3b39d; --cal-stone-bg:#121a14;
   --cal-sage-fg:#6aa877; --cal-sage-bg:#16261a; --cal-amber-fg:#c79a5e; --cal-amber-bg:#241f12;
   /* --a* inherits from the light Forest block (mode-independent). */
 }
@@ -115,7 +115,7 @@
   --sempa-today-bg:#4a5a6b; --sempa-today-fg:#f3f5f7; --sempa-btn-bg:#4a5a6b; --sempa-btn-fg:#f3f5f7;
   --sempa-success:#3f7549; --sempa-success-soft:rgba(63,117,73,.12); --sempa-success-bg:#eaf2ec;
   --card-bg:#ffffff; --card-border:#e4e7eb;
-  --cal-terracotta-fg:#9a6048; --cal-terracotta-bg:#f3eeeb; --cal-stone-fg:#5b6570; --cal-stone-bg:#eef0f2;
+  --cal-terracotta-fg:#8a6a9c; --cal-terracotta-bg:#efeaf3; --cal-stone-fg:#5b6570; --cal-stone-bg:#eef0f2;
   --cal-sage-fg:#3f7549; --cal-sage-bg:#eaf2ec; --cal-amber-fg:#7a8290; --cal-amber-bg:#eef0f3;
   --a50:#f1f3f5; --a100:#e0e4e8; --a200:#c3cad1; --a400:#6b7886; --a500:#4a5a6b;
   --a600:#3b4856; --a700:#2e3942; --a900:#1a2128; --a950:#11161b;
@@ -127,7 +127,7 @@
   --sempa-today-bg:#9aa7b5; --sempa-today-fg:#11151a; --sempa-btn-bg:#7e8b99; --sempa-btn-fg:#0f1318;
   --sempa-success:#5e9e6b; --sempa-success-soft:rgba(94,158,107,.13); --sempa-success-bg:#16241a;
   --card-bg:#171b20; --card-border:#262b32;
-  --cal-terracotta-fg:#c08a6e; --cal-terracotta-bg:#231a14; --cal-stone-fg:#a0a9b3; --cal-stone-bg:#15181d;
+  --cal-terracotta-fg:#ad94c4; --cal-terracotta-bg:#241d2e; --cal-stone-fg:#a0a9b3; --cal-stone-bg:#15181d;
   --cal-sage-fg:#5e9e6b; --cal-sage-bg:#16241a; --cal-amber-fg:#b3bcc6; --cal-amber-bg:#1e242b;
   /* --a* inherits from the light Slate block (mode-independent). */
 }
@@ -161,7 +161,7 @@
   --sempa-today-bg:#2f6499; --sempa-today-fg:#eef4f9; --sempa-btn-bg:#2f6499; --sempa-btn-fg:#eef4f9;
   --sempa-success:#3f7549; --sempa-success-soft:rgba(63,117,73,.12); --sempa-success-bg:#e8f1ec;
   --card-bg:#ffffff; --card-border:#e1e7ed;
-  --cal-terracotta-fg:#a86048; --cal-terracotta-bg:#f4efeb; --cal-stone-fg:#566876; --cal-stone-bg:#e9eef3;
+  --cal-terracotta-fg:#3f8f8a; --cal-terracotta-bg:#e3f1f0; --cal-stone-fg:#566876; --cal-stone-bg:#e9eef3;
   --cal-sage-fg:#3f7549; --cal-sage-bg:#e8f1ec; --cal-amber-fg:#5b7d99; --cal-amber-bg:#eaf0f5;
   --a50:#eef4fa; --a100:#d8e6f2; --a200:#b0cce4; --a400:#4f86c6; --a500:#2f6499;
   --a600:#26527e; --a700:#1e4163; --a900:#12283c; --a950:#0b1a28;
@@ -173,7 +173,7 @@
   --sempa-today-bg:#6aa0d6; --sempa-today-fg:#0a121d; --sempa-btn-bg:#5a90c8; --sempa-btn-fg:#08101a;
   --sempa-success:#5e9e6b; --sempa-success-soft:rgba(94,158,107,.13); --sempa-success-bg:#13241a;
   --card-bg:#111a2a; --card-border:#1f2c40;
-  --cal-terracotta-fg:#c89070; --cal-terracotta-bg:#221913; --cal-stone-fg:#9bacbf; --cal-stone-bg:#0f1726;
+  --cal-terracotta-fg:#5fb0aa; --cal-terracotta-bg:#13282a; --cal-stone-fg:#9bacbf; --cal-stone-bg:#0f1726;
   --cal-sage-fg:#5e9e6b; --cal-sage-bg:#13241a; --cal-amber-fg:#7ba6cf; --cal-amber-bg:#142133;
   /* --a* inherits from the light Ocean block (mode-independent). */
 }

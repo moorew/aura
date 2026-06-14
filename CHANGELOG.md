@@ -6,6 +6,34 @@ based on [Keep a Changelog](https://keepachangelog.com/), and Sempa follows
 (`vX.Y.Z`) with auto-generated notes on the
 [Releases page](https://github.com/moorew/sempa/releases).
 
+## [1.0.115] - 2026-06-14
+
+### Added
+- **In-app updates.** A subtle update indicator in the left rail, a brand-controlled
+  "update available" toast (Download · What's new · Later), and **Settings → About**
+  showing the current version, update channel (Stable/Beta), automatic-checks toggle,
+  last-checked time, and a manual "Check for updates". Works on web and desktop by
+  polling GitHub Releases — no signing required. The full silent background
+  auto-update path (tauri-plugin-updater) is scaffolded and documented in
+  `docs/UPDATER.md`; it activates once an updater signing key is added to CI.
+- **Local AI is now opt-in at install.** `install.sh` asks whether you want local
+  AI for text processing; if yes it starts Ollama, pulls `qwen2.5:1.5b`, prefills
+  the in-app AI fields, and verifies the connection. Otherwise Ollama isn't started.
+- **Sectioned navigation rail** with a pinned Search pill and a configurable grouping
+  (Settings → Appearance: Spaces / Plan·Focus·Review / Flat, with Labels or Dividers).
+
+### Fixed
+- **Local AI connection.** Ollama ran on a bridge network the (host-networked) app
+  container couldn't resolve (`http://ollama:11434`), so the AI test returned 404 /
+  "not reachable". It now runs on the host namespace bound to loopback and the app
+  talks to it over `127.0.0.1` — and only runs when you opt in.
+- **Theme-aware highlights.** Orange/amber that ignored the active theme now follows
+  it: the Pomodoro timer, overdue/focus task badges, backup warnings, the AI status
+  dot, and the Schedule calendar swatches (no longer stuck orange in cool themes).
+- **Left rail polish.** Footer icons no longer squash (distorting their highlight),
+  the sync status no longer collides with the icons, and the account avatar is now a
+  proper chip (avatar + email + Sign out) instead of an orphaned button.
+
 ## [1.0.114] - 2026-06-14
 
 ### Fixed

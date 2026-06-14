@@ -1,8 +1,11 @@
 <script lang="ts">
   import { pomodoro } from '$lib/stores/pomodoro.svelte';
 
-  const accentClass = $derived(
-    pomodoro.phase === 'work' ? 'bg-amber-500' : 'bg-green-400'
+  // Phase accent follows the active theme rather than a fixed amber/green so the
+  // timer matches whichever interface theme the user picked. Work uses the
+  // theme accent; breaks use the theme's success hue.
+  const accentColor = $derived(
+    pomodoro.phase === 'work' ? 'var(--sempa-accent)' : 'var(--sempa-success)'
   );
 
   let settingsOpen = $state(false);
@@ -85,7 +88,8 @@
       </div>
       <div class="mt-2.5 flex gap-2">
         <button onclick={applySettings}
-                class="flex-1 rounded-lg bg-amber-500 py-1.5 text-xs font-medium text-white hover:bg-amber-600 transition-colors">
+                class="flex-1 rounded-lg py-1.5 text-xs font-medium text-white transition-colors"
+                style="background: var(--sempa-accent);">
           Apply
         </button>
         <button onclick={() => settingsOpen = false}
@@ -113,16 +117,16 @@
     <!-- Progress bar -->
     <div class="mb-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
       <div
-        class="h-full rounded-full transition-all duration-1000 {accentClass}"
-        style="width: {pomodoro.progressPct}%"
+        class="h-full rounded-full transition-all duration-1000"
+        style="width: {pomodoro.progressPct}%; background: {accentColor};"
       ></div>
     </div>
 
     <!-- Controls -->
     <button
       onclick={() => pomodoro.togglePause()}
-      class="w-full rounded-lg py-2 text-sm font-medium text-white transition-colors
-             {pomodoro.phase === 'work' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'}"
+      class="w-full rounded-lg py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
+      style="background: {accentColor};"
     >
       {pomodoro.isRunning ? 'Pause' : 'Resume'}
     </button>

@@ -7,6 +7,7 @@
   import { mobile } from '$lib/stores/mobile.svelte';
   import { realtime } from '$lib/stores/realtime.svelte';
   import { goto } from '$app/navigation';
+  import UpdatesPanel from '$lib/components/UpdatesPanel.svelte';
 
   // ── Account / profile ──────────────────────────────────────────────────────
   let me = $state<{ authenticated: boolean; auth_enabled?: boolean; google_enabled?: boolean; email?: string }>({ authenticated: false });
@@ -102,6 +103,7 @@
     { id: 'integrations', label: 'Integrations' },
     { id: 'tasks', label: 'Tasks' },
     { id: 'appearance', label: 'Appearance' },
+    { id: 'about', label: 'About' },
   ] as const;
 
   // Integrations (Gmail / Fastmail / Jira / calendar OAuth) are managed on
@@ -374,6 +376,10 @@
     <svg class="h-5 w-5" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
       <path stroke-linecap="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"/>
     </svg>
+  {:else if id === 'about'}
+    <svg class="h-5 w-5" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8h.01M11 12h1v4h1"/>
+    </svg>
   {:else}
     <svg class="h-5 w-5" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="3"/><path stroke-linecap="round" d="M19.07 4.93A10 10 0 1 0 4.93 19.07M12 2v2m0 18v-2m8-8h2M2 12h2m13.66-7.07 1.41-1.41M4.93 19.07l1.41-1.41M19.07 19.07l1.41 1.41M4.93 4.93 3.51 3.51"/>
@@ -385,6 +391,7 @@
   {#if id === 'profile'}{accountEmail ?? 'Signed in'} · sign out
   {:else if id === 'integrations'}Gmail, Fastmail, Jira, Calendars
   {:else if id === 'tasks'}Tags, recurring templates
+  {:else if id === 'about'}Version &amp; updates
   {:else}Theme, text size, mode
   {/if}
 {/snippet}
@@ -466,6 +473,8 @@
             {@render tasksContent()}
           {:else if mobileSection === 'appearance'}
             {@render appearanceContent()}
+          {:else if mobileSection === 'about'}
+            {@render aboutContent()}
           {/if}
         </div>
       </div>
@@ -498,6 +507,7 @@
         {@render integrationsContent()}
         {@render tasksContent()}
         {@render appearanceContent()}
+        {@render aboutContent()}
       </div>
     </div>
   </div>
@@ -1110,7 +1120,7 @@
           {#if aiTitle.enabled}
             <div class="mt-3 flex flex-col gap-2.5">
               <div class="flex items-center gap-2 text-xs">
-                <span class="h-1.5 w-1.5 rounded-full" style="background: {aiTitle.reachable ? '#22c55e' : '#f59e0b'};"></span>
+                <span class="h-1.5 w-1.5 rounded-full" style="background: {aiTitle.reachable ? 'var(--sempa-success)' : 'var(--sempa-amber)'};"></span>
                 <span style="color: var(--sempa-text-soft);">
                   {aiTitle.reachable ? 'Model server reachable' : 'Not reachable — falls back to the raw subject'}
                 </span>
@@ -1362,6 +1372,46 @@
           {/if}
         </div>
 
+        <!-- Sidebar navigation grouping (desktop rail only) -->
+        {#if !mobile.value}
+        <div style="border-top: 1px solid var(--sempa-border); padding-top: 20px;">
+          <p class="text-xs font-medium" style="color: var(--sempa-text-soft);">Sidebar grouping</p>
+          <p class="mb-3 mt-1 text-[11px] leading-relaxed" style="color: var(--sempa-text-dim);">
+            How the left navigation rail is organised.
+          </p>
+          <div style="display:inline-flex; flex-wrap:wrap; border-radius:9999px; border:1px solid var(--sempa-border); padding:3px; gap:2px;">
+            {#each [['spaces', 'Spaces'], ['rhythm', 'Plan · Focus · Review'], ['flat', 'Flat']] as [val, label]}
+              <button onclick={() => prefs.setNavGrouping(val as 'spaces' | 'rhythm' | 'flat')}
+                      class="transition-colors"
+                      style="border-radius:9999px; padding:6px 14px; font-size:12px; border:none; cursor:pointer;
+                             {prefs.navGrouping === val
+                               ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent); font-weight:600;'
+                               : 'background: transparent; color: var(--sempa-text-soft);'}">
+                {label}
+              </button>
+            {/each}
+          </div>
+
+          <p class="mb-3 mt-5 text-xs font-medium" style="color: var(--sempa-text-soft);">Section style</p>
+          <div style="display:inline-flex; border-radius:9999px; border:1px solid var(--sempa-border); padding:3px; gap:2px;
+                      {prefs.navGrouping === 'flat' ? 'opacity:0.5; pointer-events:none;' : ''}">
+            {#each [['labels', 'Labels'], ['dividers', 'Dividers']] as [val, label]}
+              <button onclick={() => prefs.setNavSections(val as 'labels' | 'dividers')}
+                      class="transition-colors"
+                      style="border-radius:9999px; padding:6px 16px; font-size:12px; border:none; cursor:pointer;
+                             {prefs.navSections === val
+                               ? 'background: var(--sempa-accent-bg); color: var(--sempa-accent); font-weight:600;'
+                               : 'background: transparent; color: var(--sempa-text-soft);'}">
+                {label}
+              </button>
+            {/each}
+          </div>
+          {#if prefs.navGrouping === 'flat'}
+            <p class="mt-2 text-[11px]" style="color: var(--sempa-text-dim);">Section labels apply to grouped layouts.</p>
+          {/if}
+        </div>
+        {/if}
+
         <!-- Contextual reflections toggle -->
         <div style="border-top: 1px solid var(--sempa-border); padding-top: 20px;">
           <div class="flex items-center justify-between gap-4">
@@ -1386,6 +1436,17 @@
         </div>
       </div>
     </section>
+  </div>
+{/snippet}
+
+{#snippet aboutContent()}
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION: About / Updates
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="settings-about" class="mt-8 scroll-mt-6">
+    <p class="mb-3" style="font-family:monospace; font-size:10.5px; font-weight:700; letter-spacing:0.12em;
+     text-transform:uppercase; color:var(--sempa-text-dim)">About</p>
+    <UpdatesPanel />
   </div>
 {/snippet}
 

@@ -409,7 +409,7 @@
                     Connect Google Drive
                   </button>
                 {:else}
-                  <p class="text-xs text-amber-600">Google OAuth isn’t configured on this server (set GMAIL_CLIENT_ID/SECRET).</p>
+                  <p class="text-xs" style="color: var(--sempa-amber);">Google OAuth isn’t configured on this server (set GMAIL_CLIENT_ID/SECRET).</p>
                 {/if}
                 <input bind:value={dest.folder_id} placeholder="Advanced: specific Drive folder ID (blank = auto “Sempa Backups” folder)"
                        class="w-full rounded-md border px-2 py-1.5 text-sm" style="border-color: var(--sempa-border); background: var(--sempa-bg);" />
@@ -436,7 +436,7 @@
     </section>
 
     <!-- Restore -->
-    <section class="mb-6 rounded-xl border px-5 py-4" style="border-color: #f59e0b55; background: color-mix(in srgb, #f59e0b 6%, var(--sempa-bg-panel));">
+    <section class="mb-6 rounded-xl border px-5 py-4" style="border-color: color-mix(in srgb, var(--sempa-amber) 33%, transparent); background: color-mix(in srgb, var(--sempa-amber) 6%, var(--sempa-bg-panel));">
       <p class="mb-1 text-sm font-semibold" style="color: var(--sempa-text);">Restore from a backup</p>
       <p class="mb-3 text-xs" style="color: var(--sempa-text-soft);">
         This <strong>erases all current data</strong> and replaces it with the backup. Encrypted backups need their passphrase.
@@ -454,12 +454,12 @@
                class="mb-2 w-full rounded-md border px-2 py-1.5 text-sm" style="border-color: var(--sempa-border); background: var(--sempa-bg);" />
         {#if restorePct !== null}
           <div class="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-            <div class="h-full rounded-full bg-amber-500 transition-all" style="width: {restorePct}%"></div>
+            <div class="h-full rounded-full transition-all" style="width: {restorePct}%; background: var(--sempa-amber);"></div>
           </div>
         {/if}
         {#if !restoreConfirm}
           <button onclick={() => restoreConfirm = true} disabled={restoring}
-                  class="rounded-lg px-4 py-2 text-sm font-medium text-white" style="background: #f59e0b;">
+                  class="rounded-lg px-4 py-2 text-sm font-medium text-white" style="background: var(--sempa-amber);">
             Restore “{restoreFile.name}”
           </button>
         {:else}

@@ -139,8 +139,24 @@ fi
 step "3 / 4  —  Optional extras"
 echo ""
 dim "All optional — press Enter to skip. Email, calendar, and Jira accounts are"
-dim "connected later inside the app (Settings), not here. AI task-title cleanup"
-dim "runs on the bundled local model — no API key needed."
+dim "connected later inside the app (Settings), not here."
+echo ""
+
+# Local AI (Ollama + qwen) for text processing — opt-in.
+dim "Local AI tidies imported email subjects into concise task titles, entirely"
+dim "on your own server — nothing is sent to any third party. It runs Ollama with"
+dim "the small qwen2.5:1.5b model (~1GB download, CPU-friendly). You can turn it"
+dim "on/off later in Settings → Accounts → AI."
+ask_yn "Use local AI for text processing?" AI_ENABLE
+OLLAMA_BASE_URL=""; OLLAMA_MODEL=""
+if [[ "$AI_ENABLE" == "y" ]]; then
+  # sempa shares ts-sempa's (host) network namespace, so it reaches the
+  # host-networked Ollama container over loopback. These two values prefill the
+  # in-app AI fields via the backend's OLLAMA_BASE_URL / OLLAMA_MODEL config.
+  OLLAMA_BASE_URL="http://127.0.0.1:11434"
+  OLLAMA_MODEL="qwen2.5:1.5b"
+  ok "Local AI enabled — Ollama will start and ${OLLAMA_MODEL} will be pulled."
+fi
 echo ""
 
 # Tailscale sidecar
@@ -183,6 +199,15 @@ cat > .env <<EOF
 APP_URL=${APP_URL}
 HOST_PORT=${HOST_PORT}
 EOF
+# Local AI: activate the "ai" Compose profile (starts the ollama service) and
+# point the backend at the loopback Ollama so the Settings fields prefill.
+if [[ "$AI_ENABLE" == "y" ]]; then
+  {
+    echo "COMPOSE_PROFILES=ai"
+    echo "OLLAMA_BASE_URL=${OLLAMA_BASE_URL}"
+    echo "OLLAMA_MODEL=${OLLAMA_MODEL}"
+  } >> .env
+fi
 ok "Written .env"
 
 # .env.local  —  secrets loaded into the container
@@ -224,6 +249,38 @@ if $READY; then
 else
   warn "Container started but health check timed out."
   warn "Check logs: docker compose logs sempa"
+fi
+
+# ── Local AI provisioning (Ollama + qwen) ──────────────────────────────────────
+if [[ "$AI_ENABLE" == "y" ]]; then
+  step "Setting up local AI (Ollama + ${OLLAMA_MODEL})"
+  echo ""
+  echo "  Waiting for Ollama to be ready..."
+  OLLAMA_READY=false
+  for _ in $(seq 1 30); do
+    if curl -sf "http://127.0.0.1:11434/api/tags" &>/dev/null; then OLLAMA_READY=true; break; fi
+    sleep 1
+  done
+  if $OLLAMA_READY; then
+    ok "Ollama is reachable."
+    echo "  Pulling ${OLLAMA_MODEL} (first run downloads ~1GB — this can take a few minutes)..."
+    if docker compose exec -T ollama ollama pull "${OLLAMA_MODEL}"; then
+      ok "Model ${OLLAMA_MODEL} downloaded."
+    else
+      warn "Couldn't pull ${OLLAMA_MODEL} automatically."
+      warn "Pull it later with: docker compose exec ollama ollama pull ${OLLAMA_MODEL}"
+    fi
+    # Verify end-to-end: the same /api/tags check the in-app "Test connection" runs.
+    if curl -sf "http://127.0.0.1:11434/api/tags" | grep -q "${OLLAMA_MODEL%%:*}"; then
+      ok "AI connection verified — task-title cleanup is ready."
+      dim "Prefilled in Settings → Accounts → AI (model ${OLLAMA_MODEL}, ${OLLAMA_BASE_URL})."
+    else
+      warn "Ollama is up but ${OLLAMA_MODEL} wasn't detected yet."
+      warn "Re-check in Settings → Accounts → AI → Test connection once the pull finishes."
+    fi
+  else
+    warn "Ollama didn't become ready in time. Check: docker compose logs ollama"
+  fi
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
