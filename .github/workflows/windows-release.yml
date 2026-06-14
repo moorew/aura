@@ -90,18 +90,22 @@ jobs:
       - name: Generate updater manifest (latest.json)
         if: ${{ startsWith(github.ref, 'refs/tags/') && env.TAURI_SIGNING_PRIVATE_KEY != '' }}
         shell: pwsh
+        # github.* context is passed via env (never interpolated into the script
+        # body) so this can't be a template-injection sink (zizmor).
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
-          $ver = "${{ github.ref_name }}".TrimStart('v')
+          $ver = "$env:REF_NAME".TrimStart('v')
           $base = "frontend/src-tauri/target"
           $x64Exe = Get-ChildItem "$base/x86_64-pc-windows-msvc/release/bundle/nsis/Sempa_*_x64-setup.exe" | Select-Object -First 1
           $armExe = Get-ChildItem "$base/aarch64-pc-windows-msvc/release/bundle/nsis/Sempa_*_arm64-setup.exe" | Select-Object -First 1
-          $repo = "${{ github.repository }}"
           $platforms = @{}
           if ($x64Exe -and (Test-Path "$($x64Exe.FullName).sig")) {
-            $platforms["windows-x86_64"] = @{ signature = (Get-Content "$($x64Exe.FullName).sig" -Raw); url = "https://github.com/$repo/releases/download/${{ github.ref_name }}/$($x64Exe.Name)" }
+            $platforms["windows-x86_64"] = @{ signature = (Get-Content "$($x64Exe.FullName).sig" -Raw); url = "https://github.com/$env:REPO/releases/download/$env:REF_NAME/$($x64Exe.Name)" }
           }
           if ($armExe -and (Test-Path "$($armExe.FullName).sig")) {
-            $platforms["windows-aarch64"] = @{ signature = (Get-Content "$($armExe.FullName).sig" -Raw); url = "https://github.com/$repo/releases/download/${{ github.ref_name }}/$($armExe.Name)" }
+            $platforms["windows-aarch64"] = @{ signature = (Get-Content "$($armExe.FullName).sig" -Raw); url = "https://github.com/$env:REPO/releases/download/$env:REF_NAME/$($armExe.Name)" }
           }
           @{ version = $ver; pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); platforms = $platforms } |
             ConvertTo-Json -Depth 5 | Out-File -FilePath "latest.json" -Encoding utf8
