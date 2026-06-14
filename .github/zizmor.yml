@@ -1,0 +1,19 @@
+# zizmor configuration — https://docs.zizmor.sh/configuration/
+rules:
+  cache-poisoning:
+    ignore:
+      # The release workflows run only on `push: tags` and `workflow_dispatch`
+      # — never on untrusted pull requests — so a poisoned cache can't reach
+      # them in practice. zizmor flags the cache-capable setup-* actions (and
+      # the Windows Rust build cache, which we keep for speed) regardless of the
+      # `cache:` input. Accepted, documented risk. We also drop the npm cache
+      # from these builds as defense-in-depth.
+      - android-release.yml
+      - windows-release.yml
+  superfluous-actions:
+    ignore:
+      # softprops/action-gh-release is intentional: it cleanly handles release-
+      # note generation and multi-file uploads. zizmor suggests `gh release` in a
+      # script step, but the action is preferred and already proven in releases.
+      - android-release.yml
+      - windows-release.yml
