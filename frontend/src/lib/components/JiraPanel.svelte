@@ -122,7 +122,7 @@
 
   function priorityDot(priority: string): string {
     if (priority === 'Highest' || priority === 'High') return 'bg-red-500';
-    if (priority === 'Medium') return 'bg-yellow-400';
+    if (priority === 'Medium') return 'bg-[var(--sempa-amber)]';
     if (priority === 'Low' || priority === 'Lowest') return 'bg-blue-400';
     return 'bg-gray-300 dark:bg-gray-600';
   }
@@ -158,10 +158,10 @@
           <path stroke-linecap="round" d="M15 19l-7-7 7-7"/>
         </svg>
       </button>
-      <span class="font-mono font-semibold text-blue-500">{meta?.key ?? ''}</span>
+      <span class="font-mono font-semibold" style="color: var(--sempa-accent);">{meta?.key ?? ''}</span>
       {#if cardTask.source_url}
         <a href={cardTask.source_url} target="_blank" rel="noopener noreferrer"
-           class="ml-auto shrink-0 text-blue-500 hover:underline">Open ↗</a>
+           class="ml-auto shrink-0 hover:underline" style="color: var(--sempa-accent);">Open ↗</a>
       {/if}
     </div>
 
@@ -400,7 +400,7 @@
       {#if !connected}
         <div class="flex flex-col items-center justify-center gap-2 p-6 text-center">
           <p style="color: var(--sempa-text-dim);">Jira not connected</p>
-          <a href="/settings/integrations/jira" class="text-blue-500 hover:underline">Set up →</a>
+          <a href="/settings/integrations/jira" class="hover:underline" style="color: var(--sempa-accent);">Set up →</a>
         </div>
 
       {:else if loading}
@@ -423,7 +423,7 @@
         <div class="flex h-24 flex-col items-center justify-center gap-1.5">
           <p style="color: var(--sempa-text-dim);">No issues</p>
           {#if allTasks.length === 0}
-            <button onclick={sync} class="text-blue-500 hover:underline">Sync now</button>
+            <button onclick={sync} class="hover:underline" style="color: var(--sempa-accent);">Sync now</button>
           {/if}
         </div>
 
@@ -443,7 +443,7 @@
                    onkeydown={(e) => e.key === 'Enter' && openCard(task)}>
                 <div class="flex items-baseline gap-1.5">
                   {#if meta?.key}
-                    <span class="shrink-0 font-mono font-semibold text-blue-500 dark:text-blue-400">
+                    <span class="shrink-0 font-mono font-semibold" style="color: var(--sempa-accent);">
                       {meta.key}
                     </span>
                   {/if}

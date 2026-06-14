@@ -51,8 +51,8 @@
       </div>
       <div class="flex items-center gap-2">
         <div class="h-1 w-14 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-          <div class="h-full rounded-full bg-[var(--a500)] transition-all"
-               style="width:{overallPct}%"></div>
+          <div class="h-full rounded-full transition-all"
+               style="width:{overallPct}%; background: var(--sempa-accent);"></div>
         </div>
         <svg class="h-3 w-3 text-gray-300 transition-transform dark:text-gray-600 {collapsed ? '-rotate-90' : ''}"
              fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -68,8 +68,8 @@
           {@const done = obj.status === 'completed'}
           <a href="/week/{ws}"
              class="flex items-center gap-2 rounded-lg py-1 px-1 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-            <div class="h-1.5 w-1.5 shrink-0 rounded-full
-                        {done ? 'bg-green-400' : p === 100 ? 'bg-green-400' : 'bg-[var(--a400)]'}"></div>
+            <div class="h-1.5 w-1.5 shrink-0 rounded-full"
+                 style="background: {done || p === 100 ? 'var(--sempa-success)' : 'var(--sempa-accent)'};"></div>
             <span class="flex-1 truncate text-xs {done ? 'line-through text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-400'}">
               {obj.title}
             </span>

@@ -104,15 +104,16 @@
   <div class="flex-1 overflow-y-auto">
     {#if !connected}
       <div class="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
-        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950">
-          <svg class="h-6 w-6 text-blue-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full" style="background: var(--sempa-accent-bg);">
+          <svg class="h-6 w-6" style="color: var(--sempa-accent);" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
             <path stroke-linecap="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
           </svg>
         </div>
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Fastmail not connected</p>
-        <p class="text-xs text-gray-400 dark:text-gray-600">Connect your Fastmail account in Settings → Accounts.</p>
+        <p class="text-sm font-medium" style="color: var(--sempa-text);">Fastmail not connected</p>
+        <p class="text-xs" style="color: var(--sempa-text-dim);">Connect your Fastmail account in Settings → Accounts.</p>
         <a href="/settings/accounts"
-           class="mt-1 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600">
+           class="mt-1 rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+           style="background: var(--sempa-accent);">
           Go to Settings
         </a>
       </div>
@@ -147,63 +148,71 @@
       </div>
 
     {:else}
-      <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+      <!-- Emails as themed cards (mirrors the Reminders layout) rather than a
+           flat divider list — each message sits in its own bordered box, fully
+           on-theme via the --sempa-* tokens. -->
+      <div class="mx-auto flex max-w-3xl flex-col gap-2.5 px-4 py-4 sm:px-6">
         {#each emails as email (email.id)}
-          <li class="group flex items-start gap-3 px-6 py-3.5 transition-colors
-                     {done[email.id] ? 'opacity-40' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}">
+          <div class="flex items-start gap-3 rounded-xl border p-3.5 transition-colors"
+               style="border-color: var(--sempa-border); background: var(--sempa-bg-panel);
+                      {done[email.id] ? 'opacity: 0.5;' : ''}">
 
             <!-- Avatar -->
-            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white
-                        {email.is_unread ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold"
+                 style={email.is_unread
+                   ? 'background: var(--sempa-accent); color: var(--sempa-btn-fg);'
+                   : 'background: var(--sempa-bg-main); color: var(--sempa-text-soft); border: 1px solid var(--sempa-border);'}>
               {senderInitial(email)}
             </div>
 
             <!-- Content -->
             <div class="min-w-0 flex-1">
               <div class="flex items-baseline justify-between gap-2">
-                <span class="truncate text-sm {email.is_unread ? 'font-semibold text-gray-900 dark:text-gray-50' : 'text-gray-700 dark:text-gray-300'}">
+                <span class="truncate text-sm" style="color: var(--sempa-text); font-weight: {email.is_unread ? 600 : 500};">
                   {senderName(email)}
                 </span>
-                <span class="shrink-0 text-xs text-gray-400 dark:text-gray-600">{formatTime(email.received_at)}</span>
+                <span class="shrink-0 text-xs" style="color: var(--sempa-text-dim);">{formatTime(email.received_at)}</span>
               </div>
-              <p class="truncate text-sm {email.is_unread ? 'font-medium text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}">
+              <p class="truncate text-sm" style="color: {email.is_unread ? 'var(--sempa-text)' : 'var(--sempa-text-soft)'};">
                 {email.subject || '(no subject)'}
               </p>
               {#if email.preview}
-                <p class="truncate text-xs text-gray-400 dark:text-gray-600 mt-0.5">{email.preview}</p>
+                <p class="mt-0.5 line-clamp-2 text-xs" style="color: var(--sempa-text-dim);">{email.preview}</p>
               {/if}
-            </div>
 
-            <!-- Actions — visible on hover -->
-            <div class="flex shrink-0 items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onclick={() => toTask(email)}
-                      disabled={converting[email.id] || done[email.id]}
-                      title="Add to today's tasks and archive"
-                      class="flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-medium text-white
-                             hover:bg-blue-600 disabled:opacity-50 transition-colors">
-                {#if converting[email.id]}
-                  <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                {:else if done[email.id]}
-                  ✓
-                {:else}
-                  → Task
-                {/if}
-              </button>
-              <button onclick={() => archive(email)}
-                      disabled={archiving[email.id]}
-                      title="Archive"
-                      class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500
-                             hover:bg-gray-100 disabled:opacity-50 transition-colors
-                             dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">
-                {archiving[email.id] ? '…' : 'Archive'}
-              </button>
+              <!-- Actions -->
+              <div class="mt-2.5 flex items-center gap-2">
+                <button onclick={() => toTask(email)}
+                        disabled={converting[email.id] || done[email.id]}
+                        title="Add to today's tasks and archive"
+                        class="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                        style="background: var(--sempa-accent);">
+                  {#if converting[email.id]}
+                    <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Adding…
+                  {:else if done[email.id]}
+                    ✓ Added
+                  {:else}
+                    → Task
+                  {/if}
+                </button>
+                <button onclick={() => archive(email)}
+                        disabled={archiving[email.id]}
+                        title="Archive"
+                        class="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                        style="border: 1px solid var(--sempa-border); color: var(--sempa-text-soft);"
+                        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--sempa-accent-bg)'}
+                        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                  {archiving[email.id] ? '…' : 'Archive'}
+                </button>
+              </div>
             </div>
-          </li>
+          </div>
         {/each}
-      </ul>
+      </div>
     {/if}
   </div>
 </div>

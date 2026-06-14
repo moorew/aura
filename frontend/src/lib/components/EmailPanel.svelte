@@ -112,14 +112,14 @@
     <button onclick={() => switchTab('inbox')}
             class="flex-1 py-2 text-xs font-medium transition-colors
                    {tab === 'inbox'
-                     ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                     ? 'border-b-2 border-[var(--sempa-accent)] text-[var(--sempa-accent)]'
                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
       Inbox
     </button>
     <button onclick={() => switchTab('archived')}
             class="flex-1 py-2 text-xs font-medium transition-colors
                    {tab === 'archived'
-                     ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                     ? 'border-b-2 border-[var(--sempa-accent)] text-[var(--sempa-accent)]'
                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}">
       Archived
     </button>
@@ -137,7 +137,7 @@
     {#if !connected}
       <div class="flex flex-col items-center justify-center gap-2 p-6 text-center">
         <p class="text-xs text-gray-400 dark:text-gray-600">Fastmail not connected</p>
-        <a href="/settings/accounts" class="text-xs text-blue-500 hover:underline">Set up →</a>
+        <a href="/settings/accounts" class="text-xs hover:underline" style="color: var(--sempa-accent);">Set up →</a>
       </div>
 
     {:else if loading}
@@ -175,7 +175,7 @@
 
             <div class="flex items-start gap-2.5">
               <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white
-                          {email.is_unread ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}">
+                          {email.is_unread ? 'bg-[var(--sempa-accent)]' : 'bg-gray-300 dark:bg-gray-600'}">
                 {senderInitial(email)}
               </div>
               <div class="min-w-0 flex-1 pr-1">
@@ -198,8 +198,9 @@
                 <button onclick={() => toTask(email)}
                         disabled={!!converting[email.id] || !!done[email.id]}
                         title="Add as task + archive"
-                        class="rounded bg-blue-500 px-2 py-1 text-[10.5px] font-medium text-white
-                               hover:bg-blue-600 disabled:opacity-50 transition-colors">
+                        class="rounded px-2 py-1 text-[10.5px] font-medium text-white
+                               hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        style="background: var(--sempa-accent);">
                   {converting[email.id] ? '…' : done[email.id] === 'task' ? '✓' : '→ Task'}
                 </button>
                 <button onclick={() => archive(email)}
