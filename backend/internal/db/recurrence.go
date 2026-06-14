@@ -119,6 +119,35 @@ func (s *TaskStore) GenerateForWeek(ctx context.Context, weekStart, today string
 	}
 }
 
+// GenerateHorizon ensures recurring instances exist for the current week and
+// the next `weeksAhead` weeks. Offline-first clients (Tauri desktop, Capacitor
+// Android) read tasks straight from their local SQLite DB and never hit the
+// HTTP list endpoint that lazily generates instances, so without this the
+// series appears to "end" at the last week a web client happened to request.
+// Run proactively by the recurrence poller, these instances flow to every
+// client through normal sync. `today` is YYYY-MM-DD; pass "" for the server's
+// date. It is idempotent (pristine-existence checks keep it duplicate-free).
+func (s *TaskStore) GenerateHorizon(ctx context.Context, today string, weeksAhead int) error {
+	if today == "" {
+		today = time.Now().Format("2006-01-02")
+	}
+	t, err := time.Parse("2006-01-02", today)
+	if err != nil {
+		return fmt.Errorf("invalid today %q: %w", today, err)
+	}
+	curWS, err := time.Parse("2006-01-02", weekStartOf(t))
+	if err != nil {
+		return err
+	}
+	for i := 0; i <= weeksAhead; i++ {
+		ws := curWS.AddDate(0, 0, i*7).Format("2006-01-02")
+		if err := s.GenerateForWeek(ctx, ws, today); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // seedWeekInstances creates a pristine instance for each due day in the week
 // (Mon–Sun) strictly after `afterDate` (use "" to include all days). Days that
 // already have a pristine instance for the template are skipped.

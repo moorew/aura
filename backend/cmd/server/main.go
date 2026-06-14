@@ -107,6 +107,12 @@ func main() {
 	poller.StartBackupScheduler(ctx, backupSvc, db.NewBackupStore(database), driveToken)
 	slog.Info("backup scheduler started")
 
+	// Recurring-task horizon. Materialises future recurring instances so
+	// offline-first clients (which read the local DB and never trigger the
+	// lazy per-week generation) see them after a sync.
+	poller.StartRecurrence(ctx, database)
+	slog.Info("recurrence scheduler started")
+
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: handler,
