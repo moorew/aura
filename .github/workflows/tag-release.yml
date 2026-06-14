@@ -1,0 +1,53 @@
+name: Tag release
+
+# Cuts a release tag automatically when the version in frontend/package.json is
+# bumped on main. A tag is created only when there's no matching v<version> tag
+# yet, so ordinary docs/CI merges don't trigger a release — bump the version to
+# ship one. The tag then kicks off the Windows + Android release builds.
+#
+# The tag is created via the REST API (not `git push`) so the checkout doesn't
+# need to persist credentials. Tags created with the built-in token do NOT
+# trigger other workflows (GitHub blocks that to prevent loops), so we dispatch
+# the release workflows explicitly with the tag as their ref — which produces the
+# same result (they create the GitHub Release whenever github.ref is a tag).
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # create the tag ref
+  actions: write    # dispatch the release workflows
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag on version bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Read version from package.json
+        id: ver
+        run: echo "v=v$(jq -r .version frontend/package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and trigger release builds if version is new
+        env:
+          V: ${{ steps.ver.outputs.v }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$V" >/dev/null 2>&1; then
+            echo "Tag $V already exists — nothing to release."
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$V" -f "sha=$GITHUB_SHA" >/dev/null
+          echo "Created tag $V at $GITHUB_SHA"
+          gh workflow run windows-release.yml --ref "$V"
+          gh workflow run android-release.yml --ref "$V"

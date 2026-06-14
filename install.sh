@@ -21,7 +21,7 @@ step() { echo -e "\n${B}$*${NC}"; }
 dim()  { echo -e "${D}    $*${NC}"; }
 
 ask()         { local -n _v=$2; read -rp "    $1: " _v; }
-ask_default() { local -n _v=$2; read -rp "    $1 [${3}]: " _v; [[ -z "${_v}" ]] && _v="$3"; }
+ask_default() { local -n _v=$2; read -rp "    $1 [${3}]: " _v; [[ -n "${_v}" ]] || _v="$3"; }
 ask_secret()  { local -n _v=$2; read -rsp "    $1: " _v; echo; }
 ask_yn()      { local -n _v=$2; read -rp "    $1 [y/N]: " _v; _v="${_v,,}"; }
 
@@ -45,7 +45,7 @@ step "Checking prerequisites"
 if ! command -v docker &>/dev/null; then
   err "Docker is required. Install from https://docs.docker.com/get-docker/"
 fi
-ok "Docker $(docker --version | grep -oP '[\d.]+' | head -1)"
+ok "Docker $(docker --version | awk '{gsub(/,/,"",$3); print $3}')"
 
 if ! docker compose version &>/dev/null 2>&1; then
   err "Docker Compose plugin is required.\n  Ubuntu/Debian: sudo apt-get install docker-compose-plugin\n  Docs: https://docs.docker.com/compose/install/"
@@ -62,8 +62,8 @@ if [[ -f ".env" || -f ".env.local" ]]; then
     exit 0
   fi
   TS=$(date +%s)
-  [[ -f ".env" ]]       && cp .env       ".env.backup.$TS"       && ok "Backed up .env → .env.backup.$TS"
-  [[ -f ".env.local" ]] && cp .env.local ".env.local.backup.$TS" && ok "Backed up .env.local → .env.local.backup.$TS"
+  if [[ -f ".env" ]];       then cp .env       ".env.backup.$TS";       ok "Backed up .env → .env.backup.$TS"; fi
+  if [[ -f ".env.local" ]]; then cp .env.local ".env.local.backup.$TS"; ok "Backed up .env.local → .env.local.backup.$TS"; fi
 fi
 
 # ── Step 1: URL ───────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ echo ""
 dim "The URL where you (and others) will access Sempa."
 dim "Examples:"
 dim "  https://sempa.example.com          (custom domain with TLS)"
-dim "  https://mybox.tailnet.ts.net       (Tailscale)"
+dim "  https://sempa.your-tailnet.ts.net  (Tailscale — the 'sempa' node, see README)"
 dim "  http://192.168.1.10:9001           (local network)"
 dim "  http://localhost:9001              (this machine only)"
 echo ""
@@ -81,7 +81,8 @@ ask_default "App URL" APP_URL "http://localhost:9001"
 HOST_PORT="9001"
 if [[ "$APP_URL" == *"localhost"* || "$APP_URL" == *"127.0.0.1"* ]]; then
   # Extract port from URL if present, else ask
-  MAYBE_PORT=$(echo "$APP_URL" | grep -oP ':\K[0-9]+$' || true)
+  MAYBE_PORT=""
+  if [[ "$APP_URL" =~ :([0-9]+)$ ]]; then MAYBE_PORT="${BASH_REMATCH[1]}"; fi
   if [[ -n "$MAYBE_PORT" ]]; then
     HOST_PORT="$MAYBE_PORT"
   else

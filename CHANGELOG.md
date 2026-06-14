@@ -6,6 +6,33 @@ based on [Keep a Changelog](https://keepachangelog.com/), and Sempa follows
 (`vX.Y.Z`) with auto-generated notes on the
 [Releases page](https://github.com/moorew/sempa/releases).
 
+## [1.0.114] - 2026-06-14
+
+### Fixed
+- **Installer no longer aborts when you enter a custom value.** `install.sh` ran
+  under `set -e`, and its `ask_default` helper returned a non-zero status whenever
+  you typed anything other than the default (App URL, host port, or username),
+  silently exiting the script right after the first prompt. Accepting every
+  default happened to work, which hid the bug.
+- Made `install.sh` portable to hosts with BusyBox `grep` (e.g. minimal/Alpine
+  systems): replaced `grep -oP` for the Docker version and URL port with
+  bash-native parsing.
+- Hardened the "update existing install" backup step so it can't abort when only
+  one of `.env` / `.env.local` is present.
+
+### Changed
+- **Clarified Tailscale setup docs.** The README and installer now explain that
+  the bundled `ts-sempa` sidecar joins the tailnet as its own dedicated node
+  (`sempa.<your-tailnet>.ts.net`) rather than reusing the host machine's name,
+  and document the MagicDNS/HTTPS and `tag:container` prerequisites. Removed the
+  incorrect manual `tailscale cert` step (Serve provisions the cert automatically).
+- Relicensed under AGPL-3.0; added CONTRIBUTING and this changelog.
+- Routine dependency updates.
+
+### Added
+- Auto-tagging workflow: bumping the version in `frontend/package.json` on `main`
+  now cuts the matching `vX.Y.Z` tag and kicks off the release builds.
+
 ## [1.0.113] - 2026-06-14
 
 ### Fixed

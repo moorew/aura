@@ -64,26 +64,46 @@ Tailscale is the easiest way to access Sempa securely from all your devices with
 
 ### Setup
 
-1. **Install Tailscale** on your server and all devices you want to access Sempa from: [tailscale.com/download](https://tailscale.com/download)
+> **Important:** The bundled `ts-sempa` sidecar joins your tailnet as its **own dedicated
+> node named `sempa`** — it does *not* reuse the hostname of the machine it runs on. So your
+> Sempa URL is **`https://sempa.<your-tailnet>.ts.net`**, regardless of what the host box is
+> called. (`<your-tailnet>` is your tailnet's MagicDNS name, e.g. `tail1234.ts.net`, shown at
+> the top of [the admin console](https://login.tailscale.com/admin/machines).)
 
-2. **Run the installer:**
+1. **Enable the tailnet features it relies on** (one-time, in the admin console):
+   - **MagicDNS** and **HTTPS Certificates** — [DNS settings](https://login.tailscale.com/admin/dns).
+     Tailscale Serve uses these to provision the TLS cert for the `sempa` node automatically.
+   - **An ACL tag `tag:container`** — the sidecar advertises this tag so the node never expires
+     (servers shouldn't drop off the tailnet after 90 days). Add it under `tagOwners` in your
+     [ACL policy](https://login.tailscale.com/admin/acls), e.g. `"tag:container": ["autogroup:admin"]`.
+
+2. **Install Tailscale** on every device you want to reach Sempa from (phone, laptop, etc.):
+   [tailscale.com/download](https://tailscale.com/download). The *server* does **not** need
+   Tailscale installed on the host — the sidecar container provides it.
+
+3. **Generate an auth key** at [Tailscale Admin → Keys](https://login.tailscale.com/admin/settings/keys).
+   Create it as a **tagged key** with `tag:container` (so the sidecar can advertise that tag).
+   You'll paste it when the installer asks for `TS_AUTHKEY`.
+
+4. **Run the installer:**
    ```bash
    bash install.sh
    ```
-   When asked for the URL, use your Tailscale machine name:
+   When asked for the **App URL**, enter your Sempa *node* address — not the host machine:
    ```
-   https://your-machine.tail1234.ts.net
+   https://sempa.<your-tailnet>.ts.net
    ```
+   Paste the auth key from step 3 when prompted.
 
-3. **Generate a Tailscale auth key** at [Tailscale Admin → Keys](https://login.tailscale.com/admin/settings/keys) and paste it when the installer asks for `TS_AUTHKEY`. This lets the Docker sidecar join your tailnet automatically.
-
-4. **Enable HTTPS** (optional but recommended):
+5. **HTTPS is automatic.** The `ts-sempa` container runs Tailscale Serve (`ts-sempa/config/sempa.json`),
+   which provisions the cert for `sempa.<your-tailnet>.ts.net` and proxies `:443` → the app on `127.0.0.1:9001`.
+   There's no manual `tailscale cert` step. Give it a minute on first boot, then check it's serving:
    ```bash
-   tailscale cert your-machine.tail1234.ts.net
+   docker compose logs ts-sempa     # look for "Serve started"
    ```
-   The bundled `ts-sempa` Docker container handles this automatically.
 
-5. **Connect your phone/desktop app**: Open the app, enter your Tailscale URL (e.g. `https://sempa.tail1234.ts.net`) in the server field, and sign in.
+6. **Connect your phone/desktop app**: Open the app, enter `https://sempa.<your-tailnet>.ts.net`
+   in the server field, and sign in.
 
 ### Alternative: any reverse proxy
 
