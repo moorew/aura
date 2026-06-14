@@ -222,6 +222,16 @@ All integrations are optional and configured through the Settings UI after first
 | **Email inbox** | Forward any email to a Fastmail address to auto-create a task. |
 | **AI task-title cleanup** | A local language model (Ollama, bundled) tidies imported email subjects into concise task titles. Runs entirely on your server — no data leaves it. Toggle, choose the model, and test connectivity in Settings → Integrations. |
 
+> **Note on the model-server URL (AI task-title cleanup).** The Ollama endpoint
+> is configurable in Settings → Integrations and may point at an internal /
+> loopback address — that's by design, because the model server is self-hosted
+> (e.g. `http://ollama:11434`). Static analysis (CodeQL `go/request-forgery`)
+> flags this as a possible SSRF because a configured URL drives a server-side
+> request. It's a **deliberate, accepted trade-off**: the URL is settable only
+> by the authenticated instance owner (who already controls the server), is
+> validated to be a well-formed `http(s)` URL, and restricting it to public
+> hosts would defeat the feature. See `SECURITY.md`.
+
 ---
 
 ## Connecting mobile & desktop apps

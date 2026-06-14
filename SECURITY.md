@@ -36,6 +36,22 @@ In **Settings → Code security and analysis**, turn on:
   `GOOGLE_SERVICES_JSON`) — see the release workflows.
 - If a secret is ever committed, rotate it first, then purge it from history.
 
+## Accepted findings
+
+Some scanner findings are deliberate, reviewed trade-offs rather than bugs. These
+are dismissed in the Security tab with a justification and documented here:
+
+- **CodeQL `go/request-forgery` (SSRF) — AI task-title cleanup model-server URL.**
+  The AI task-title cleanup feature sends a request to an Ollama endpoint that the
+  instance owner configures (Settings → Integrations, or `OLLAMA_BASE_URL`). By
+  design that endpoint is a self-hosted/internal address (e.g.
+  `http://ollama:11434`), so the usual SSRF mitigation (blocking internal hosts)
+  would break the feature. The URL is settable only by the **authenticated owner**
+  — who already controls the server — never by untrusted input, and the API
+  validates it is a well-formed `http(s)` URL (`validModelServerURL`). The residual
+  risk is accepted. See `backend/internal/integrations/fastmail/aititle.go`. If
+  Sempa ever gains lower-privilege/multi-user roles, revisit this.
+
 ## Reporting a vulnerability
 
 Open a private security advisory via **Security → Advisories**, or contact the maintainer directly.

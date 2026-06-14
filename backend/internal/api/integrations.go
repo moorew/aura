@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -856,6 +857,21 @@ func (h *integrationHandler) taskInboxDelete(w http.ResponseWriter, r *http.Requ
 
 // ── AI task-title cleanup (local Ollama) ──────────────────────────────────
 
+// validModelServerURL accepts an empty string (falls back to the env default)
+// or a well-formed http(s) URL with a host. It deliberately permits internal/
+// loopback hosts — the self-hosted model server lives there; see the SSRF note
+// in fastmail/aititle.go.
+func validModelServerURL(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
 // aiTitleGet returns the effective AI title-cleanup config plus a live
 // reachability check and the models available on the configured Ollama host.
 func (h *integrationHandler) aiTitleGet(w http.ResponseWriter, r *http.Request) {
@@ -885,8 +901,17 @@ func (h *integrationHandler) aiTitleUpdate(w http.ResponseWriter, r *http.Reques
 		respondError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	// Validate the model-server URL. It is admin-configured and intentionally
+	// allowed to point at internal/loopback hosts (the self-hosted model server
+	// lives there) — see the SSRF note in fastmail/aititle.go — but it must at
+	// least be a well-formed http(s) URL with a host.
+	baseURL := strings.TrimSpace(body.BaseURL)
+	if !validModelServerURL(baseURL) {
+		respondError(w, http.StatusBadRequest, "model server URL must be a valid http(s) URL")
+		return
+	}
 	cfgJSON, _ := json.Marshal(db.AITitleConfig{
-		BaseURL: strings.TrimSpace(body.BaseURL),
+		BaseURL: baseURL,
 		Model:   strings.TrimSpace(body.Model),
 	})
 	if _, err := h.configs.Upsert(r.Context(), uuid.New().String(), db.AITitleType, string(cfgJSON)); err != nil {
